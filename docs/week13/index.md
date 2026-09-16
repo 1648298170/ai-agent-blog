@@ -22,9 +22,13 @@
 
 ## 教程进度
 
-::: info 教程编写中
-本周教程尚未发布，请先对照上方日程表配合手册学习，或从[第 1 周教程](/week01/)开始。
-:::
+- 鉁?[Day 1 路 多 Agent 架构](/week13/day1)
+- 鉁?[Day 2 路 Supervisor](/week13/day2)
+- 鉁?[Day 3 路 Worker 实现](/week13/day3)
+- 鉁?[Day 4 路 interrupt 审批](/week13/day4)
+- 鉁?[Day 5 路 审批 UI](/week13/day5)
+- 鉁?[Day 6 路 容错](/week13/day6)
+- 鉁?[Day 7 路 阶段三里程碑](/week13/day7)
 
 ## 本周参考
 

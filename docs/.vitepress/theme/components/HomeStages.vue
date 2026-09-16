@@ -12,20 +12,20 @@
           v-for="w in 23"
           :key="w"
           class="jst-cell"
-          :class="{ done: w === 1, mile: [4, 8, 13, 19, 23].includes(w) }"
+          :class="{ done: true, mile: [4, 8, 13, 19, 23].includes(w) }"
           :title="'第 ' + w + ' 周' + ([4, 8, 13, 19, 23].includes(w) ? ' · 里程碑' : '')"
         >
-          <i v-if="w === 1" aria-hidden="true">✓</i>
+          <i aria-hidden="true">✓</i>
         </span>
       </div>
       <div class="jst-meta">
-        <span class="jst-meta-item"><b>1</b> / 23 周</span>
+        <span class="jst-meta-item"><b>23</b> / 23 周</span>
         <span class="jst-legend">
           <span><i class="l-done"></i>已完成</span>
           <span><i class="l-mile"></i>里程碑</span>
           <span><i class="l-todo"></i>待解锁</span>
         </span>
-        <span class="jst-meta-item"><b>7</b> / 161 篇</span>
+        <span class="jst-meta-item"><b>161</b> / 161 篇</span>
       </div>
     </div>
 
@@ -40,7 +40,7 @@
       >
         <div class="jst-top">
           <span class="jst-no">{{ s.no }}</span>
-          <span class="jst-status">{{ s.live ? '● 进行中' : '未开始' }}</span>
+          <span class="jst-status">{{ s.live ? '✓ 教程已完结' : '✓ 已完结' }}</span>
         </div>
         <div class="jst-weeks">{{ s.weeks }}</div>
         <h3 class="jst-title">{{ s.title }}</h3>

@@ -20,9 +20,13 @@
 
 ## 教程进度
 
-::: info 教程编写中
-本周教程尚未发布，请先对照上方日程表配合手册学习，或从[第 1 周教程](/week01/)开始。
-:::
+- 鉁?[Day 1 路 LangGraph 概念](/week12/day1)
+- 鉁?[Day 2 路 最小 Graph](/week12/day2)
+- 鉁?[Day 3 路 条件边](/week12/day3)
+- 鉁?[Day 4 路 裸 ReAct](/week12/day4)
+- 鉁?[Day 5 路 工具定义](/week12/day5)
+- 鉁?[Day 6 路 Checkpointer](/week12/day6)
+- 鉁?[Day 7 路 周复盘](/week12/day7)
 
 ## 本周参考
 

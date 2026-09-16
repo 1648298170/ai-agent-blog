@@ -26,7 +26,7 @@
 
     <p class="jhi-status">
       <span class="jhi-pulse" aria-hidden="true"></span>
-      当前进度：第 1 周已完成 · 7 / 161 篇 · 持续更新中
+      全部 23 周 · 161 篇教程已完结 · 从 Day 1 开始你的通关之路
     </p>
   </div>
 </template>

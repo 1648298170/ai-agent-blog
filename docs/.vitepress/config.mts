@@ -1,8 +1,43 @@
 import { defineConfig } from 'vitepress'
 
+/** 每周 7 天的短标题（与周概览页"教程进度"一致） */
+const dayTitles: Record<number, string[]> = {
+  2: ['ESLint 与 Prettier', 'Husky 与 Git 钩子', 'Vitest 单元测试', 'Next.js 15 App Router', 'Server 与 Client 组件', 'Server Actions', '周复盘'],
+  3: ['事件循环', '模块与环境变量', 'NestJS 入门', 'Controller 与 DTO', 'Service 与依赖注入', 'Pipe 参数校验', '周复盘'],
+  4: ['PostgreSQL 基础', 'Prisma 入门', 'Prisma CRUD', '事务与索引', 'NestJS 整合 Prisma', '前后端联调', '阶段一里程碑'],
+  5: ['JWT 签发', 'JWT 守卫', 'Refresh Token', 'RBAC', 'OAuth2', 'Web 安全', '周复盘'],
+  6: ['Redis 基础', '缓存策略', '分布式锁', 'BullMQ 队列', '重试延迟与定时', '幂等设计', '周复盘'],
+  7: ['Dockerfile', 'compose 编排', '前端容器化与 Nginx', 'GitHub Actions', '镜像推送', '密钥管理', '周复盘'],
+  8: ['云服务器', 'Nginx 与 HTTPS', '自动部署', '结构化日志', '监控入门', '健康检查与优雅关闭', '阶段二里程碑'],
+  9: ['Python 环境', '类型注解', 'asyncio', 'Pydantic 基础', '配置管理', '装饰器与上下文', '周复盘'],
+  10: ['FastAPI 入门', '请求响应模型', '分层架构', 'SQLAlchemy 与 DI', 'SSE 流式', '前端消费 SSE', '周复盘'],
+  11: ['LLM 原生 API', '流式与 FC 底层', '结构化输出', 'AI SDK 后端', 'AI SDK 前端', '多供应商切换', '周复盘'],
+  12: ['LangGraph 概念', '最小 Graph', '条件边', '裸 ReAct', '工具定义', 'Checkpointer', '周复盘'],
+  13: ['多 Agent 架构', 'Supervisor', 'Worker 实现', 'interrupt 审批', '审批 UI', '容错', '阶段三里程碑'],
+  14: ['RAG 概念', '文档解析', '文本切块', 'Embedding', 'pgvector', '相似度检索', '周复盘'],
+  15: ['Hybrid 检索', '重排序', 'Adaptive RAG', '引用溯源', 'RAG 评估', '知识库 UI', '周复盘'],
+  16: ['评估方法论', 'LLM-as-judge', '轨迹评估', 'promptfoo', 'DeepEval', '评估进 CI', '周复盘'],
+  17: ['记忆架构', '上下文压缩', '长期记忆', '向量记忆', 'System Prompt 设计', '记忆整合', '周复盘'],
+  18: ['MCP 概念', 'MCP Server', 'MCP Client', 'MCP Resources', '安全护栏', '审批升级', '周复盘'],
+  19: ['注入攻防', 'OWASP 自查', 'Guardrails', 'A2A 协议', 'Dify 上手', 'Coze 与选型', '阶段四里程碑'],
+  20: ['模板结构分析', 'NestJS BFF', '多租户 RBAC', '统一认证', '流式对话 UI', '平台导航整合', '周复盘'],
+  21: ['LangSmith 与 Langfuse', 'Token 计量与模型路由', '限流配额', '死循环防御', '日志指标告警', '语义缓存', '压测复盘'],
+  22: ['系统设计', '缓存三件套', '队列设计', 'STAR 复盘', '简历优化', '模拟面试', '周复盘'],
+  23: ['Agent 八股', '工程八股', '系统设计模拟', 'LeetCode', '完整模拟面试', '投递冲刺', '速查卡']
+}
+
+const pad = (n: number) => String(n).padStart(2, '0')
+
 const w = (n: number, title: string) => ({
   text: `第 ${n} 周 · ${title}`,
-  link: `/week${String(n).padStart(2, '0')}/`
+  collapsed: true,
+  items: [
+    { text: '周概览', link: `/week${pad(n)}/` },
+    ...(dayTitles[n] ?? []).map((t, i) => ({
+      text: `Day ${i + 1} · ${t}`,
+      link: `/week${pad(n)}/day${i + 1}`
+    }))
+  ]
 })
 
 const week01 = {
@@ -32,6 +67,9 @@ export default defineConfig({
   markdown: {
     lineNumbers: true
   },
+
+  // 教程正文里的本地开发地址（http://localhost:3000 等）是示例不是链接
+  ignoreDeadLinks: [/^https?:\/\/localhost/],
 
   themeConfig: {
     logo: '/logo.svg',

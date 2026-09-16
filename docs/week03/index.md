@@ -20,9 +20,13 @@
 
 ## 教程进度
 
-::: info 教程编写中
-本周教程尚未发布，请先对照上方日程表配合手册学习，或从[第 1 周教程](/week01/)开始。
-:::
+- 鉁?[Day 1 路 事件循环](/week03/day1)
+- 鉁?[Day 2 路 模块与环境变量](/week03/day2)
+- 鉁?[Day 3 路 NestJS 入门](/week03/day3)
+- 鉁?[Day 4 路 Controller 与 DTO](/week03/day4)
+- 鉁?[Day 5 路 Service 与依赖注入](/week03/day5)
+- 鉁?[Day 6 路 Pipe 参数校验](/week03/day6)
+- 鉁?[Day 7 路 周复盘](/week03/day7)
 
 ## 本周参考
 

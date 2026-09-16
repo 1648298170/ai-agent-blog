@@ -20,6 +20,10 @@
 
 ## 教程进度
 
-::: info 教程编写中
-本周教程尚未发布，请先对照上方日程表配合手册学习，或从[第 1 周教程](/week01/)开始。
-:::
+- 鉁?[Day 1 路 Python 环境](/week09/day1)
+- 鉁?[Day 2 路 类型注解](/week09/day2)
+- 鉁?[Day 3 路 asyncio](/week09/day3)
+- 鉁?[Day 4 路 Pydantic 基础](/week09/day4)
+- 鉁?[Day 5 路 配置管理](/week09/day5)
+- 鉁?[Day 6 路 装饰器与上下文](/week09/day6)
+- 鉁?[Day 7 路 周复盘](/week09/day7)

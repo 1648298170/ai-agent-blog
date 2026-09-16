@@ -20,9 +20,13 @@
 
 ## 教程进度
 
-::: info 教程编写中
-本周教程尚未发布，请先对照上方日程表配合手册学习，或从[第 1 周教程](/week01/)开始。
-:::
+- 鉁?[Day 1 路 Dockerfile](/week07/day1)
+- 鉁?[Day 2 路 compose 编排](/week07/day2)
+- 鉁?[Day 3 路 前端容器化与 Nginx](/week07/day3)
+- 鉁?[Day 4 路 GitHub Actions](/week07/day4)
+- 鉁?[Day 5 路 镜像推送](/week07/day5)
+- 鉁?[Day 6 路 密钥管理](/week07/day6)
+- 鉁?[Day 7 路 周复盘](/week07/day7)
 
 ## 本周参考
 

@@ -20,9 +20,13 @@
 
 ## 教程进度
 
-::: info 教程编写中
-本周教程尚未发布，请先对照上方日程表配合手册学习，或从[第 1 周教程](/week01/)开始。
-:::
+- 鉁?[Day 1 路 LLM 原生 API](/week11/day1)
+- 鉁?[Day 2 路 流式与 FC 底层](/week11/day2)
+- 鉁?[Day 3 路 结构化输出](/week11/day3)
+- 鉁?[Day 4 路 AI SDK 后端](/week11/day4)
+- 鉁?[Day 5 路 AI SDK 前端](/week11/day5)
+- 鉁?[Day 6 路 多供应商切换](/week11/day6)
+- 鉁?[Day 7 路 周复盘](/week11/day7)
 
 ## 本周参考
 

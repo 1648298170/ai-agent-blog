@@ -20,9 +20,13 @@
 
 ## 教程进度
 
-::: info 教程编写中
-本周教程尚未发布，请先对照上方日程表配合手册学习，或从[第 1 周教程](/week01/)开始。
-:::
+- 鉁?[Day 1 路 MCP 概念](/week18/day1)
+- 鉁?[Day 2 路 MCP Server](/week18/day2)
+- 鉁?[Day 3 路 MCP Client](/week18/day3)
+- 鉁?[Day 4 路 MCP Resources](/week18/day4)
+- 鉁?[Day 5 路 安全护栏](/week18/day5)
+- 鉁?[Day 6 路 审批升级](/week18/day6)
+- 鉁?[Day 7 路 周复盘](/week18/day7)
 
 ## 本周参考
 

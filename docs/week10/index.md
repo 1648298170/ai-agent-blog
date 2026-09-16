@@ -20,9 +20,13 @@
 
 ## 教程进度
 
-::: info 教程编写中
-本周教程尚未发布，请先对照上方日程表配合手册学习，或从[第 1 周教程](/week01/)开始。
-:::
+- 鉁?[Day 1 路 FastAPI 入门](/week10/day1)
+- 鉁?[Day 2 路 请求响应模型](/week10/day2)
+- 鉁?[Day 3 路 分层架构](/week10/day3)
+- 鉁?[Day 4 路 SQLAlchemy 与 DI](/week10/day4)
+- 鉁?[Day 5 路 SSE 流式](/week10/day5)
+- 鉁?[Day 6 路 前端消费 SSE](/week10/day6)
+- 鉁?[Day 7 路 周复盘](/week10/day7)
 
 ## 本周参考
 
