@@ -1,0 +1,16 @@
+{
+  "name": "ai-agent-tutorial-blog",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.17.0",
+  "description": "配套《企业级 AI Agent 全栈工程师 · 23 周每日执行手册》的博客教程",
+  "scripts": {
+    "docs:dev": "vitepress dev docs",
+    "docs:build": "vitepress build docs",
+    "docs:preview": "vitepress preview docs"
+  },
+  "devDependencies": {
+    "vitepress": "^1.6.3"
+  }
+}
