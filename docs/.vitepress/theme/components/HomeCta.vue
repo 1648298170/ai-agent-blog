@@ -7,7 +7,7 @@
         <p class="jc-sub">最好的开始时间是二十三周前，其次是现在。</p>
       </div>
       <div class="jc-right">
-        <a class="jc-btn" href="/week01/day1">
+        <a class="jc-btn" :href="base + 'week01/day1'">
           <span class="jc-btn-cmd">vim week01/day1.md</span>
           <span class="jc-btn-arr" aria-hidden="true">&rarr;</span>
         </a>
@@ -16,3 +16,9 @@
     </div>
   </section>
 </template>
+
+<script setup lang="ts">
+import { useData } from 'vitepress'
+
+const base = useData().site.value.base
+</script>

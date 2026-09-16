@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <section class="jsec jsec-stages">
     <header class="jsec-head">
       <p class="jsec-kicker">ROADMAP · 训练路线</p>
@@ -36,7 +36,7 @@
         :key="s.no"
         class="jst-stage"
         :class="{ live: s.live }"
-        :href="s.to"
+        :href="base + s.to"
       >
         <div class="jst-top">
           <span class="jst-no">{{ s.no }}</span>
@@ -70,6 +70,12 @@
 </template>
 
 <script setup lang="ts">
+import { useData } from 'vitepress'
+
+// to 为相对路径（不带开头斜杠），渲染时拼接 site.base，
+// 以兼容部署在子路径（GitHub Pages /ai-agent-blog/）的情况
+const base = useData().site.value.base
+
 const stages = [
   {
     no: 'S1',
@@ -78,7 +84,7 @@ const stages = [
     tags: ['TypeScript', 'Monorepo', 'Next.js', 'NestJS', 'Prisma'],
     mile: '里程碑 v1 · 全栈 CRUD',
     live: true,
-    to: '/week01/'
+    to: 'week01/'
   },
   {
     no: 'S2',
@@ -87,7 +93,7 @@ const stages = [
     tags: ['认证授权', 'Redis', 'Docker', 'CI/CD', '云部署'],
     mile: '里程碑 v2 · 上线 + 监控',
     live: false,
-    to: '/roadmap'
+    to: 'roadmap'
   },
   {
     no: 'S3',
@@ -96,7 +102,7 @@ const stages = [
     tags: ['Python', 'FastAPI', 'LLM API', 'LangGraph', 'ReAct'],
     mile: '里程碑 v3 · 多 Agent 平台',
     live: false,
-    to: '/roadmap'
+    to: 'roadmap'
   },
   {
     no: 'S4',
@@ -105,7 +111,7 @@ const stages = [
     tags: ['RAG', '评估工程', '记忆', 'MCP', 'A2A'],
     mile: '里程碑 v4 · 安全加固全链路',
     live: false,
-    to: '/roadmap'
+    to: 'roadmap'
   },
   {
     no: 'S5',
@@ -114,7 +120,7 @@ const stages = [
     tags: ['平台整合', '可观测性', '简历', '面试冲刺'],
     mile: '终点 · 拿下 Offer',
     live: false,
-    to: '/roadmap'
+    to: 'roadmap'
   }
 ]
 </script>

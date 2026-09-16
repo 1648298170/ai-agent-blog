@@ -17,11 +17,11 @@
     </p>
 
     <div class="jhi-actions">
-      <a class="jbtn jbtn-primary" href="/week01/">
+      <a class="jbtn jbtn-primary" :href="base + 'week01/'">
         进入第 1 周 · Day 1 <span aria-hidden="true">&rarr;</span>
       </a>
-      <a class="jbtn jbtn-ghost" href="/roadmap">23 周路线图</a>
-      <a class="jbtn jbtn-ghost" href="/guide/">使用指南</a>
+      <a class="jbtn jbtn-ghost" :href="base + 'roadmap'">23 周路线图</a>
+      <a class="jbtn jbtn-ghost" :href="base + 'guide/'">使用指南</a>
     </div>
 
     <p class="jhi-status">
@@ -30,3 +30,11 @@
     </p>
   </div>
 </template>
+
+<script setup lang="ts">
+// 站点可能部署在子路径（如 GitHub Pages 的 /ai-agent-blog/），
+// 组件内的链接必须用 site.base 拼接，否则部署后路由解析失败
+import { useData } from 'vitepress'
+
+const base = useData().site.value.base
+</script>

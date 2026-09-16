@@ -183,8 +183,6 @@ body::after {
    3. 导航栏：毛玻璃 + 滚动态（html.jerry-scrolled 由 Layout.vue 注入）
    -------------------------------------------------------------------------- */
 .VPNavBar .content-body {
-  -webkit-backdrop-filter: blur(14px) saturate(1.5);
-  backdrop-filter: blur(14px) saturate(1.5);
   transition:
     box-shadow 0.3s ease,
     background-color 0.3s ease;
@@ -1518,6 +1516,13 @@ html.jerry-scrolled .VPNavBar .content-body {
   transform: translateY(-1px);
 }
 
+/* h2 是 flex 容器，锚点链接的 float/负边距需要重置 */
+.vp-doc h2 .header-anchor {
+  float: none;
+  margin-left: 0;
+  padding-right: 0;
+}
+
 .dark .vp-doc h2::before {
   color: var(--jerry-honey);
 }
@@ -1902,5 +1907,99 @@ html.jerry-scrolled .VPNavBar .content-body {
 
   .VPHero .image-container::after {
     display: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   21. 窄屏适配兜底（<960px）：导航栏只保留 标题 + 搜索图标 + 汉堡
+   无论何种规则解除了默认隐藏，这里强制收敛，保证不与标题重叠
+   -------------------------------------------------------------------------- */
+@media (max-width: 959px) {
+  /* 菜单/外观/更多 一律收进汉堡菜单 */
+  .VPNavBar .VPNavBarMenu,
+  .VPNavBar .VPNavBarAppearance,
+  .VPNavBar .VPNavBarExtra {
+    display: none !important;
+  }
+
+  /* 搜索按钮收为纯图标（默认移动端形态：48px 图标，无文字/快捷键） */
+  .VPNavBar .VPNavBarSearch {
+    flex-grow: 0 !important;
+    padding-left: 0 !important;
+  }
+
+  .VPNavBar .DocSearch-Button {
+    width: 44px !important;
+    height: 48px;
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  .VPNavBar .DocSearch-Button-Placeholder,
+  .VPNavBar .DocSearch-Button-Keys {
+    display: none !important;
+  }
+
+  .VPNavBar .content-body {
+    gap: 2px;
+  }
+
+  /* 标题上限 = 视口 - 右侧图标区，配合省略号截断，杜绝重叠 */
+  .VPNavBarTitle {
+    max-width: calc(100vw - 128px) !important;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   22. 首页 Hero 窄屏适配（<960px）：强制纵向堆叠 + 终端收敛
+   -------------------------------------------------------------------------- */
+@media (max-width: 959px) {
+  .VPHero .container {
+    flex-direction: column !important;
+    gap: 24px;
+  }
+
+  .VPHero .main {
+    padding-top: 16px;
+  }
+
+  .VPHero .image {
+    order: 2;
+    width: 100%;
+    max-width: 460px;
+    margin: 0 auto;
+  }
+
+  /* 雷达同心圆底纹在窄屏收敛，避免溢出 */
+  .VPHero .image-bg {
+    width: 100% !important;
+    opacity: 0.45;
+  }
+}
+
+@media (max-width: 480px) {
+  .jhi-title {
+    font-size: 32px;
+    margin-bottom: 16px;
+  }
+
+  .jhi-tagline {
+    font-size: 15px;
+    line-height: 1.85;
+    margin-bottom: 24px;
+  }
+
+  .jhi-actions {
+    gap: 10px;
+  }
+
+  .jbtn {
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+
+  .jt-term {
+    font-size: 0.92em;
   }
 }
