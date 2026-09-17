@@ -282,37 +282,76 @@ const draft2: DeepPartialV2<Article> = {
 
 关键一行是 `T[K] extends object ? DeepPartialV2<T[K]> : T[K]`：属性是对象就递归，不是就原样保留。类型可以引用自己，这就是类型层面的递归，强大，但边界要自己守，见下一步。
 
-**第 5 步（可选进阶）：处理数组和函数的完整版。** V2 在纯对象上够用了，但拿到带数组和函数的状态上会翻车：
+**第 5 步（进阶）：递归的三个陷阱——函数、数组与内置对象。** V2 在纯对象上够用了，但拿到真实世界的类型上会连环翻车。先看全貌：
 
 ```ts
 interface FormState {
   name: string;
   tags: string[];
+  createdAt: Date;
   onSubmit: (e: Event) => void;
 }
 
 type Broken = DeepPartialV2<FormState>;
 // name?: string
-// tags?: (string | undefined)[]      ← 数组元素被「可选化」污染
-// onSubmit?: {}                      ← 函数的调用签名直接丢了
+// tags?: (string | undefined)[]      ← 陷阱 2：数组元素被「可选化」污染
+// createdAt?: { getTime?: ... }      ← 陷阱 3：Date 被拆成十几个可选方法
+// onSubmit?: {}                      ← 陷阱 1：函数的调用签名直接丢了
 ```
 
-原因：数组也是对象，会被映射还沾上 `?`；函数也是对象，被映射后调用签名直接没了。完整版的思路是递归前先分流：函数原样返回，数组只递归元素类型，普通对象才做映射，原始类型兜底：
+**陷阱 1 的机制**：函数确实是 object，于是进了映射分支。而 `keyof ((e: Event) => void)` 的结果是 `never`——函数类型上没有任何“属性键”，`[K in never]` 一次都不会迭代，映射结果就是空对象 `{}`。签名没了，`draft.onSubmit?.(e)` 会直接报“类型上不存在此调用”。
+
+**陷阱 2 的机制**：数组同样是 object，同态映射会保留数组形状，但 `?` 修饰符落到数组上就变成“元素可为 undefined”——得到 `(string | undefined)[]`，遍历时每个元素都得判空。
+
+**陷阱 3 的机制**：Date/RegExp/Error/Promise 这类内置对象自带一大堆方法属性，被当成普通对象逐个“可选化”之后，`new Date()` 再也赋不进 `createdAt` 字段。
+
+**修复第一版**——递归前先分流：函数透传、数组只递归元素类型：
 
 ```ts
-type DeepPartial<T> =
+type DeepPartialV3<T> =
   T extends (...args: any[]) => any
-    ? T                                          // 1. 函数：原样返回
+    ? T                                          // 函数：原样返回
     : T extends (infer E)[]
-      ? DeepPartial<E>[]                         // 2. 数组：只递归元素类型
+      ? DeepPartialV3<E>[]                       // 数组：只递归元素类型
       : T extends object
-        ? { [K in keyof T]?: DeepPartial<T[K]> } // 3. 对象：递归并加可选
-        : T;                                     // 4. 原始类型：原样返回
+        ? { [K in keyof T]?: DeepPartialV3<T[K]> }
+        : T;
+```
 
+name、tags、onSubmit 都修好了——**但 V3 还藏着两个坑**：救不了 Date，还会弄丢元组：
+
+```ts
+type D = DeepPartialV3<Date>;              // { getTime?: () => number; ... } ❌ 还是被肢解
+type P = DeepPartialV3<[string, number]>;  // (string | number)[]            ❌ 元组退化成数组
+```
+
+元组 `[string, number]` 能匹配 `(infer E)[]`（E 被推断为 `string | number`），但重建时只剩数组形状——每个位置的类型信息丢了。
+
+**生产级终版**——内置对象黑名单 + 同态映射保元组：
+
+```ts
+type BuiltIn = Function | Date | RegExp | Error | Promise<any>;
+
+type DeepPartial<T> =
+  T extends BuiltIn
+    ? T                                            // 1. 函数与内置对象：整体透传
+    : T extends readonly any[]
+      ? { [K in keyof T]: DeepPartial<T[K]> }      // 2. 数组/元组：同态映射保结构，逐元素递归
+      : T extends object
+        ? { [K in keyof T]?: DeepPartial<T[K]> }   // 3. 普通对象：递归 + 加可选
+        : T;                                       // 4. 原始类型：透传
+```
+
+第 2 分支是精髓：`{ [K in keyof T]: ... }` 作用在数组/元组上是**同态映射**——TS 会保住原本的形状（数组还是数组、元组还是元组、每个位置的类型不变），只对元素套用 DeepPartial。注意这里刻意不加 `?`：元组元素不允许声明为可选，数组语义上也不需要每个元素 undefined。
+
+```ts
 type Fixed = DeepPartial<FormState>;
 // name?: string
-// tags?: string[]                  ← 数组结构完整保留
-// onSubmit?: (e: Event) => void    ← 函数原样保留
+// tags?: string[]                    ← 数组结构完整
+// createdAt?: Date                   ← 内置对象原样保留
+// onSubmit?: (e: Event) => void      ← 函数原样保留
+
+type TupleKept = DeepPartial<[string, number]>;  // [string, number] ✅ 元组保住了
 
 const draft3: DeepPartial<Article> = {
   title: "条件类型入门（草稿）",
@@ -320,6 +359,8 @@ const draft3: DeepPartial<Article> = {
   author: { profile: { bio: "先写个开头" } }, // ✅ 深层字段全部可选
 };
 ```
+
+两个补充：① 条件类型遇到**裸联合类型会分发**——`DeepPartial<{ a: string } | null>` 会对两个成员分别求值（null 走分支 4 透传），这通常正是你要的语义；② 生产代码不必手写：[type-fest](https://github.com/sindresorhus/type-fest) 的 `DeepPartial` 就是这套思路的加强版（额外处理了 Map/Set/WeakMap 系列），`import type { DeepPartial } from 'type-fest'` 即用——但现在你知道它的每一行分别在防什么。
 
 **第 6 步：`UnwrapPromise<T>`，递归拆 Promise。** 回到第 2 节埋的坑：`fetchUser` 的返回类型是 `Promise<{ id: number; name: string }>`，想拆开外层。思路：如果 T 是 `Promise<R>`，用 `infer` 把 R 挖出来，对 R 重复这个过程；不是 Promise 就原样返回：
 
@@ -343,7 +384,7 @@ type UserData = UnwrapPromise<MyReturnType<typeof fetchUser>>;
 
 ## 常见踩坑
 
-**坑 1：DeepPartial 无脑递归，函数变空对象。** 函数类型也是 `object` 的子类型，`T[K] extends object` 会命中它。对函数做 `[K in keyof T]` 映射，得到的类型没有调用签名，等于 `{}`，调用 `onSubmit()` 直接报错。数组同样中招，元素类型会被 `?` 污染成 `(string | undefined)[]`。解法就是完整版的分流写法：递归之前，先把函数和数组挑出去单独处理。
+**坑 1：DeepPartial 无脑递归，函数变空对象。** 机制：`keyof ((e: Event) => void)` 是 `never`，`[K in never]` 一次不迭代，映射结果就是 `{}`——函数的调用签名整个消失。数组同样中招（元素被 `?` 污染成 `(string | undefined)[]`），Date 等内置对象也会被拆成一堆可选方法。解法分两层：先分流（函数透传、数组只递归元素）；再补黑名单（`BuiltIn = Function | Date | RegExp | Error | Promise<any>` 整体透传）+ 用同态映射 `{ [K in keyof T]: ... }` 的数组分支保住元组结构——完整推导见动手任务第 5 步。
 
 **坑 2：infer 的位置写错。** `infer` 只能出现在条件类型的 `extends` 子句里，还得嵌在具体的类型模板中：
 
