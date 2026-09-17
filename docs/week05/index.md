@@ -20,13 +20,13 @@
 
 ## 教程进度
 
-- 鉁?[Day 1 路 JWT 签发](/week05/day1)
-- 鉁?[Day 2 路 JWT 守卫](/week05/day2)
-- 鉁?[Day 3 路 Refresh Token](/week05/day3)
-- 鉁?[Day 4 路 RBAC](/week05/day4)
-- 鉁?[Day 5 路 OAuth2](/week05/day5)
-- 鉁?[Day 6 路 Web 安全](/week05/day6)
-- 鉁?[Day 7 路 周复盘](/week05/day7)
+- ✅[Day 1 路 JWT 签发](/week05/day1)
+- ✅[Day 2 路 JWT 守卫](/week05/day2)
+- ✅[Day 3 路 Refresh Token](/week05/day3)
+- ✅[Day 4 路 RBAC](/week05/day4)
+- ✅[Day 5 路 OAuth2](/week05/day5)
+- ✅[Day 6 路 Web 安全](/week05/day6)
+- ✅[Day 7 路 周复盘](/week05/day7)
 
 ## 本周参考
 

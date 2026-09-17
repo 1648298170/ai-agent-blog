@@ -20,13 +20,13 @@
 
 ## 教程进度
 
-- 鉁?[Day 1 路 ESLint 与 Prettier](/week02/day1)
-- 鉁?[Day 2 路 Husky 与 Git 钩子](/week02/day2)
-- 鉁?[Day 3 路 Vitest 单元测试](/week02/day3)
-- 鉁?[Day 4 路 Next.js 15 App Router](/week02/day4)
-- 鉁?[Day 5 路 Server 与 Client 组件](/week02/day5)
-- 鉁?[Day 6 路 Server Actions](/week02/day6)
-- 鉁?[Day 7 路 周复盘](/week02/day7)
+- ✅[Day 1 路 ESLint 与 Prettier](/week02/day1)
+- ✅[Day 2 路 Husky 与 Git 钩子](/week02/day2)
+- ✅[Day 3 路 Vitest 单元测试](/week02/day3)
+- ✅[Day 4 路 Next.js 15 App Router](/week02/day4)
+- ✅[Day 5 路 Server 与 Client 组件](/week02/day5)
+- ✅[Day 6 路 Server Actions](/week02/day6)
+- ✅[Day 7 路 周复盘](/week02/day7)
 
 ## 本周参考
 

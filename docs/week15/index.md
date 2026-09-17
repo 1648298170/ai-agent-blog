@@ -20,13 +20,13 @@
 
 ## 教程进度
 
-- 鉁?[Day 1 路 Hybrid 检索](/week15/day1)
-- 鉁?[Day 2 路 重排序](/week15/day2)
-- 鉁?[Day 3 路 Adaptive RAG](/week15/day3)
-- 鉁?[Day 4 路 引用溯源](/week15/day4)
-- 鉁?[Day 5 路 RAG 评估](/week15/day5)
-- 鉁?[Day 6 路 知识库 UI](/week15/day6)
-- 鉁?[Day 7 路 周复盘](/week15/day7)
+- ✅[Day 1 路 Hybrid 检索](/week15/day1)
+- ✅[Day 2 路 重排序](/week15/day2)
+- ✅[Day 3 路 Adaptive RAG](/week15/day3)
+- ✅[Day 4 路 引用溯源](/week15/day4)
+- ✅[Day 5 路 RAG 评估](/week15/day5)
+- ✅[Day 6 路 知识库 UI](/week15/day6)
+- ✅[Day 7 路 周复盘](/week15/day7)
 
 ## 本周参考
 

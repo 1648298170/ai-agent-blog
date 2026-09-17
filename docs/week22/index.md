@@ -20,10 +20,10 @@
 
 ## 教程进度
 
-- 鉁?[Day 1 路 系统设计](/week22/day1)
-- 鉁?[Day 2 路 缓存三件套](/week22/day2)
-- 鉁?[Day 3 路 队列设计](/week22/day3)
-- 鉁?[Day 4 路 STAR 复盘](/week22/day4)
-- 鉁?[Day 5 路 简历优化](/week22/day5)
-- 鉁?[Day 6 路 模拟面试](/week22/day6)
-- 鉁?[Day 7 路 周复盘](/week22/day7)
+- ✅[Day 1 路 系统设计](/week22/day1)
+- ✅[Day 2 路 缓存三件套](/week22/day2)
+- ✅[Day 3 路 队列设计](/week22/day3)
+- ✅[Day 4 路 STAR 复盘](/week22/day4)
+- ✅[Day 5 路 简历优化](/week22/day5)
+- ✅[Day 6 路 模拟面试](/week22/day6)
+- ✅[Day 7 路 周复盘](/week22/day7)

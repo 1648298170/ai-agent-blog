@@ -20,10 +20,10 @@
 
 ## 教程进度
 
-- 鉁?[Day 1 路 Redis 基础](/week06/day1)
-- 鉁?[Day 2 路 缓存策略](/week06/day2)
-- 鉁?[Day 3 路 分布式锁](/week06/day3)
-- 鉁?[Day 4 路 BullMQ 队列](/week06/day4)
-- 鉁?[Day 5 路 重试延迟与定时](/week06/day5)
-- 鉁?[Day 6 路 幂等设计](/week06/day6)
-- 鉁?[Day 7 路 周复盘](/week06/day7)
+- ✅[Day 1 路 Redis 基础](/week06/day1)
+- ✅[Day 2 路 缓存策略](/week06/day2)
+- ✅[Day 3 路 分布式锁](/week06/day3)
+- ✅[Day 4 路 BullMQ 队列](/week06/day4)
+- ✅[Day 5 路 重试延迟与定时](/week06/day5)
+- ✅[Day 6 路 幂等设计](/week06/day6)
+- ✅[Day 7 路 周复盘](/week06/day7)

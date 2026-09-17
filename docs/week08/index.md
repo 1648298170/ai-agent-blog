@@ -22,13 +22,13 @@
 
 ## 教程进度
 
-- 鉁?[Day 1 路 云服务器](/week08/day1)
-- 鉁?[Day 2 路 Nginx 与 HTTPS](/week08/day2)
-- 鉁?[Day 3 路 自动部署](/week08/day3)
-- 鉁?[Day 4 路 结构化日志](/week08/day4)
-- 鉁?[Day 5 路 监控入门](/week08/day5)
-- 鉁?[Day 6 路 健康检查与优雅关闭](/week08/day6)
-- 鉁?[Day 7 路 阶段二里程碑](/week08/day7)
+- ✅[Day 1 路 云服务器](/week08/day1)
+- ✅[Day 2 路 Nginx 与 HTTPS](/week08/day2)
+- ✅[Day 3 路 自动部署](/week08/day3)
+- ✅[Day 4 路 结构化日志](/week08/day4)
+- ✅[Day 5 路 监控入门](/week08/day5)
+- ✅[Day 6 路 健康检查与优雅关闭](/week08/day6)
+- ✅[Day 7 路 阶段二里程碑](/week08/day7)
 
 ## 本周参考
 

@@ -20,13 +20,13 @@
 
 ## 教程进度
 
-- 鉁?[Day 1 路 Agent 八股](/week23/day1)
-- 鉁?[Day 2 路 工程八股](/week23/day2)
-- 鉁?[Day 3 路 系统设计模拟](/week23/day3)
-- 鉁?[Day 4 路 LeetCode](/week23/day4)
-- 鉁?[Day 5 路 完整模拟面试](/week23/day5)
-- 鉁?[Day 6 路 投递冲刺](/week23/day6)
-- 鉁?[Day 7 路 速查卡](/week23/day7)
+- ✅[Day 1 路 Agent 八股](/week23/day1)
+- ✅[Day 2 路 工程八股](/week23/day2)
+- ✅[Day 3 路 系统设计模拟](/week23/day3)
+- ✅[Day 4 路 LeetCode](/week23/day4)
+- ✅[Day 5 路 完整模拟面试](/week23/day5)
+- ✅[Day 6 路 投递冲刺](/week23/day6)
+- ✅[Day 7 路 速查卡](/week23/day7)
 
 ## 本周参考
 

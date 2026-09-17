@@ -22,10 +22,10 @@
 
 ## 教程进度
 
-- 鉁?[Day 1 路 PostgreSQL 基础](/week04/day1)
-- 鉁?[Day 2 路 Prisma 入门](/week04/day2)
-- 鉁?[Day 3 路 Prisma CRUD](/week04/day3)
-- 鉁?[Day 4 路 事务与索引](/week04/day4)
-- 鉁?[Day 5 路 NestJS 整合 Prisma](/week04/day5)
-- 鉁?[Day 6 路 前后端联调](/week04/day6)
-- 鉁?[Day 7 路 阶段一里程碑](/week04/day7)
+- ✅[Day 1 路 PostgreSQL 基础](/week04/day1)
+- ✅[Day 2 路 Prisma 入门](/week04/day2)
+- ✅[Day 3 路 Prisma CRUD](/week04/day3)
+- ✅[Day 4 路 事务与索引](/week04/day4)
+- ✅[Day 5 路 NestJS 整合 Prisma](/week04/day5)
+- ✅[Day 6 路 前后端联调](/week04/day6)
+- ✅[Day 7 路 阶段一里程碑](/week04/day7)

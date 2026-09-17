@@ -20,13 +20,13 @@
 
 ## 教程进度
 
-- 鉁?[Day 1 路 LangSmith 与 Langfuse](/week21/day1)
-- 鉁?[Day 2 路 Token 计量与模型路由](/week21/day2)
-- 鉁?[Day 3 路 限流配额](/week21/day3)
-- 鉁?[Day 4 路 死循环防御](/week21/day4)
-- 鉁?[Day 5 路 日志指标告警](/week21/day5)
-- 鉁?[Day 6 路 语义缓存](/week21/day6)
-- 鉁?[Day 7 路 压测复盘](/week21/day7)
+- ✅[Day 1 路 LangSmith 与 Langfuse](/week21/day1)
+- ✅[Day 2 路 Token 计量与模型路由](/week21/day2)
+- ✅[Day 3 路 限流配额](/week21/day3)
+- ✅[Day 4 路 死循环防御](/week21/day4)
+- ✅[Day 5 路 日志指标告警](/week21/day5)
+- ✅[Day 6 路 语义缓存](/week21/day6)
+- ✅[Day 7 路 压测复盘](/week21/day7)
 
 ## 本周参考
 

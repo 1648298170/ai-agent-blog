@@ -22,13 +22,13 @@
 
 ## 教程进度
 
-- 鉁?[Day 1 路 注入攻防](/week19/day1)
-- 鉁?[Day 2 路 OWASP 自查](/week19/day2)
-- 鉁?[Day 3 路 Guardrails](/week19/day3)
-- 鉁?[Day 4 路 A2A 协议](/week19/day4)
-- 鉁?[Day 5 路 Dify 上手](/week19/day5)
-- 鉁?[Day 6 路 Coze 与选型](/week19/day6)
-- 鉁?[Day 7 路 阶段四里程碑](/week19/day7)
+- ✅[Day 1 路 注入攻防](/week19/day1)
+- ✅[Day 2 路 OWASP 自查](/week19/day2)
+- ✅[Day 3 路 Guardrails](/week19/day3)
+- ✅[Day 4 路 A2A 协议](/week19/day4)
+- ✅[Day 5 路 Dify 上手](/week19/day5)
+- ✅[Day 6 路 Coze 与选型](/week19/day6)
+- ✅[Day 7 路 阶段四里程碑](/week19/day7)
 
 ## 本周参考
 

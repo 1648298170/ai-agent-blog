@@ -20,10 +20,10 @@
 
 ## 教程进度
 
-- 鉁?[Day 1 路 记忆架构](/week17/day1)
-- 鉁?[Day 2 路 上下文压缩](/week17/day2)
-- 鉁?[Day 3 路 长期记忆](/week17/day3)
-- 鉁?[Day 4 路 向量记忆](/week17/day4)
-- 鉁?[Day 5 路 System Prompt 设计](/week17/day5)
-- 鉁?[Day 6 路 记忆整合](/week17/day6)
-- 鉁?[Day 7 路 周复盘](/week17/day7)
+- ✅[Day 1 路 记忆架构](/week17/day1)
+- ✅[Day 2 路 上下文压缩](/week17/day2)
+- ✅[Day 3 路 长期记忆](/week17/day3)
+- ✅[Day 4 路 向量记忆](/week17/day4)
+- ✅[Day 5 路 System Prompt 设计](/week17/day5)
+- ✅[Day 6 路 记忆整合](/week17/day6)
+- ✅[Day 7 路 周复盘](/week17/day7)
