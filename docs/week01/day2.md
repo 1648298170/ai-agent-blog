@@ -408,7 +408,53 @@ type IsNeverFixed<T> = [T] extends [never] ? true : false;
 type Y = IsNeverFixed<never>; // true
 ```
 
-never 是空联合，分发时没有成员可以代入，结果还是空联合 never。想判断 never，必须用元组 `[T]` 阻止分发。写工具类型时遇到「结果莫名变成 never」，先检查是不是分发惹的祸。
+为什么 `IsNever<never>` 连 `false` 都不是，而是 `never`？要把分发机制的每一步掰开看。
+
+**第一步：分发的本质是“逐成员求值再合并”。** 规则本身：当条件类型检查的是**裸类型参数** T（没有被元组、数组、Promise 之类包住），而传入的是联合类型时，TS 会把联合拆开，对每个成员单独跑一遍条件，最后把所有结果用 `|` 合并。拿第 1 节的 `IsString` 举例：
+
+```ts
+// T = string | number 时
+type R = IsString<string | number>;
+// 等价于分别求值：
+//   IsString<string> → true
+//   IsString<number> → false
+// 再合并：true | false → boolean
+```
+
+注意这个等价形式：**分发 = 对联合的每个成员各跑一次条件类型，结果合并成新联合**。成员有几个，条件就跑几次。
+
+**第二步：never 是“零个成员的联合”。** `string | number` 有 2 个成员，`string` 有 1 个成员，而 `never` 是**空联合**——0 个成员。它不是“某个特殊类型”，是“什么都没有”。
+
+**第三步：对零个成员做分发会发生什么？** 把分发套用到 never 上：需要把条件类型对“每个成员”各跑一次——可 never 一个成员都没有，一次都不会跑。true 分支没执行、false 分支也没执行，什么都没产生。而“零个结果的联合”还是空联合，也就是 never 本身。
+
+用数组类比最好懂：分发就像 `map`——
+
+```ts
+[true, false] // string | number 分发：2 个成员各跑一次，2 个结果
+  .map(isString);
+
+[].map(isString); // never 分发：0 个成员，回调一次都不会调用
+// 返回 [] —— 空数组，不是 true 也不是 false
+```
+
+`[].map(f)` 不会报错也不返回 f 的任何结果，只返回空数组。同理 `IsNever<never>` 不走任何分支，直接返回空联合 never。**所以 never 在分发条件里像“黑洞”：进去就原样出来，判断逻辑根本没机会执行。**
+
+```ts
+// IsNever<never> 的完整推导：
+// T = never → 空联合，分发时无成员可代入
+//   → 条件类型执行 0 次
+//   → 0 个结果合并 → never
+```
+
+**第四步：为什么 `[T]` 能修好。** 分发只发生在**裸**类型参数上。用元组包一层后，`[T]` 是“整个 T 组成的单元素元组”，是一个普通类型而非裸参数——不触发分发，条件对它**整体**判定一次：`[never] extends [never]` 为真，返回 true。顺带一提，元组包裹还带来一个正确性细节：`[string] extends [never]` 为假，所以非 never 类型正确返回 false。
+
+```ts
+// IsNeverFixed<never> 的推导：
+// [T] 不是裸参数 → 不分发，整体比较
+//   [never] extends [never] → true ✅
+```
+
+**实用结论**：写工具类型时如果结果“莫名变成 never”，按这条链排查——是否对裸参数做了条件判断 + 这个参数可能是 never？修复姿势就是元组包裹 `[T] extends [X]`。这个坑在真实库里到处都是：判断 never 的标准写法永远是 `[T] extends [never]`，直接写 `T extends never` 的基本都会翻车。
 
 **坑 4：映射类型对原始类型直接透传。**
 
