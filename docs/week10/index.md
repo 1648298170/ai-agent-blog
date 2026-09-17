@@ -20,13 +20,13 @@
 
 ## 教程进度
 
-- ✅[Day 1 路 FastAPI 入门](/week10/day1)
-- ✅[Day 2 路 请求响应模型](/week10/day2)
-- ✅[Day 3 路 分层架构](/week10/day3)
-- ✅[Day 4 路 SQLAlchemy 与 DI](/week10/day4)
-- ✅[Day 5 路 SSE 流式](/week10/day5)
-- ✅[Day 6 路 前端消费 SSE](/week10/day6)
-- ✅[Day 7 路 周复盘](/week10/day7)
+- ✅[Day 1 · FastAPI 入门](/week10/day1)
+- ✅[Day 2 · 请求响应模型](/week10/day2)
+- ✅[Day 3 · 分层架构](/week10/day3)
+- ✅[Day 4 · SQLAlchemy 与 DI](/week10/day4)
+- ✅[Day 5 · SSE 流式](/week10/day5)
+- ✅[Day 6 · 前端消费 SSE](/week10/day6)
+- ✅[Day 7 · 周复盘](/week10/day7)
 
 ## 本周参考
 

@@ -20,13 +20,13 @@
 
 ## 教程进度
 
-- ✅[Day 1 路 LangGraph 概念](/week12/day1)
-- ✅[Day 2 路 最小 Graph](/week12/day2)
-- ✅[Day 3 路 条件边](/week12/day3)
-- ✅[Day 4 路 裸 ReAct](/week12/day4)
-- ✅[Day 5 路 工具定义](/week12/day5)
-- ✅[Day 6 路 Checkpointer](/week12/day6)
-- ✅[Day 7 路 周复盘](/week12/day7)
+- ✅[Day 1 · LangGraph 概念](/week12/day1)
+- ✅[Day 2 · 最小 Graph](/week12/day2)
+- ✅[Day 3 · 条件边](/week12/day3)
+- ✅[Day 4 · 裸 ReAct](/week12/day4)
+- ✅[Day 5 · 工具定义](/week12/day5)
+- ✅[Day 6 · Checkpointer](/week12/day6)
+- ✅[Day 7 · 周复盘](/week12/day7)
 
 ## 本周参考
 

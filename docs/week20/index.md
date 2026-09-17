@@ -20,10 +20,10 @@
 
 ## 教程进度
 
-- ✅[Day 1 路 模板结构分析](/week20/day1)
-- ✅[Day 2 路 NestJS BFF](/week20/day2)
-- ✅[Day 3 路 多租户 RBAC](/week20/day3)
-- ✅[Day 4 路 统一认证](/week20/day4)
-- ✅[Day 5 路 流式对话 UI](/week20/day5)
-- ✅[Day 6 路 平台导航整合](/week20/day6)
-- ✅[Day 7 路 周复盘](/week20/day7)
+- ✅[Day 1 · 模板结构分析](/week20/day1)
+- ✅[Day 2 · NestJS BFF](/week20/day2)
+- ✅[Day 3 · 多租户 RBAC](/week20/day3)
+- ✅[Day 4 · 统一认证](/week20/day4)
+- ✅[Day 5 · 流式对话 UI](/week20/day5)
+- ✅[Day 6 · 平台导航整合](/week20/day6)
+- ✅[Day 7 · 周复盘](/week20/day7)

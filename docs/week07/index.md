@@ -20,13 +20,13 @@
 
 ## 教程进度
 
-- ✅[Day 1 路 Dockerfile](/week07/day1)
-- ✅[Day 2 路 compose 编排](/week07/day2)
-- ✅[Day 3 路 前端容器化与 Nginx](/week07/day3)
-- ✅[Day 4 路 GitHub Actions](/week07/day4)
-- ✅[Day 5 路 镜像推送](/week07/day5)
-- ✅[Day 6 路 密钥管理](/week07/day6)
-- ✅[Day 7 路 周复盘](/week07/day7)
+- ✅[Day 1 · Dockerfile](/week07/day1)
+- ✅[Day 2 · compose 编排](/week07/day2)
+- ✅[Day 3 · 前端容器化与 Nginx](/week07/day3)
+- ✅[Day 4 · GitHub Actions](/week07/day4)
+- ✅[Day 5 · 镜像推送](/week07/day5)
+- ✅[Day 6 · 密钥管理](/week07/day6)
+- ✅[Day 7 · 周复盘](/week07/day7)
 
 ## 本周参考
 

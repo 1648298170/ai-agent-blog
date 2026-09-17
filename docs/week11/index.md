@@ -20,13 +20,13 @@
 
 ## 教程进度
 
-- ✅[Day 1 路 LLM 原生 API](/week11/day1)
-- ✅[Day 2 路 流式与 FC 底层](/week11/day2)
-- ✅[Day 3 路 结构化输出](/week11/day3)
-- ✅[Day 4 路 AI SDK 后端](/week11/day4)
-- ✅[Day 5 路 AI SDK 前端](/week11/day5)
-- ✅[Day 6 路 多供应商切换](/week11/day6)
-- ✅[Day 7 路 周复盘](/week11/day7)
+- ✅[Day 1 · LLM 原生 API](/week11/day1)
+- ✅[Day 2 · 流式与 FC 底层](/week11/day2)
+- ✅[Day 3 · 结构化输出](/week11/day3)
+- ✅[Day 4 · AI SDK 后端](/week11/day4)
+- ✅[Day 5 · AI SDK 前端](/week11/day5)
+- ✅[Day 6 · 多供应商切换](/week11/day6)
+- ✅[Day 7 · 周复盘](/week11/day7)
 
 ## 本周参考
 

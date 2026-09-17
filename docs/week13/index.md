@@ -22,13 +22,13 @@
 
 ## 教程进度
 
-- ✅[Day 1 路 多 Agent 架构](/week13/day1)
-- ✅[Day 2 路 Supervisor](/week13/day2)
-- ✅[Day 3 路 Worker 实现](/week13/day3)
-- ✅[Day 4 路 interrupt 审批](/week13/day4)
-- ✅[Day 5 路 审批 UI](/week13/day5)
-- ✅[Day 6 路 容错](/week13/day6)
-- ✅[Day 7 路 阶段三里程碑](/week13/day7)
+- ✅[Day 1 · 多 Agent 架构](/week13/day1)
+- ✅[Day 2 · Supervisor](/week13/day2)
+- ✅[Day 3 · Worker 实现](/week13/day3)
+- ✅[Day 4 · interrupt 审批](/week13/day4)
+- ✅[Day 5 · 审批 UI](/week13/day5)
+- ✅[Day 6 · 容错](/week13/day6)
+- ✅[Day 7 · 阶段三里程碑](/week13/day7)
 
 ## 本周参考
 

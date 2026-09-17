@@ -20,13 +20,13 @@
 
 ## 教程进度
 
-- ✅[Day 1 路 RAG 概念](/week14/day1)
-- ✅[Day 2 路 文档解析](/week14/day2)
-- ✅[Day 3 路 文本切块](/week14/day3)
-- ✅[Day 4 路 Embedding](/week14/day4)
-- ✅[Day 5 路 pgvector](/week14/day5)
-- ✅[Day 6 路 相似度检索](/week14/day6)
-- ✅[Day 7 路 周复盘](/week14/day7)
+- ✅[Day 1 · RAG 概念](/week14/day1)
+- ✅[Day 2 · 文档解析](/week14/day2)
+- ✅[Day 3 · 文本切块](/week14/day3)
+- ✅[Day 4 · Embedding](/week14/day4)
+- ✅[Day 5 · pgvector](/week14/day5)
+- ✅[Day 6 · 相似度检索](/week14/day6)
+- ✅[Day 7 · 周复盘](/week14/day7)
 
 ## 本周参考
 
