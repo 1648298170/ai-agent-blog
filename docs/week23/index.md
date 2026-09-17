@@ -27,6 +27,7 @@
 - ✅[Day 5 · 完整模拟面试](/week23/day5)
 - ✅[Day 6 · 投递冲刺](/week23/day6)
 - ✅[Day 7 · 速查卡](/week23/day7)
+- ✅[加餐 · 场景题实战](/week23/scenarios)
 
 ## 本周参考
 

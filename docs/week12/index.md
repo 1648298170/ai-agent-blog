@@ -27,6 +27,7 @@
 - ✅[Day 5 · 工具定义](/week12/day5)
 - ✅[Day 6 · Checkpointer](/week12/day6)
 - ✅[Day 7 · 周复盘](/week12/day7)
+- ✅[加餐 · LangChain 生态地图](/week12/langchain)
 
 ## 本周参考
 
