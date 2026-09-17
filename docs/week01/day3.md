@@ -188,7 +188,45 @@ console.log(payload.name)
 | 数据可能不合法，需要兜底分支（降级 UI、记日志） | is 守卫 + if/else |
 | 数据不合法就没法继续，早死早超生 | asserts 断言函数 |
 
-两个细节：asserts 必须显式标注返回类型，写成箭头函数也得标；它的调用必须是独立语句，不能塞进表达式里当值用。
+两个使用细节，都是从签名语义推出来的，各配一组正误示例：
+
+**细节一：返回类型必须显式标注，箭头函数也一样。** `asserts x is User` 本身就写在「返回类型」的位置——它不是函数体的描述，是给编译器的承诺书。窄化由**签名**驱动，不由函数体驱动：
+
+```ts
+// ❌ 没写返回类型标注：这是个普通的 void 函数
+//    函数体里 throw 得再坚决，调用后 payload 依然是 unknown——没有窄化
+function badAssert(x: unknown) {
+  if (!isUser(x)) throw new Error('非法数据')
+}
+badAssert(payload)
+// console.log(payload.name) // ❌ 报错：payload 还是 unknown
+
+// ✅ 函数声明：asserts 写在返回类型位置
+function assertIsUser(x: unknown): asserts x is User { /* ... */ }
+
+// ✅ 箭头函数：同样写在参数列表后面的返回类型位置，一个字都不能省
+const assertIsUserArrow = (x: unknown): asserts x is User => {
+  if (!isUser(x)) throw new Error(`非法的 User 数据：${JSON.stringify(x)}`)
+}
+```
+
+记住这条判定：**少写标注不会报错，但断言会静默失效**——比报错更危险，你以为有保护其实没有。
+
+**细节二：调用必须是独立语句，不能塞进表达式里当值用。** 断言的「返回值」不是给表达式的，是给「调用点之后的代码」的类型影响——塞进赋值、条件、回调里，这个语义就不成立了，TS 会直接拒绝：
+
+```ts
+// ❌ 当值用：没有值可拿（void），而且窄化语义被破坏
+// const ok = assertIsUserArrow(payload)
+
+// ❌ 塞进逻辑表达式 / 条件里当布尔用
+// if (payload !== null && assertIsUserArrow(payload)) { ... }
+
+// ✅ 唯一正确姿势：单独一行，让「之后的代码」享受窄化
+assertIsUserArrow(payload)
+console.log(payload.name) // ✅ User
+```
+
+顺带一个相关的坑：**间接调用也会失效**。断言函数通过「没有显式类型的名字」被调用时（赋给别名、从对象里解构出来、三元里二选一），编译器追踪不到「这个名字一定是那个断言函数」，会报错 `Assertions require every name in the call target to be declared with an explicit type annotation`——要么直接用原名单独调用，要么给中转变量写显式的断言函数类型标注。
 
 ### 4. satisfies 操作符
 
