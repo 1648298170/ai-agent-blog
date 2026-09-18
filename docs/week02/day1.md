@@ -140,6 +140,51 @@ export default tseslint.config(
 
 `projectService: true` 是现代写法（等价于老教程里手写 `project: [...]` 列出所有 tsconfig），monorepo 里尤其省心。代价是 lint 明显变慢——今天 recommended 够用，知道升级姿势、遇到深坑再开即可。
 
+**集成实操**：从第 1 节那份「只有 JS 规则」的最小配置出发，四步接入 typescript-eslint。改造前它长这样——此时对 `.ts` 文件跑 ESLint，直接报语法解析错误：
+
+```js
+// eslint.config.js —— 改造前：只有 JS 规则
+import js from "@eslint/js";
+
+export default [
+  { ignores: ["**/dist/**"] },
+  js.configs.recommended,
+];
+```
+
+**第 1 步：装包**（一条命令，parser/plugin/configs 全包含）：
+
+```bash
+pnpm add -Dw typescript-eslint
+```
+
+**第 2 步：导入并铺进配置数组**——就加两行：
+
+```js
+import js from "@eslint/js";
+import tseslint from "typescript-eslint"; // ← 新增：导入
+
+export default [
+  { ignores: ["**/dist/**"] },
+  js.configs.recommended,
+  ...tseslint.configs.recommended, // ← 新增：把 TS 预设铺进数组
+];
+```
+
+注意这里用的是**展开 + 平铺数组**的写法：`tseslint.configs.recommended` 本身是个数组，用 `...` 铺进外层数组，和手写对象平起平坐。第 1 节提过的 `tseslint.config(...)` 帮手干的是同一件事（自动拍平嵌套），两种写法效果一致，认得出即可。
+
+**第 3 步：确认顺序——TS 预设排在 JS 推荐之后**。数组里后者覆盖前者，TS 预设内部要做「关 JS 版规则、开 TS 版规则」的换芯动作（前面解剖图第 ③ 点），排在后面才能压住 `js.configs.recommended` 里的同名设置。记不住就背口诀：**JS 打底、TS 增强你的、Prettier 收尾**。
+
+**第 4 步：三查验证**——集成成功与否一次看清：
+
+```text
+① 对 .ts 文件跑 ESLint 不再报 parser 语法错误（解析器换成功）
+② 写一个 any 参数，@typescript-eslint/no-explicit-any 亮红（规则集挂成功）
+③ .js 文件仍按 js.configs.recommended 检查（原配置未被破坏）
+```
+
+三查全过，集成完成。动手任务第 2 步的完整配置（含 prettier 收尾）就是在这个基础上加了最后一块。
+
 ### 3. Prettier 的地盘：`.prettierrc` 与两条命令
 
 Prettier 的配置只有寥寥几个键，本篇用的这份放在仓库根目录 `.prettierrc`：
