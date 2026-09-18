@@ -72,7 +72,14 @@ export default defineConfig({
   head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }]],
 
   markdown: {
-    lineNumbers: true
+    lineNumbers: true,
+    config: (md) => {
+      // 行内代码统一加 v-pre：否则 {{ var }} 会被 Vue 当插值求值
+      // （undefined 时轻则内容被吞，重则整页 SSR 渲染中断）
+      const escapeHtml = md.utils.escapeHtml
+      md.renderer.rules.code_inline = (tokens, idx) =>
+        `<code v-pre>${escapeHtml(tokens[idx].content)}</code>`
+    }
   },
 
   // 教程正文里的本地开发地址（http://localhost:3000 等）是示例不是链接

@@ -260,7 +260,7 @@ export async function callLlm(
 
 指标有了，剩下是让它们变成「能看的图」和「会叫的铃」。Grafana 四块面板的 PromQL 直接抄：
 
-```promql
+```text
 # 面板 1a：QPS，按模型分曲线
 sum by (model) (rate(llm_request_duration_seconds_count[5m]))
 

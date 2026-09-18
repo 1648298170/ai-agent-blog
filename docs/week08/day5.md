@@ -198,7 +198,7 @@ Grafana 只管一件事：从数据源读数、画图。打开 `http://localhost
 
 面板一，QPS 按 path：
 
-```promql
+```text
 sum by (route) (rate(http_request_duration_seconds_count[5m]))
 ```
 
@@ -206,7 +206,7 @@ sum by (route) (rate(http_request_duration_seconds_count[5m]))
 
 面板二，P95 延迟：
 
-```promql
+```text
 histogram_quantile(0.95, sum by (route, le) (rate(http_request_duration_seconds_bucket[5m])))
 ```
 
