@@ -29,9 +29,15 @@ const dayTitles: Record<number, string[]> = {
 const pad = (n: number) => String(n).padStart(2, '0')
 
 /** 各周附加的加餐页 */
-const bonus: Record<number, { text: string; link: string }> = {
-  12: { text: '加餐 · LangChain 生态地图', link: '/week12/langchain' },
-  23: { text: '加餐 · 场景题实战', link: '/week23/scenarios' }
+const bonus: Record<number, { text: string; link: string }[]> = {
+  11: [
+    { text: '补篇 · Agent 循环深入', link: '/week11/agent-loop-ts' },
+    { text: '补篇 · RAG TS 全链路', link: '/week11/rag-ts' },
+    { text: '补篇 · MCP TypeScript SDK', link: '/week11/mcp-ts' },
+    { text: '补篇 · 记忆 TS 版', link: '/week11/memory-ts' }
+  ],
+  12: [{ text: '加餐 · LangChain 生态地图', link: '/week12/langchain' }],
+  23: [{ text: '加餐 · 场景题实战', link: '/week23/scenarios' }]
 }
 
 const w = (n: number, title: string) => ({
@@ -43,7 +49,7 @@ const w = (n: number, title: string) => ({
       text: `Day ${i + 1} · ${t}`,
       link: `/week${pad(n)}/day${i + 1}`
     })),
-    ...(bonus[n] ? [bonus[n]] : [])
+    ...(bonus[n] ?? [])
   ]
 })
 
