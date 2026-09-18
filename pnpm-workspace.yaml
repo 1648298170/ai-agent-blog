@@ -1,2 +1,9 @@
 allowBuilds:
   esbuild: true
+
+# mermaid 及其整条传递依赖需从根 node_modules 可解析（Vite 预构建要求），
+# pnpm 严格布局下默认不可见——公开提升解决
+publicHoistPattern:
+  - '*'
+hoistPattern:
+  - '*'
