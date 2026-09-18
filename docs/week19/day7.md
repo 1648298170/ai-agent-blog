@@ -93,53 +93,6 @@
   环套在 FastAPI 边界外面，意思是：每次想进 main 的改动都要过它
 ```
 
-mermaid 版，画完手稿拿它对照：
-
-```mermaid
-flowchart TD
-    U([用户]) -->|HTTP 请求| F["FastAPI 边界（v3 底图）"]
-    F --> G1{{"闸门一·输入<br/>注入特征拦截"}}
-    G1 --> SUP["Supervisor 硬路由"]
-    SUP --> KB["知识库问答"]
-    SUP --> ORD["订单 Agent"]
-    SUP --> REF["退款 Agent"]
-
-    subgraph RAG["叠加层一 · RAG 检索层"]
-        CLS["查询分类"] --> HYB["Hybrid：BM25 + 向量"]
-        HYB --> RR["Rerank"]
-        RR --> TK["Top-K 片段<br/>带引用编号"]
-    end
-    KB --> CLS
-    TK -->|"包裹标记后进上下文"| KB
-
-    subgraph MCP["叠加层三 · MCP 边界（Agent 是 Client）"]
-        SV["订单 Server<br/>get_order_status / create_refund"]
-        RES["知识库 Resource"]
-    end
-    ORD --> SV
-    KB -.读文档.-> RES
-    REF --> G2{{"闸门二·工具<br/>高危 → interrupt() 审批"}}
-    G2 -->|批准| SV
-    G2 -->|拒绝·改口| REF
-    SV -->|"返回值包裹标记"| ORD
-
-    MEM[("叠加层二 · 三层记忆<br/>Redis 短期 / PG 偏好 / 向量情景")]
-    CK[("checkpoint 存储<br/>单会话状态，按 thread_id")]
-    MEM -.启动注入偏好与摘要.-> SUP
-    SUP -.每轮末写入.-> MEM
-    SUP -.存档.-> CK
-
-    SUP --> G3{{"闸门三·输出<br/>PII 脱敏 + 校验"}}
-    G3 -->|"SSE 逐字回流，回答带 [来源N]"| U
-
-    subgraph FLY["叠加层五 · 评估飞轮"]
-        GD["golden 集"] --> PF["promptfoo 评估"]
-        PF --> CI{"CI 门禁<br/>跌幅超 3% 阻断"}
-        CI -->|差例回流| GD
-    end
-    FLY -.守住每次 prompt / 模型 / 数据集改动.-> F
-```
-
 画完按四条自查：底图还是 v3 那张吗，FastAPI 框两个口、星型纪律、checkpoint 圆柱一样没丢；两个圆柱分清了吗，checkpointer 管 thread_id 内的状态，三层记忆管跨会话认知；三闸门的位置对吗，输入在路由前、工具在执行前、输出在 SSE 前，位置画错防线等于白画；评估飞轮是环不是直线吗，差例必须流回 golden 集，断了就不叫飞轮。
 
 这张图是面试白板图。一分钟讲法：从用户提问起步，过闸门一进路由；知识库问题走检索层、片段带引用和包裹标记回来；动钱的操作出闸门二的审批卡；回答过闸门三脱敏，SSE 带引用回流；最后指着外圈的环收尾，说每一次改动都被这圈飞轮拦过。讲到这，面试官大概率会追问细节，而每一层你都亲手搭过。

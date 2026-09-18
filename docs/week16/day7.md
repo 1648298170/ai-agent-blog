@@ -58,16 +58,9 @@
 4. golden_dataset v0 → v1，进 git；数据集变了，judge 重校准（Day 2 坑 5 的规矩）
 5. 下周离线评估自动覆盖本周线上新发现的失败。数据集不是一次性标的资产，是每周长一截的活物
 
-**第四部分：飞轮图与预算。** 在线离线怎么咬合：
+**第四部分：飞轮图与预算。** 在线离线怎么咬合成一个闭环，按这个链条画（或直接照此讲）：
 
-```mermaid
-flowchart LR
-    A["线上真实流量"] -->|"10% 采样"| B["异步 judge 打分"]
-    B -->|"fail 的 trace"| C["周 review 人工复核"]
-    C -->|"确认的 bad case"| D["golden 集滚动长大"]
-    D --> E["离线评估 + CI 门禁"]
-    E -->|"改进后的新版本"| A
-```
+- 线上真实流量 →（10% 采样）异步 judge 打分 →（fail 的 trace）周 review 人工复核 →（确认的 bad case）golden 集滚动长大 → 离线评估 + CI 门禁 →（改进后的新版本）回到线上
 
 设计文档骨架，拷走直接填：
 
@@ -95,20 +88,6 @@ flowchart LR
 ### 2. 本周评估体系总图
 
 一张图收拢六天所有零件。离线环：golden 集喂 judge 打分和轨迹评估，promptfoo 与 DeepEval 跑出的分数交给 CI 门禁，跌幅超 3% 阻断合并。在线环：上线版本被 10% 采样，异步 judge 打分入库，周 review 人工复核差 trace，回流 golden 集。两个环的交点有两个：golden 集是数据的交点，上线版本是版本的交点。
-
-```mermaid
-flowchart TB
-    G["golden dataset（30 条起步，滚动长大）"] --> J["离线：judge 打分（二元判定 + rubric）"]
-    G --> T["离线：轨迹六维评估"]
-    J --> CI["CI 门禁（promptfoo + DeepEval）<br/>通过率跌幅超 3% 阻断合并"]
-    T --> CI
-    CI -->|"放行"| DEP["新版上线"]
-    DEP --> S["在线：10% 采样（user_id 哈希）"]
-    S --> AJ["异步 judge（复用离线 rubric）"]
-    AJ --> DB["评估库（verdict + 失败桶）"]
-    DB --> R["周 review：人工复核差 trace"]
-    R -->|"回流"| G
-```
 
 自己画 Excalidraw 版时对着检查三件事：节点齐不齐（golden 集、judge、轨迹评估、门禁、采样、评估库、review）、箭头方向对不对（回流箭头必须指回 golden 集，画不出这条边就还没理解飞轮）、两个闭环找不找得出（离线环和在线环）。
 
@@ -197,7 +176,7 @@ prompt 文件进 git，一个 prompt 一个文件，改动走 PR 触发 CI 重�
 
 按顺序做完五步，预计 60 到 90 分钟。
 
-**第一步：画评估体系总图（20 分钟）。** 关掉教程，打开 excalidraw.com，凭记忆画：golden 集、judge、轨迹评估、CI 门禁、上线、采样、异步 judge、评估库、周 review 这些节点，重点是把回流箭头画回 golden 集。卡住了对照上面 mermaid 版确认，合上继续。导出 PNG 存 `week16-eval-system.png`，源文件留着。
+**第一步：画评估体系总图（20 分钟）。** 关掉教程，打开 excalidraw.com，凭记忆画：golden 集、judge、轨迹评估、CI 门禁、上线、采样、异步 judge、评估库、周 review 这些节点，重点是把回流箭头画回 golden 集。卡住了回本节开头那段闭环描述核对，合上继续。导出 PNG 存 `week16-eval-system.png`，源文件留着。
 
 **第二步：写在线评估设计文档（30 分钟）。** 套核心知识第 1 节的骨架，采样率和样本量按你自己项目的日流量重新算，judge 模型和 rubric 版本填你 Day 2 实际校准过的那套。存进第 13 周项目的 `evals/online-eval-design.md`。
 

@@ -56,16 +56,6 @@
 
 画的时候抓三个层次：**节点是角色，边是控制流，消息标注是数据流**。全图只有一处分叉，从 agent 出来的那两条边，两个条件正好互补。分叉画对了，循环的出口就画对了。
 
-mermaid 版，可直接渲染，手稿画完后拿它对照：
-
-```mermaid
-flowchart TD
-    START([START]) -->|HumanMessage 注入| agent["agent 节点（调 LLM）"]
-    agent -->|AIMessage 带 tool_calls| tools["tools 节点（执行工具）"]
-    tools -->|ToolMessage 带 tool_call_id| agent
-    agent -->|AIMessage 不带 tool_calls| END([END])
-```
-
 Excalidraw 手画要点，五条：
 
 1. 布局：agent 放中间偏左，tools 放右边，START 在顶上，END 在底下。循环要让人一眼看出是个圈

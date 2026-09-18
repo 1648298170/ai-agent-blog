@@ -30,42 +30,7 @@
 
 ### 1. RAG Pipeline 架构图 v2
 
-先给 mermaid 版，贴进 [mermaid.live](https://mermaid.live) 直接渲染：
-
-```mermaid
-flowchart TB
-    subgraph OFF["离线链路：入库"]
-        UP["文档上传（管理 UI · 异步任务）"] --> PARSE["解析"]
-        PARSE --> CHUNK["切块 + metadata<br/>source / page / section"]
-        CHUNK --> EMB["Embedding"]
-        EMB --> PG[("pgvector · documents 表")]
-        CHUNK --> BM25["BM25 内存索引<br/>jieba 分词"]
-    end
-
-    subgraph ON["在线链路：问答"]
-        Q["用户提问"] --> CLS["查询分类"]
-        CLS -->|"chitchat"| DIRECT["直答，跳过检索"]
-        CLS -->|"事实型"| VEC["向量检索"]
-        CLS -->|"分析型"| HY["Hybrid 检索<br/>BM25 + 向量 → RRF 融合"]
-        HY --> RR["Cross-Encoder 重排<br/>候选 50 → 精选 5"]
-        VEC --> TAG["溯源标注<br/>编号 [n] + metadata"]
-        RR --> TAG
-        DIRECT --> LLM["LLM 生成"]
-        TAG --> LLM
-        LLM --> SAN["校验器<br/>擦幽灵引用 · 记日志"]
-        SAN --> RESP["answer + citations 响应"]
-    end
-
-    subgraph BY["旁路：质量与运维"]
-        EVAL["评估集回归<br/>10~20 题金标准<br/>Precision / Recall / F1 / nDCG"]
-        KBUI["知识库管理 UI<br/>上传 · 列表 · 删除"]
-    end
-
-    KBUI -. 驱动入库 .-> UP
-    EVAL -. 每次改动前后跑分 .-> ON
-```
-
-用 Excalidraw 手画的话，照这份要素清单来：
+架构图要素清单如下，照着搭（Excalidraw 或任意白板工具）：
 
 ```text
 三条链路，用三个色块区域圈开：
@@ -228,7 +193,6 @@ git tag week15-done
 
 ## 延伸阅读
 
-- [mermaid.live](https://mermaid.live)：本文的 mermaid 架构图贴进去直接渲染，可导出 SVG 或 PNG 存档
 - [Reciprocal Rank Fusion 原论文（SIGIR 2009）](https://dl.acm.org/doi/10.1145/1571941.1572114)：k=60 的出处。流水线上最小的零件，也是被工业界引用最多的一个
 - 复盘方法论全文见[第 1 周 Day 7](/week01/)：识别与提取、输出倒逼输入，那套逻辑今天原样适用
 

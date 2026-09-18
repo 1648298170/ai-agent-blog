@@ -88,49 +88,32 @@ input-required 是「对面是个 Agent 而不是函数」的直接体现。对�
 
 ## 动手任务：两张图，一步一步
 
-今天不写代码。协议尚新，SDK 半年一个样，但「发现 → 委托 → 执行 → 回传」这个流程几年内不会变，今天练的就是把它画下来。用 Mermaid 画两张图，全程约 25 分钟。
+今天不写代码。协议尚新，SDK 半年一个样，但「发现 → 委托 → 执行 → 回传」这个流程几年内不会变，今天练的就是把它画下来。用 Excalidraw 或纸笔画两张图，全程约 25 分钟——下面把两张图的完整结构列清楚，你照着摆。
 
-**第 1 步：建文件。** 新建 `a2a-design.md`，两张图都放进这个文件，写完它就是当日产出「协议分层架构图」。
+**第 1 步：建文件。** 新建 `a2a-design.md`，把两张图的结构清单记进这个文件，画好后导出 PNG 一并归档，写完它就是当日产出「协议分层架构图」。
 
-**第 2 步：画组合架构图。** 规矩只有一条：MCP 只准出现在 Agent 与工具之间，A2A 只准出现在 Agent 与 Agent 之间。
+**第 2 步：画组合架构图。** 规矩只有一条：MCP 只准出现在 Agent 与工具之间，A2A 只准出现在 Agent 与 Agent 之间。结构如下：
 
-```mermaid
-flowchart TB
-    subgraph S1[你的电商平台]
-        A["客服 Agent（LangGraph）"]
-        A -->|"MCP"| T1[("订单库")]
-        A -->|"MCP"| T2[("知识库")]
-        A -->|"MCP"| T3["工单系统"]
-    end
-    subgraph S2[顺达物流]
-        B["物流 Agent（对方自研）"]
-        B -->|"MCP"| T4["轨迹 API"]
-        B -->|"MCP"| T5["地图服务"]
-    end
-    A ==>|"A2A：委托任务"| B
-```
+- **区块一「你的电商平台」**：客服 Agent（LangGraph）——MCP 连订单库、MCP 连知识库、MCP 连工单系统（三条纵向线）
+- **区块二「顺达物流」**：物流 Agent（对方自研）——MCP 连轨迹 API、MCP 连地图服务（两条纵向线）
+- **横向粗箭头（全图唯一一条）**：客服 Agent ⟹ A2A：委托任务 ⟹ 物流 Agent
 
 注意两个 subgraph 里各有一条 MCP 纵向链路，互不相干；中间那条横向粗箭头才是 A2A。同一个 Agent（你的客服 Agent）既是 MCP 的 Host，又是 A2A 的客户端，一人分饰两角——这就是「分层」的含义。
 
-**第 3 步：画委托时序图。** 客服 Agent 是 A2A 客户端，物流 Agent 是 A2A 服务端，完整走一遍委托：
+**第 3 步：画委托时序图。** 客服 Agent 是 A2A 客户端，物流 Agent 是 A2A 服务端，完整走一遍委托。参与者两个：**客服 Agent（客户端）**、**物流 Agent（服务端）**。时序（按编号画箭头，实线=请求，虚线=响应，标注「内部」的是 self-call）：
 
-```mermaid
-sequenceDiagram
-    participant C as 客服 Agent（客户端）
-    participant L as 物流 Agent（服务端）
-    C->>L: GET /.well-known/agent-card.json
-    L-->>C: Agent Card（skills 含轨迹查询，要求 OAuth2）
-    Note over C: 验签 Card，确认对方会干这活儿
-    C->>L: 按 Card 指引完成认证，拿到访问凭证
-    C->>L: 发起 Task（消息：运单号 SF123）
-    L-->>C: 受理，状态 submitted
-    L->>L: working：内部调自己的 MCP 工具查轨迹
-    L-->>C: input-required：需要收件人手机后四位
-    C->>L: 补充消息（后四位 8888）
-    L->>L: working：继续执行
-    L-->>C: completed + Artifact（轨迹与预计送达时间）
-    Note over C: 拿到产物，组织成人话回给用户
-```
+1. 客服 → 物流：GET /.well-known/agent-card.json
+2. 物流 ⇢ 客服：Agent Card（skills 含轨迹查询，要求 OAuth2）
+3. 客服（内部）：验签 Card，确认对方会干这活儿
+4. 客服 → 物流：按 Card 指引完成认证，拿到访问凭证
+5. 客服 → 物流：发起 Task（消息：运单号 SF123）
+6. 物流 ⇢ 客服：受理，状态 submitted
+7. 物流（内部）：working——调自己的 MCP 工具查轨迹
+8. 物流 ⇢ 客服：input-required：需要收件人手机后四位
+9. 客服 → 物流：补充消息（后四位 8888）
+10. 物流（内部）：working——继续执行
+11. 物流 ⇢ 客服：completed + Artifact（轨迹与预计送达时间）
+12. 客服（内部）：拿到产物，组织成人话回给用户
 
 看一遍流程你就能对上前面三个概念：拉 Card 对应能力发现，submitted 到 completed 对应 Task 生命周期，中间那次来回对应 input-required，最后一行是 Artifact 交付。
 
@@ -138,8 +121,8 @@ sequenceDiagram
 
 **第 5 步：讲一遍。** 对着图用 30 秒口述分层逻辑：「MCP 纵向接工具，A2A 横向找 Agent，物流 Agent 内部再用它自己的 MCP 干活，两层叠加」。讲不顺就说明图还没画明白——图是画给自己讲清用的，不是画给硬盘存的。
 
-::: tip 渲染工具
-Mermaid 在 GitHub、Typora、VS Code（装个插件）里都能直接渲染。想要更自由的排版就换 excalidraw 或 draw.io，但源文件建议用 Mermaid 文本存档，以后改起来最省事。
+::: tip 画图工具
+两张图用 Excalidraw 或 draw.io 画，导出 PNG 存档；上面的结构清单留在 `a2a-design.md` 里做文本底本，以后协议升级时改起来最省事。
 :::
 
 ## 常见踩坑

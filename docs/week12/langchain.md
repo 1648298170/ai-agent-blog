@@ -14,30 +14,7 @@
 
 先给结论，这句话值得原样背下来：**LangChain 生态不是一个大框架，是一组分层的库。** 每层职责单一，可以单独安装、单独升级、单独换掉。
 
-```mermaid
-graph TD
-    SM["langsmith<br/>可观测：追踪、评估"]
-
-    subgraph A["应用层（挑快捷方式）"]
-        LC["langchain（1.0）<br/>create_agent + middleware"]
-        CA["langchain-classic<br/>旧 Chains / LCEL（遗留）"]
-    end
-
-    subgraph B["引擎层（自己搭图）"]
-        LG["langgraph<br/>StateGraph / 节点 / 条件边 / 检查点"]
-    end
-
-    subgraph C["地基"]
-        CO["langchain-core<br/>messages / @tool / 模型接口 / Runnable"]
-    end
-
-    LC --> LG
-    LG --> CO
-    CA --> CO
-    SM -.观测所有层.-> LC
-```
-
-文字版对照：
+五个包逐一对照：
 
 | 包 | 一句话职责 | 你和它的关系 |
 |---|---|---|

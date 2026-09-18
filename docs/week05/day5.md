@@ -121,26 +121,19 @@ scope 是借条上的限额。`scope=openid email profile` 意思是：只要身
 
 **第 5 步：存档。** 拍照或导出，存进本周目录，这就是当日产出「OAuth 时序图」。
 
-::: tip 顺手来一版 Mermaid
-把下面代码贴进 mermaid.live 可得一张成品，用来对照自检。第一稿务必先自己画：
+::: tip 对照用：标准时序十条
+画完对着下面十条核对（第一稿务必先自己画）：
 
-```text
-sequenceDiagram
-    participant B as 用户/浏览器
-    participant S as 你的后端(NestJS)
-    participant A as Google 授权服务器
-    participant R as Google 资源服务器
-    B->>S: 1 点「用 Google 登录」
-    S-->>B: 2 302 跳授权页(client_id, scope, state, code_challenge)
-    B->>A: 3 打开授权页，用户验证并同意
-    A-->>B: 4 同意，302 回跳带 code
-    B->>S: 5 GET /auth/google/callback?code=abc&state=xyz
-    S->>A: 6 POST /token(code+client_secret+code_verifier)
-    A-->>S: 7 access_token + id_token
-    S->>R: 8 GET /userinfo(Bearer access_token)
-    R-->>S: 9 sub / email / name
-    S-->>B: 10 查库建用户，签发自家 JWT
-```
+1. 用户/浏览器 → 你的后端（NestJS）：点「用 Google 登录」
+2. 你的后端 → 浏览器：302 跳授权页（client_id, scope, state, code_challenge）
+3. 浏览器 → Google 授权服务器：打开授权页，用户验证并同意
+4. 授权服务器 → 浏览器：同意，302 回跳带 code
+5. 浏览器 → 你的后端：GET /auth/google/callback?code=abc&state=xyz
+6. 你的后端 → 授权服务器：POST /token（code + client_secret + code_verifier）
+7. 授权服务器 → 你的后端：access_token + id_token
+8. 你的后端 → Google 资源服务器：GET /userinfo（Bearer access_token）
+9. 资源服务器 → 你的后端：sub / email / name
+10. 你的后端 → 浏览器：查库建用户，签发自家 JWT
 :::
 
 ## 常见踩坑

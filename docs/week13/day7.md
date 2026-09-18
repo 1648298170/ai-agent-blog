@@ -89,25 +89,6 @@ print(f"{ok}/10")                     # 打出 10/10 才算过
   批准线通向工具，拒绝线绕回 Agent 改口告知用户
 ```
 
-mermaid 版，画完手稿拿它对照：
-
-```mermaid
-flowchart TD
-    U([用户]) -->|HTTP 请求| F["FastAPI 边界<br/>路由分层，SSE 逐字回流"]
-    F --> SUP["Supervisor<br/>小模型硬路由"]
-    SUP -->|订单类意图| ORD["订单 Agent<br/>查订单 / 查物流（只读）"]
-    SUP -->|退款类意图| REF["退款 Agent"]
-    SUP -->|闲聊或已答完| E([END])
-    ORD -->|固定边回环| SUP
-    REF --> INT{{"interrupt() 出审批卡<br/>等人拍板"}}
-    INT -->|"Command(resume=True)"| TOOL["发起退款（高危）"]
-    INT -->|"resume=False"| BACK["改口告知用户"]
-    TOOL --> SUP
-    BACK --> SUP
-    F -.每走一步存档.-> CK[("checkpoint 存储<br/>按 thread_id 区分")]
-    CK -.恢复断点现场.-> INT
-```
-
 画完按四条自查：FastAPI 框闭合吗，只有 HTTP 进、SSE 出两个口；checkpoint 谁在读谁在写，标注里写清「每步存、恢复取、按 thread_id」了吗；审批流是绕行线不是直线，闸门卡在工具执行之前；底图和 Day 1 一致吗，星型的纪律没走样。
 
 ::: warning 还是先凭记忆画

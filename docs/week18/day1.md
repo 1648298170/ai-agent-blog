@@ -14,27 +14,11 @@
 
 一旦工具要跨项目复用，麻烦就来了。你的订单系统想让 Agent A 用，也想让 Agent B 用；Agent A 除了订单还想用邮件、日历、物流查询。每个 Agent 框架的工具有自己的定义格式，每个业务系统有自己的 API 风格，两边一对齐就得写一份胶水代码。2 个 Agent × 3 个工具是 6 份胶水，3 个 Agent × 4 个工具就是 12 份，数量按乘法涨，而且每份都不一样：
 
-```mermaid
-graph TB
-    subgraph NXM["没有 MCP：每个 Agent × 每个工具 = 一份手写胶水"]
-        A1["Agent A"] -->|"自定义胶水 1"| T1["订单 API"]
-        A1 -->|"自定义胶水 2"| T2["邮件 API"]
-        A2["Agent B"] -->|"自定义胶水 3"| T1
-        A2 -->|"自定义胶水 4"| T2
-    end
-```
+没有 MCP 时的连法是网格状的：Agent A →（自定义胶水 1）订单 API、→（自定义胶水 2）邮件 API；Agent B →（自定义胶水 3）订单 API、→（自定义胶水 4）邮件 API——四条线各不相同，谁也不通用。
 
 这就是工具生态的 N×M 问题。MCP（Model Context Protocol）的解法是给「Agent 怎么发现工具、描述工具、调用工具」定一套开放标准：工具方把自己的能力包装成 MCP Server，实现一次；Agent 方内置 MCP Client，接入一次。此后加一个 Agent 或加一个工具，成本都是 1，总账从 N×M 变成 N+M：
 
-```mermaid
-graph TB
-    subgraph NPM["有 MCP：双方各接一次标准协议"]
-        B1["Agent A"] -->|"Client，统一接口"| P["MCP 标准协议"]
-        B2["Agent B"] -->|"Client，统一接口"| P
-        P --> Q1["订单 Server"]
-        P --> Q2["邮件 Server"]
-    end
-```
+有 MCP 之后变成星型：Agent A 与 Agent B 都用统一接口连到 MCP 标准协议，协议再分别转接到订单 Server 和邮件 Server——两侧各自只接一次。
 
 这就是 MCP 常被比作「AI 工具生态的 USB-C」的原因：外设不用为每台电脑定制一种接口，电脑也不用为每个外设开一种槽，中间隔着一个公版协议。MCP 由 Anthropic 于 2024 年 11 月开源，如今官方 SDK 每月下载量已达数亿次，主流模型厂商和客户端均已跟进，是事实上的行业标准。本周要把「工具接入」从手写代码升级到这个协议上。
 
@@ -122,7 +106,7 @@ MCP 规范迭代很快，学习资料鱼龙混杂，先把时间线钉住：
 
 ## 动手任务：画出你自己的 MCP 架构图
 
-手册任务：画一张 MCP 架构图，体现「Agent 作为 Client，业务 API 作为 Server」。拆成 5 步，全程约 20 分钟，产出存为 `mcp-architecture.md`（含 mermaid 图和要素清单）。
+手册任务：画一张 MCP 架构图，体现「Agent 作为 Client，业务 API 作为 Server」。拆成 5 步，全程约 20 分钟，产出存为 `mcp-architecture.md`（结构清单 + 手绘图/Excalidraw 存档）。
 
 **第 1 步：画 Host 边界。** 先画一个大框，标上「Agent Host：你的 Agent 进程」。框里放 Agent 主循环（规划、记忆、RAG 都画进来）。这一步的意义是提醒自己：Client 是长在 Host 里面的，不是独立服务。
 
@@ -130,25 +114,13 @@ MCP 规范迭代很快，学习资料鱼龙混杂，先把时间线钉住：
 
 **第 3 步：连线标传输。** 本地同机的 Server 标 stdio（子进程方式，零网络开销），跨网络的标 Streamable HTTP。传输选型就这一条判断：是否跨机器。
 
-**第 4 步：给每个 Server 标原语。** 订单 Server 标 Tools（创建订单、查物流），知识库 Server 标 Resources（文档、记录），第三方 Server 可以标 Prompts（分析模板）和 Tasks（长任务）。一台 Server 允许同时提供多种原语。完成后应该长这样：
+**第 4 步：给每个 Server 标原语。** 订单 Server 标 Tools（创建订单、查物流），知识库 Server 标 Resources（文档、记录），第三方 Server 可以标 Prompts（分析模板）和 Tasks（长任务）。一台 Server 允许同时提供多种原语。完成后应该长这样（结构清单）：
 
-```mermaid
-graph LR
-    subgraph HOST["Agent Host：你的 Agent 进程"]
-        LOOP["Agent 主循环<br/>规划 · 记忆 · RAG"]
-        C1["MCP Client"]
-        C2["MCP Client"]
-        C3["MCP Client"]
-    end
-
-    LOOP --> C1
-    LOOP --> C2
-    LOOP --> C3
-
-    C1 -->|"stdio（本地子进程）"| S1["订单 Server<br/>Tools：创建订单 · 查物流"]
-    C2 -->|"Streamable HTTP（跨网络）"| S2["知识库 Server<br/>Resources：文档 · 记录"]
-    C3 -->|"Streamable HTTP（跨网络）"| S3["第三方 Server<br/>Prompts：分析模板 · Tasks：长任务"]
-```
+- **Host 大框「Agent Host：你的 Agent 进程」**内含：Agent 主循环（规划 · 记忆 · RAG）+ 三个 MCP Client
+- 主循环分别连三个 Client（一对一起见）
+- Client 1 →（stdio，本地子进程）订单 Server（Tools：创建订单 · 查物流）
+- Client 2 →（Streamable HTTP，跨网络）知识库 Server（Resources：文档 · 记录）
+- Client 3 →（Streamable HTTP，跨网络）第三方 Server（Prompts：分析模板 · Tasks：长任务）
 
 **第 5 步：对照要素清单自查。** 逐条打勾，缺哪条补哪条：
 

@@ -267,6 +267,5 @@ END 也是图上的一个节点，虚拟节点，不挂函数，只表示流程�
 
 - [LangGraph 官方文档](https://langchain-ai.github.io/langgraph/)，StateGraph、节点、边的一手定义，Quickstart 和今天的四步曲完全一致，值得对照通读
 - [LangGraph 流式输出指南](https://docs.langchain.com/oss/python/langgraph/streaming)，stream_mode 各档位的官方说明，values 之外还有 updates、messages 模式
-- [Mermaid Live Editor](https://mermaid.live)，把 `draw_mermaid()` 的输出贴进去，立刻看到渲染好的图
 
 今天的 `first_graph.py` 留好。明天在 llm 和 END 之间加一条条件边，让图学会看 State 决定下一步——ReAct 循环的门就从那里推开。

@@ -22,13 +22,12 @@
 
 ### 1. 总装架构：两个外壳节点
 
-```mermaid
-flowchart LR
-    S([START]) --> L["load_memory（图首）<br/>读 PG 画像 + 历史摘要<br/>以最新 user 消息检索情景<br/>渲染 system prompt"]
-    L --> A["agent（ReAct，第 13 周原样）"]
-    A --> V["save_memory（图尾）<br/>抽取偏好 · 归档情景<br/>每 10 轮或会话结束更新摘要<br/>慢活全部后台执行"]
-    V --> E([END])
-```
+一次 invoke 依次穿过四个节点：
+
+- **START → load_memory（图首）**：读 PG 画像 + 历史摘要，以最新 user 消息检索情景，渲染 system prompt
+- **→ agent**：第 13 周的 ReAct 原样接上，一行不动
+- **→ save_memory（图尾）**：抽取偏好、归档情景，每 10 轮或会话结束更新摘要，慢活全部后台执行
+- **→ END**
 
 state 要在 ReAct 用的字段之外多出四个：`user_id`（记忆的 key）、`system`（图首注入的成品 prompt）、`turn_count`（轮数，计到 10 触发摘要）、`session_end`（会话结束标记）。四个都是外壳的字段，ReAct 一个都不用认识。
 
@@ -73,16 +72,13 @@ checkpoint（第 12 周）管 thread 内的回放，三层记忆管跨会话的�
 | 何时写 | 每个超级步之后，框架自动 | save_memory 节点，我们显式 |
 | 换 thread_id | 清零，从第一轮重来 | 照常加载，Agent 认得你 |
 
-```mermaid
-flowchart TB
-    U["invoke(user_id, thread_id, 新消息)"] --> C{"checkpointer：thread 有存档？"}
-    C -->|"有：恢复历史再继续"| L
-    C -->|"没有：空历史开始"| L
-    L["load_memory：现查 PG 画像/摘要 + 向量情景"] --> A["agent：ReAct 推理"]
-    A --> V["save_memory：后台写三层记忆"]
-    V --> P["checkpointer 落盘本 thread 状态"]
-    P --> R["返回回复"]
-```
+一次 invoke 的完整数据流：
+
+- invoke(user_id, thread_id, 新消息) → checkpointer 判断：thread 有存档就恢复历史再继续，没有就空历史开始
+- → **load_memory**：现查 PG 画像/摘要 + 向量检索情景
+- → **agent**：ReAct 推理
+- → **save_memory**：后台写三层记忆
+- → checkpointer 落盘本 thread 状态 → 返回回复
 
 验证分工最省事的办法就是今天的 demo：换一个全新 thread_id 再聊，Agent 依然叫得出你的名字，那是记忆的功劳；同一个 thread_id 隔天接着聊，历史无缝续上，那是 checkpoint 的功劳。
 

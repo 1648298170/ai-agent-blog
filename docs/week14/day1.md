@@ -100,68 +100,33 @@ Naive RAG 能跑，但每一环都有经典的翻车姿势。提前预告，这�
 
 手册任务：画出「文档 → 切块 → Embedding → 检索 → 生成」的流程图，离线/在线分色。拆成 5 步，全程约 20 分钟。
 
-**第 1 步：选工具。** 两条路：Excalidraw（手绘风、自由排版，适合讲给人听）或 Mermaid（代码即图，改图就是改文本，能进 git 版本管理）。推荐先用 Mermaid，下面也以它为准，Excalidraw 的画法要点放在第 5 步。
+**第 1 步：选工具。** 推荐 [Excalidraw](https://excalidraw.com)（手绘风、自由排版，导出 PNG 存档），纸笔或任意白板工具也行。下面每一步先把「该画什么」按文字结构列清楚，你在工具里照着摆节点。
 
-**第 2 步：画离线侧。** 四个节点串成一条线，末端是数据库：
+**第 2 步：画离线侧。** 四个节点串成一条线（框成一个区域，标注「离线侧 · 建知识库」）：
 
-```mermaid
-flowchart TB
-    subgraph OFF[离线侧 · 建知识库]
-        A[原始文档<br/>PDF / Word / 飞书] --> B[切块<br/>几百字一块，带重叠]
-        B --> C[Embedding<br/>文本转向量]
-        C --> D[("向量数据库<br/>向量 + 原文 + 元数据")]
-    end
-```
+- 原始文档（PDF / Word / 飞书）→ 切块（几百字一块，带重叠）→ Embedding（文本转向量）→ **向量数据库**（向量 + 原文 + 元数据）
 
-第 2 步的要点是那个圆柱体：`[("...")]` 在 Mermaid 里就是数据库形状。全图最该用特殊形状的节点就是它，因为它是两条线的交汇点。
+第 2 步的要点是那个数据库节点：全图最该用特殊形状标出来的就是它（Excalidraw 里用圆柱体 cylinder），因为它是两条线的交汇点。
 
-**第 3 步：画在线侧。** 五个节点串成一条线：
+**第 3 步：画在线侧。** 五个节点串成一条线（框成另一个区域，标注「在线侧 · 每次问答」）：
 
-```mermaid
-flowchart TB
-    subgraph ON[在线侧 · 每次问答]
-        E[用户问题] --> F[问题 Embedding<br/>和离线侧同一个模型]
-        F --> G[相似检索<br/>取 Top-K 切块]
-        G --> H[拼 Prompt<br/>资料 + 问题 + 指令]
-        H --> I[LLM 生成<br/>仅根据资料作答]
-        I --> J[回答用户]
-    end
-```
+- 用户问题 → 问题 Embedding（和离线侧同一个模型）→ 相似检索（取 Top-K 切块）→ 拼 Prompt（资料 + 问题 + 指令）→ LLM 生成（仅根据资料作答）→ 回答用户
 
-**第 4 步：连上那条桥，再分色。** 两条线之间只连一条边：向量库到相似检索，用虚线表示「跨线读取」。补上分色，得到最终版：
+**第 4 步：连上那条桥，再分色。** 两条线之间只连一条边：向量库到相似检索，用虚线箭头表示「跨线读取」，线上标注「Top-K 切块」。最终全图的四要素：
 
-```mermaid
-flowchart TB
-    subgraph OFF[离线侧 · 建知识库]
-        A[原始文档<br/>PDF / Word / 飞书] --> B[切块<br/>几百字一块，带重叠]
-        B --> C[Embedding<br/>文本转向量]
-        C --> D[("向量数据库<br/>向量 + 原文 + 元数据")]
-    end
+- **离线侧**（冷色区域）：原始文档 → 切块 → Embedding → 向量数据库
+- **在线侧**（暖色区域）：用户问题 → 问题 Embedding → 相似检索 → 拼 Prompt → LLM 生成 → 回答用户
+- **跨线桥**：向量数据库 ⇢ 相似检索（虚线，唯一接口）
+- **分色**：离线统一浅蓝类冷色、在线统一浅橙类暖色，一眼分清两条线
 
-    subgraph ON[在线侧 · 每次问答]
-        E[用户问题] --> F[问题 Embedding<br/>和离线侧同一个模型]
-        F --> G[相似检索<br/>取 Top-K 切块]
-        G --> H[拼 Prompt<br/>资料 + 问题 + 指令]
-        H --> I[LLM 生成<br/>仅根据资料作答]
-        I --> J[回答用户]
-    end
-
-    D -. Top-K 相似切块 .-> G
-
-    classDef offline fill:#E8F1FC,stroke:#2E6FDB,stroke-width:2px
-    classDef online fill:#FDF3E3,stroke:#D98E1F,stroke-width:2px
-    class A,B,C,D offline
-    class E,F,G,H,I,J online
-```
-
-蓝的是离线，橙的是在线。`classDef` 定义颜色，`class A,B,C,D offline` 把节点归类，两行一组，照抄就能用。
+配色随手就行（Excalidraw 选中节点改 fill 色），关键是「两条线两种颜色 + 一条虚线过桥」这个视觉结构。
 
 **第 5 步：标翻车点，对着图讲一遍。** 在切块、相似检索、LLM 生成三个节点旁各加一行标注：「易翻车：切块不当」「易翻车：检索不准」「易翻车：生成幻觉」，把第 4 小节的作战地图落到图上。画完不算完，合上文章，对着自己把这张图从头讲一遍：离线四步、在线四步、交汇点在哪、三个雷埋在哪。讲不顺的地方，就是接下来要重点补的地方。
 
 用 Excalidraw 的话，画法对应过去：两个 Frame 分别框住离线、在线；数据库用 cylinder 形状；跨线那条边用虚线箭头，线上标注「Top-K 切块」；翻车点用红字便签贴在对应节点旁。要素一致，工具随意。
 
-::: tip 渲染验证
-把 Mermaid 代码贴进 [mermaid.live](https://mermaid.live) 立刻能看到渲染结果，改一处看一眼，比猜语法快得多。确认能渲染后，把最终版代码块存进本周笔记，标注「Week14 Day1 产出：RAG 流程图」。
+::: tip 画完存档
+导出 PNG 存进本周笔记，标注「Week14 Day1 产出：RAG 流程图」；`.excalidraw` 源文件一起留——第 15 周优化 RAG 时要在这张图上改。
 :::
 
 ## 常见踩坑
@@ -214,7 +179,6 @@ flowchart TB
 
 - [Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks](https://arxiv.org/abs/2005.11401)，RAG 的原始论文（Lewis 等，2020），今天讲的每一步在论文里都有学术原型
 - [OpenAI：Embeddings 指南](https://platform.openai.com/docs/guides/embeddings)，看「文本变向量」到底怎么用，对理解离线侧第 3 环有帮助
-- [Mermaid 流程图语法](https://mermaid.js.org/syntax/flowchart.html)，今天画图用到的全部语法都在这页，subgraph 和 classDef 值得细看
-- [Excalidraw](https://excalidraw.com)，喜欢手绘风就用它，画完导出 PNG 和 Mermaid 源码一起存进笔记
+- [Excalidraw](https://excalidraw.com)，本篇推荐的画图工具，手绘风，画完导出 PNG 存进笔记
 
 今天的流程图留好，本周期接下来几天就照着它拆零件：先把切块做扎实，再把检索调准，最后把生成的幻觉摁住，一天解决图上一个环节。
