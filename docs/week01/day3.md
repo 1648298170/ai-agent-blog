@@ -517,7 +517,51 @@ as 只影响编译期，零运行时检查，数据非法时错误延迟到使�
 **问题 2：判别联合为什么能收窄？把 kind 字段删掉、改成三个可选字段会发生什么？**
 
 ::: details 查看答案
-判别字段在每个成员里是不同的字面量（'text'、'tool_call'、'done'），比较一次就能唯一确定成员。改成可选字段后，多个成员可能同时「看起来匹配」，编译器无法唯一排除其他成员，只能停在宽类型上，取字段就得加断言。
+
+窄化的引擎是**排除法**：一次比较必须能证明「某些成员不可能」，编译器才把它们踢出联合。两种设计在排除法下的表现天差地别。
+
+**好版（判别联合）**——每个成员的 kind 是**必填的、互不相同**的字面量：
+
+```ts
+type StreamChunk =
+  | { kind: 'text'; content: string }
+  | { kind: 'tool_call'; tool: string; args: string }
+  | { kind: 'done'; reason: string }
+
+declare const chunk: StreamChunk;
+if (chunk.kind === 'text') {
+  // 排除法开动：
+  //   tool_call 成员的 kind 是 'tool_call'，绝不可能 === 'text' → 踢掉
+  //   done 成员同理 → 踢掉
+  //   只剩 text 成员 → chunk.content 直接可用
+  console.log(chunk.content); // ✅
+}
+```
+
+关键在「**互不相同的字面量**」：`chunk.kind === 'text'` 这个检查对另外两个成员**恒为假**——编译器能 100% 排除它们。
+
+**坏版（可选字段）**——删掉 kind，用三个可选字段区分：
+
+```ts
+type LooseChunk =
+  | { text?: string; content: string }
+  | { tool?: string; args: string }
+  | { reason: string }
+
+declare const loose: LooseChunk;
+if (loose.text !== undefined) {
+  // 排除法失灵：
+  //   { reason: string } 这个成员——text 在它身上是可选的，可以有也可以没有，
+  //   「loose.text !== undefined」对它【可能为真】→ 排除不掉
+  //   编译器一个成员都踢不掉，loose 还是 LooseChunk 全体
+  console.log(loose.content); // ❌ 报错：content 不一定存在
+}
+```
+
+问题出在**可选字段的检查对谁都可能为真**：存在性检查（`!== undefined`、`in`）无法证明任何成员不可能——于是联合纹丝不动，取字段要么层层 `?.`，要么 `as` 断言（回到骗编译器的老路）。
+
+一句话：判别字段给编译器的是「一次比较、其余成员恒假」的**数学保证**；可选字段只给「我大概率是这个」的**概率暗示**——排除法只认前者。
+
 :::
 
 **问题 3：is 和 asserts 各适合什么场景？**
