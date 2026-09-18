@@ -91,7 +91,54 @@ function parse(raw: any) {        // error  Unexpected any. Specify a type other
 }
 ```
 
-上一档还有 `recommendedTypeChecked`：借助 tsconfig 的类型信息做检查，能查出「返回值没收窄」这类更深的坑，monorepo 里用 `projectService: true` 就不用手维护 tsconfig 清单。代价是明显变慢，今天不碰，知道有这一档即可。
+**怎么配置**：实战里就是动手任务第 2 步那行 `...tseslint.configs.recommended`——但这行到底干了什么，值得拆开看一次。它展开后大致是（简化版）：
+
+```js
+import tseslint from "typescript-eslint";
+
+// ...tseslint.configs.recommended ≈ 下面这个配置对象
+{
+  files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"], // 只管 TS 文件
+  languageOptions: {
+    parser: tseslint.parser, // ① 关键一步：换掉默认解析器
+    parserOptions: { sourceType: "module" },
+  },
+  plugins: {
+    "@typescript-eslint": tseslint.plugin, // ② 注册规则集
+  },
+  rules: {
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-unused-vars": "error",
+    // ……几十条推荐规则
+    "no-unused-vars": "off", // ③ 关掉 JS 原版规则
+  },
+}
+```
+
+三件事各司其职：
+
+① **换解析器**：ESLint 默认解析器 espree 只认 JS，见到 `interface`、`<T>` 直接语法报错。换成 typescript-eslint 的解析器，TS 语法才被解析成 ESLint 能分析的结构——「让 ESLint 读懂 TS」的字面含义就在这一行
+
+② **注册规则集**：所有规则以 `@typescript-eslint/` 前缀挂进来——动手任务第 5 步报错里的规则名为什么长那样，答案在这
+
+③ **规则换芯**：不少 JS 基础规则有 TS 增强版（`no-unused-vars` → `@typescript-eslint/no-unused-vars`，后者认得类型导入、装饰器这些 TS 语义）。推荐配置统一「关 JS 版、开 TS 版」——同一问题不双报，且按 TS 的语义判
+
+如果想升级到**类型感知**检查（查「返回值没收窄」「await 非 Promise」这类语法层看不出的问题），把预设换成 `recommendedTypeChecked`，并让解析器带上类型信息：
+
+```js
+export default tseslint.config(
+  ...tseslint.configs.recommendedTypeChecked,
+  {
+    languageOptions: {
+      parserOptions: {
+        projectService: true, // 自动发现各子包 tsconfig，monorepo 免维护清单
+      },
+    },
+  },
+);
+```
+
+`projectService: true` 是现代写法（等价于老教程里手写 `project: [...]` 列出所有 tsconfig），monorepo 里尤其省心。代价是 lint 明显变慢——今天 recommended 够用，知道升级姿势、遇到深坑再开即可。
 
 ### 3. Prettier 的地盘：`.prettierrc` 与两条命令
 
