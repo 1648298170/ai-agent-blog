@@ -32,48 +32,7 @@
 
 ## 三、23 周后，你手里会有什么
 
-一张图看全程——五个阶段、23 周周周相扣、四个里程碑是同一个项目成长的四张照片：
-
-```mermaid
-flowchart TD
-    START([开始：会 JavaScript]) --> P1
-
-    subgraph P1["阶段一 · 前端 + Node 底座（第 1–4 周）"]
-        direction LR
-        A1["W1<br/>TS 泛型 + Monorepo"] --> A2["W2<br/>门禁 + Next.js"] --> A3["W3<br/>Node + NestJS"] --> A4["W4<br/>PG + Prisma"]
-    end
-    P1 --> M1{{"里程碑 v1<br/>全栈 CRUD 跑通"}}
-
-    M1 --> P2
-    subgraph P2["阶段二 · 工程化 + 部署（第 5–8 周）"]
-        direction LR
-        B1["W5<br/>JWT / RBAC"] --> B2["W6<br/>Redis / 队列 / 幂等"] --> B3["W7<br/>Docker / CI"] --> B4["W8<br/>上云 / 监控"]
-    end
-    P2 --> M2{{"里程碑 v2<br/>上线 + 监控"}}
-
-    M2 --> P3
-    subgraph P3["阶段三 · Python + Agent 核心（第 9–13 周）"]
-        direction LR
-        C1["W9<br/>Python / Pydantic"] --> C2["W10<br/>FastAPI / SSE"] --> C3["W11<br/>LLM API / AI SDK"] --> C4["W12<br/>LangGraph / ReAct"] --> C5["W13<br/>多 Agent / HITL"]
-    end
-    P3 --> M3{{"里程碑 v3<br/>多 Agent 平台"}}
-
-    M3 --> P4
-    subgraph P4["阶段四 · RAG + 评估 + 安全（第 14–19 周）"]
-        direction LR
-        D1["W14<br/>RAG 基础"] --> D2["W15<br/>RAG 进阶"] --> D3["W16<br/>评估工程"] --> D4["W17<br/>记忆 / 上下文"] --> D5["W18<br/>MCP"] --> D6["W19<br/>安全 + 国产生态"]
-    end
-    P4 --> M4{{"里程碑 v4<br/>生产级加固"}}
-
-    M4 --> P5
-    subgraph P5["阶段五 · 整合 + 面试（第 20–23 周）"]
-        direction LR
-        E1["W20<br/>平台整合"] --> E2["W21<br/>生产化 / 成本"] --> E3["W22<br/>简历 / 复盘"] --> E4["W23<br/>面试冲刺"]
-    end
-    P5 --> END([毕业：速查卡 + 投递])
-```
-
-图上还有几条看不见的线，走的时候会越来越清楚：第 4 周建的 PostgreSQL，第 14 周要装 pgvector 变成向量库；第 5 周签发的 JWT，第 20 周要贯通全平台；第 1 周搭的 monorepo，装着这 23 周的所有代码——**你始终在同一个项目上工作，它跟着你长大**。
+这条路上有几条看不见的线，走的时候会越来越清楚：第 4 周建的 PostgreSQL，第 14 周要装 pgvector 变成向量库；第 5 周签发的 JWT，第 20 周要贯通全平台；第 1 周搭的 monorepo，装着这 23 周的所有代码——**你始终在同一个项目上工作，它跟着你长大**。
 
 **五个里程碑项目**，每个都可运行、可演示、可写进简历：
 
