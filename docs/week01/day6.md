@@ -133,7 +133,7 @@ src/types/api.ts 放"形状"：ApiResponse 一家子和 Paginated。src/utils/fo
 apps 这边只需要三步：
 
 1. apps/web/package.json 的 dependencies 加上 `"@my/shared": "workspace:*"`，然后在仓库根目录执行 pnpm install。pnpm 会在 apps/web/node_modules 里建一个指向 packages/shared 的软链接。workspace:* 的含义是：这个依赖永远取工作区里的本地包，绝不去 registry 下载
-2. apps/web 的 tsconfig 不需要为 shared 做特殊配置，Vite 模板默认的 moduleResolution: "bundler" 认识 exports 表；用 NodeNext 也一样
+2. apps/web 的 tsconfig 不需要为 shared 做特殊配置——为什么"什么都不配"就能认识 exports？原因藏在 tsconfig 的 `moduleResolution`（模块解析策略）里，本节末尾展开
 3. 写 import：
 
 ```ts
@@ -146,6 +146,43 @@ import { formatDate, type ApiResponse } from '@my/shared';
 - 类型期：TS 读 `types` 条件，加载 dist/index.d.ts，ApiResponse 从这里来
 
 这也解释了一个经典怪象：types 条件漏配时，代码能跑，类型却悄悄变成 any。
+
+### 展开讲：为什么 apps/web 什么都不用配？
+
+「import 一个包，TS 去哪找它的类型？」——答案由 tsconfig 里的 **`moduleResolution`（模块解析策略）** 决定。它是一套「去 node_modules 找包时按什么规则读 package.json」的算法，不同策略对 exports 表的态度完全不同：
+
+| 策略 | 读 exports 吗 | 谁在用 | 一句话定位 |
+| ---- | ---- | ---- | ---- |
+| `node10`（旧名 `"node"`） | ❌ 完全无视，只认 `main`/`types` 两个字段 | 老项目、复制来的旧 tsconfig | 上古规则，新项目别用 |
+| `nodenext`（node16 同族） | ✅ 按 Node 真实规则读 | 跑在 Node 里的包（比如 apps/api） | 最严格，跟 Node 官方行为一致 |
+| `bundler` | ✅ 同样读 | **Vite/webpack 项目的默认值**（apps/web） | 给打包器场景放宽：读 exports 但不强制相对导入写扩展名 |
+
+现在逐行追踪 apps/web 那句 `import ... from '@my/shared'` 在 **bundler 模式**下的完整解析过程：
+
+```text
+① TS 遇到 '@my/shared'
+② 顺着 apps/web/node_modules/@my/shared 找包
+   —— pnpm 装的软链接，指到 packages/shared/
+③ 读 packages/shared/package.json：
+   有 exports 表？ → 进入 exports 解析（node10 到这一步就拐弯了：只看 main/types）
+④ 取 exports 的 "." 入口，按条件从上往下匹配：
+   - 看到第一个匹配的条件是 "types" → 类型解析为 dist/index.d.ts ✅
+   - （运行时 Vite 自己也走同样规则，匹配到 "import" → dist/index.js）
+```
+
+第 ③ 步就是分水岭：**bundler 和 nodenext 都会在这一步选择读 exports，node10 直接无视它**。Vite 脚手架生成的 tsconfig 自带 `"moduleResolution": "bundler"`——所以你一行都不用配，这句 import 的类型解析就已经走现代规则了。
+
+「用 NodeNext 也一样」展开说：nodenext 同样在第 ③ 步读 exports，裸导入 `@my/shared` 的解析结果与 bundler 完全一致。两者唯一的日常差异是：**nodenext 要求你自己代码里的相对导入写明文件扩展名**（`./types/api.js`，后文 tsconfig 那节会再遇到），对「消费 workspace 包」这种裸导入没有任何影响。
+
+再补一个反例，把这个知识点钉死——假设有人把 apps/web 的 tsconfig 改回了上古的 `node10`：
+
+```text
+moduleResolution: "node10" 的解析路径：
+③' 读 package.json → 无视 exports，只找：
+    types: "./dist/index.d.ts"  → 找到了，勉强能用
+```
+
+注意「勉强」二字：node10 碰巧能跑，靠的是我们在核心知识 1 里**防御性地把 main/types 和 exports 双写全**——老策略走 main/types 兜底，新策略走 exports。如果这个包只写 exports（现代包的标准做法），node10 直接报「找不到模块声明」。这就是第 1 节那句「main/types 是兼容性保险」的真实含义：**解析策略新旧有别，字段双写让谁来了都能找到门**。
 
 ## 动手任务：把 shared 做成规范包并双端验证
 
