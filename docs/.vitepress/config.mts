@@ -83,6 +83,7 @@ export default defineConfig({
 
     nav: [
       { text: '首页', link: '/' },
+      { text: '前言', link: '/preface' },
       { text: '路线图', link: '/roadmap' },
       { text: '第 1 周教程', link: '/week01/' },
       { text: '使用指南', link: '/guide/' }
@@ -127,6 +128,7 @@ export default defineConfig({
     },
 
     sidebar: [
+      { text: '前言 · 开始之前', link: '/preface' },
       {
         text: '阶段一 · 前端 + Node 底座（第 1–4 周）',
         collapsed: false,
