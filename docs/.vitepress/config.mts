@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitepress'
+import { withMermaid } from 'vitepress-plugin-mermaid'
 
 /** 每周 7 天的短标题（与周概览页"教程进度"一致） */
 const dayTitles: Record<number, string[]> = {
@@ -62,7 +63,8 @@ const week01 = {
   ]
 }
 
-export default defineConfig({
+export default withMermaid(
+  defineConfig({
   lang: 'zh-CN',
   base: '/ai-agent-blog/',
   title: 'AI Agent 全栈工程师',
@@ -183,5 +185,18 @@ export default defineConfig({
         ]
       }
     ]
+  },
+
+  // mermaid 图表主题（```mermaid 代码块渲染为图）
+  mermaid: {
+    theme: 'default'
+  },
+
+  // mermaid 的依赖 dayjs 是 CJS 包，dev 模式下需强制预构建以生成 ESM 互操作，
+  // 否则报 "does not provide an export named 'default'"
+  vite: {
+    optimizeDeps: {
+      include: ['dayjs']
+    }
   }
-})
+}))
