@@ -38,6 +38,37 @@ const backup = { host: "localhost", port: 3000 };
 
 为什么不是一个大工具全包？ESLint 9 起已经把核心里的纯格式化规则全部移除（社区挪去 `@stylistic` 系插件维护），官方态度就是「格式不归我管」；而 Prettier 完全不做语义检查，只管排版。两个工具各干一行，中间用 `eslint-config-prettier` 划清边界，这就是社区的事实标准。
 
+还有一层要先说清：今天的配置有**两条生效通道**，别混为一谈。
+
+- **命令行通道**：`eslint.config.js` + `.prettierrc` + `pnpm lint` / `pnpm format`——团队统一的门禁，不依赖任何编辑器，CI 里跑的就是它
+- **编辑器通道**：你在 VS Code 里写代码时的实时红线、保存时自动修复和格式化——这需要**装两个插件**，配置文件自己不会「长进」编辑器里
+
+要装的插件就两个（扩展面板搜名字或用命令行）：
+
+| 插件 | 干什么 | 对应配置 |
+| ---- | ---- | ---- |
+| **ESLint**（dbaeumer.vscode-eslint） | 编辑器里实时显示规则红线；保存时执行可自动修复的规则 | 读仓库根的 `eslint.config.js` |
+| **Prettier**（esbenp.prettier-vscode） | 保存时按 Prettier 规则格式化当前文件 | 读仓库根的 `.prettierrc` |
+
+两个关键认知，免得装的时候犯迷糊：
+
+1. **插件只是桥，不带来第二套配置**。它们检测到工作区里有配置文件，就自动改用仓库的规则——你在 `.prettierrc` 里写 `printWidth: 100`，编辑器格式化就按 100 来。同理，它们会优先使用 `node_modules` 里本地安装的 ESLint/Prettier（版本和命令行完全一致），**不需要全局安装任何东西**
+2. **不装插件的后果仅限体验**：写代码时没有红线、保存不自动修——但 `pnpm lint` / `pnpm format` 照常工作，门禁不失守。装插件是把「体检频率」从提交时提高到每敲一行
+
+装好插件，再配三行编辑器设置让它们上岗。在仓库根建 `.vscode/settings.json`（建议提交进仓库，团队成员 clone 下来即生效）：
+
+```json
+{
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "editor.formatOnSave": true,
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  }
+}
+```
+
+三行各司其职：默认格式化器指定为 Prettier 插件；保存时格式化（走 `.prettierrc`）；保存时顺带执行 ESLint 的可修复规则（走 `eslint.config.js`，比如自动删 `debugger`）。此后保存一个文件的瞬间 = 一次「格式化 + lint 自动修复」的组合拳。
+
 ## 核心知识
 
 本节代码可以直接对照着敲，最终文件以下面的动手任务为准。所有 pnpm 命令在 PowerShell 里照抄即可，和 bash 写法一致。
@@ -310,7 +341,7 @@ packages/shared/src/lint-demo.ts
 两个包、同一条规则、同一份报错——共享配置验证通过。再在文件里加一行 `debugger;`，在根目录跑 `pnpm exec eslint . --fix`，`debugger` 被自动删除，另外两条还在：有些规则可自动修复，有些必须人改，这就是 `--fix` 的边界。最后删掉两个 demo 文件，跑 `pnpm format` 让全仓库排齐，`pnpm lint` 和 `pnpm format:check` 全绿，当日产出达成。
 
 ::: tip 收尾两件事
-ESLint 9 要求 Node ≥ 18.18，Turborepo 同代要求更高，你第 1 周的环境已经满足。VS Code 里把默认格式化器设为 Prettier 并开启「保存时格式化」，写代码时就顺手排版，`format:check` 只是兜底。
+ESLint 9 要求 Node ≥ 18.18，Turborepo 同代要求更高，你第 1 周的环境已经满足。编辑器侧别忘了「两条通道」的后一条：按概念讲解末尾的清单装好 ESLint / Prettier 两个插件、放好 `.vscode/settings.json`，写代码时的实时反馈才算就位。
 :::
 
 ## 常见踩坑
