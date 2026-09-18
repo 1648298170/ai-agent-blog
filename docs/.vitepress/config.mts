@@ -188,6 +188,15 @@ export default defineConfig({
           w(22, '系统设计 + 项目复盘 + 简历'),
           w(23, '面试冲刺')
         ]
+      },
+      {
+        text: '落地实战（三大产品）',
+        collapsed: true,
+        items: [
+          { text: '知识库问答从 0 到上线', link: '/products/kb' },
+          { text: '文档智能：结构化理解', link: '/products/docintel' },
+          { text: '客服系统：从演示到真上线', link: '/products/service' }
+        ]
       }
     ]
   }
