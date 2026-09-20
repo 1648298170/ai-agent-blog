@@ -18,18 +18,18 @@
   --vp-c-brand-dark: #7f5233;
   --vp-c-brand-darker: #6b4329;
   --vp-c-brand-soft: rgba(181, 130, 86, 0.13);
-  --vp-code-bg: #f7f0e4;
+  --vp-code-bg: #f6f7f8;
 
-  /* —— 画布（奶油纸）—— */
-  --vp-c-bg: #fbf7ee;
-  --vp-c-bg-alt: #f5eee0;
-  --vp-c-bg-soft: #f3ebdb;
-  --vp-c-bg-elv: #fffdf6;
+  /* —— 画布（纯白）—— */
+  --vp-c-bg: #ffffff;
+  --vp-c-bg-alt: #f7f7f8;
+  --vp-c-bg-soft: #f4f4f5;
+  --vp-c-bg-elv: #ffffff;
 
-  /* —— 文字（暖棕墨）—— */
-  --vp-c-text-1: #32261a;
-  --vp-c-text-2: #5f4d39;
-  --vp-c-text-3: #8d7961;
+  /* —— 文字（纯黑正文 + 中性灰辅助）—— */
+  --vp-c-text-1: #000000;
+  --vp-c-text-2: #000000;
+  --vp-c-text-3: #666666;
 
   /* —— 线 —— */
   --vp-c-divider: rgba(154, 100, 38, 0.18);
@@ -37,7 +37,7 @@
   --vp-c-border: rgba(154, 100, 38, 0.26);
 
   /* —— Jerry 扩展令牌 —— */
-  --jerry-ink: #2b1f12;
+  --jerry-ink: #000000;
   --jerry-amber: #c99f74;
   --jerry-honey: #d4ab7e;
   --jerry-caramel: #96643f;
@@ -57,9 +57,9 @@
   --jerry-r-l: 18px;
 
   /* —— 导航 / 侧边栏（毛玻璃）—— */
-  --vp-nav-bg-color: rgba(251, 247, 238, 0.82);
-  --vp-nav-screen-bg-color: rgba(251, 247, 238, 0.96);
-  --vp-sidebar-bg-color: rgba(251, 247, 238, 0.55);
+  --vp-nav-bg-color: rgba(255, 255, 255, 0.82);
+  --vp-nav-screen-bg-color: rgba(255, 255, 255, 0.96);
+  --vp-sidebar-bg-color: rgba(255, 255, 255, 0.55);
 
   /* —— 字体（不引 webfont：西文 Inter 栈 + 中文 PingFang/雅黑/Noto）—— */
   --vp-font-family-base:
@@ -131,18 +131,7 @@ body::before {
   inset: 0;
   z-index: -2;
   pointer-events: none;
-  background:
-    radial-gradient(
-      120% 46% at 50% -8%,
-      var(--jerry-wash) 0%,
-      rgba(181, 130, 86, 0.02) 46%,
-      transparent 72%
-    ),
-    radial-gradient(
-      60% 30% at 8% 108%,
-      rgba(146, 64, 14, 0.035) 0%,
-      transparent 70%
-    );
+  background: none;
 }
 
 /* 噪点颗粒（feTurbulence data-URI，非常轻） */
@@ -152,7 +141,7 @@ body::after {
   inset: 0;
   z-index: 2147483000;
   pointer-events: none;
-  opacity: var(--jerry-noise-o);
+  opacity: 0;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
 }
 
@@ -166,32 +155,13 @@ body::after {
   border-top: 1px solid var(--vp-c-gutter);
 }
 
-/* 顶部品牌线（layout-top slot 注入的元素） */
-.jerry-brand-line {
-  height: 3px;
-  background: linear-gradient(
-    90deg,
-    #6b4329 0%,
-    #96643f 22%,
-    #c99f74 50%,
-    #96643f 78%,
-    #6b4329 100%
-  );
-}
-
 /* --------------------------------------------------------------------------
-   3. 导航栏：毛玻璃 + 滚动态（html.jerry-scrolled 由 Layout.vue 注入）
+   3. 导航栏
    -------------------------------------------------------------------------- */
 .VPNavBar .content-body {
   transition:
     box-shadow 0.3s ease,
     background-color 0.3s ease;
-}
-
-html.jerry-scrolled .VPNavBar .content-body {
-  box-shadow:
-    0 1px 0 var(--vp-c-gutter),
-    0 8px 24px -18px rgba(72, 44, 12, 0.35);
 }
 
 /* —— 保留修复 ①：导航栏标题 logo 与文字同行 + 省略号截断 —— */
