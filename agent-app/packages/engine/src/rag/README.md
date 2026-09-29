@@ -111,7 +111,7 @@ cos(a,c) = (1×0 + 0×1) / 1 = 0                                    ← 无关�
 | "语义近 = 距离近"是谁保证的？ | embedding 模型的对比学习训练（模型外部，理解即可） |
 | 余弦公式分子分母各是什么？为什么除模长？ | `store.memory.ts` `cosineSimilarity()` |
 | 检索为什么查询也要向量化？ | `retrieve.ts` `searchKnowledge()`：必须同一坐标空间才有夹角可言 |
-| 暴力扫和 HNSW 差在哪？什么时候需要换？ | `store.memory.ts` `search()` 头注释 |
+| 暴力扫和 HNSW 差在哪？什么时候需要换？ | `store.memory.ts` `search()` 头注释；**工业版已落地：`store.pgvector.ts`（`RAG_STORE=pgvector` 切换，HNSW 索引见其建表注释）** |
 | 模型的 JSON 输出不可信，靠什么挡？ | `supervisor.ts` + `json-utils.ts`：zod 校验 + 宽松解析（另一个"边界"思想） |
 
 能全答上来，再往下读实现代码；答不上来，回到对应章节。
@@ -137,7 +137,7 @@ cos(a,c) = (1×0 + 0×1) / 1 = 0                                    ← 无关�
 | **6** | `persistence.ts` | 装饰器模式 + `ready ??=` 懒加载 + 双写一致性 | 能解释"为什么要 snapshot 镜像"（内存库 Map 是私有的） | 20min |
 | **7** | `retrieve.ts` | 总装：`setRagStore` 换库接缝、引用编号后端分配 | 能画出"入库方向 / 问答方向"两条调用链 | 15min |
 | **8** | 🚀 全链路实战 | 真实数据流动 | 下面的命令跑通，开着 trace 看每一环 | 30min |
-| **9** | 延伸 | 工业版对比 | 读教程 week14~15；挑战：写一个 `store.bm25.ts` | 不限 |
+| **9** | 延伸 | 工业版对比 | 读教程 week14~15。✅ pgvector 挑战**已实现**：`store.pgvector.ts` + env 工厂 `store.factory.ts`（`RAG_STORE=memory\|json\|pgvector`，默认 json；集成测试 `test/infra.pgvector.spec.ts`）；剩余挑战：写一个 `store.bm25.ts` | 不限 |
 
 ### 第 8 步实战命令（最有体感的一步）
 

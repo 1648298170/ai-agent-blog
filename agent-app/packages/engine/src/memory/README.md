@@ -97,12 +97,12 @@
 - **向量/余弦忘了** → 隔壁 `../rag/README.md` 第三、四节（两个模块共享同一套数学）
 - **实现读不懂** → 每个文件头部注释 = 该文件的小地图
 
-## 七、扩展路线（接口已留缝）
+## 七、扩展路线（接口已留缝；前两项 ✅ 已实现）
 
-| 现在 | 教程主线 | 换法 |
+| 现在 | 教程主线 | 状态 |
 | --- | --- | --- |
-| `SessionStore` 内存版 | **Redis**（`EX` TTL 天然匹配会话生命周期，多实例共享） | 写一个 `session.redis.ts` 实现同接口 |
-| `PreferenceStore` 内存版 | **PG 长表**（行级 upsert、永不丢） | `preference.pg.ts` |
-| `EpisodicStore` 内存版 | **pgvector**（万级历史也不怕，ANN 索引） | `episodic.pgvector.ts` |
+| `SessionStore` 内存版 | **Redis**（`EX` TTL 天然匹配会话生命周期，多实例共享） | ✅ **已实现**：`session.redis.ts`（`agent:sess:{id}` list，TTL 24h 续期，与内存版共用 `compression.ts` 压缩算法；`SESSION_STORE=redis` 切换，默认 memory） |
+| `PreferenceStore` 内存版 | **PG 长表**（行级 upsert、永不丢） | ✅ **已实现**：`preference.pg.ts`（`user_preferences` 表，`(user_id, key)` 主键 upsert；`PREFERENCE_STORE=pg` 切换，默认 memory） |
+| `EpisodicStore` 内存版 | **pgvector**（万级历史也不怕，ANN 索引） | ⏳ 后续路线：`episodic.pgvector.ts`（可参考隔壁 `rag/store.pgvector.ts` 的建表与 `<=>` 检索写法） |
 
-三个接口都没动过签名——这就是 `types.ts` 存在的意义。
+三个接口都没动过签名——这就是 `types.ts` 存在的意义。真实持久化的启动方式（Docker）与切换开关见根 README「真实持久化（Docker）」一节。

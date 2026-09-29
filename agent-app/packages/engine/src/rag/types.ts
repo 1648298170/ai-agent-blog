@@ -55,11 +55,20 @@ export interface RagFilter {
   docId?: string;
 }
 
+/** 文档级摘要：知识库管理 UI 的列表行（一个 docId 一行） */
+export interface DocumentSummary {
+  docId: string;
+  title: string;
+  /** 该文档被切成了多少块 */
+  chunks: number;
+}
+
 /** RAG 存储接口：内存版见 store.memory.ts，第 2 阶段可换 pgvector 版。
  *
- * 四个方法正好覆盖一个知识库的一生：
+ * 五个方法正好覆盖一个知识库的一生：
  *   upsert    入库/更新（切块 + 向量化之后调用）
  *   deleteDoc 下架整篇文档（重传新版前先删旧版，最怕新旧两版同时在库）
+ *   listDocs  文档级清单（管理页列表：传过什么、各占多少块）
  *   search    检索：给查询向量，还我最像的 k 块
  *   count     库里现在有多少块（给入库完成的统计输出用）
  *
@@ -70,6 +79,8 @@ export interface RagFilter {
 export interface RagStore {
   upsert(chunks: Chunk[]): Promise<void>;
   deleteDoc(docId: string): Promise<void>;
+  /** 文档级清单：按 docId 聚合（管理页的列表数据源，非检索路径） */
+  listDocs(): Promise<DocumentSummary[]>;
   search(queryEmbedding: number[], k: number, filter?: RagFilter): Promise<RetrievedChunk[]>;
   count(): Promise<number>;
 }

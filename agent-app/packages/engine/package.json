@@ -6,7 +6,9 @@
   "description": "框架无关的 Agent 引擎：手写工具循环 + RAG 零件 + 三层记忆 + 工具层 + 客服产品核心",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "engines": {
     "node": ">=18.18"
@@ -15,24 +17,29 @@
     "@ai-sdk/openai": "^2.0.130",
     "@ai-sdk/provider": "^2.0.5",
     "ai": "^5.0.266",
+    "ioredis": "^5.11.1",
     "pdf-parse": "^1.1.1",
+    "postgres": "^3.4.9",
     "zod": "^3.25.76"
   },
   "devDependencies": {
     "@agent-app/shared": "workspace:*",
     "@types/node": "^26.6.2",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.2"
   },
   "exports": {
-    ".":            { "types": "./dist/index.d.ts",          "default": "./dist/index.js" },
-    "./config":     { "types": "./dist/config.d.ts",         "default": "./dist/config.js" },
-    "./llm":        { "types": "./dist/llm.d.ts",            "default": "./dist/llm.js" },
-    "./agent-loop": { "types": "./dist/agent-loop.d.ts",     "default": "./dist/agent-loop.js" },
-    "./trace":      { "types": "./dist/trace.d.ts",          "default": "./dist/trace.js" },
-    "./json-utils": { "types": "./dist/json-utils.d.ts",     "default": "./dist/json-utils.js" },
-    "./rag":        { "types": "./dist/rag/index.d.ts",      "default": "./dist/rag/index.js" },
-    "./memory":     { "types": "./dist/memory/index.d.ts",   "default": "./dist/memory/index.js" },
-    "./tools":      { "types": "./dist/tools/index.d.ts",    "default": "./dist/tools/index.js" },
-    "./service":    { "types": "./dist/service/index.d.ts",  "default": "./dist/service/index.js" }
+    ".":                { "types": "./dist/index.d.ts",              "default": "./dist/index.js" },
+    "./config":         { "types": "./dist/config.d.ts",             "default": "./dist/config.js" },
+    "./llm":            { "types": "./dist/llm.d.ts",                "default": "./dist/llm.js" },
+    "./agent-loop":     { "types": "./dist/agent-loop.d.ts",         "default": "./dist/agent-loop.js" },
+    "./trace":          { "types": "./dist/trace.d.ts",              "default": "./dist/trace.js" },
+    "./json-utils":     { "types": "./dist/json-utils.d.ts",         "default": "./dist/json-utils.js" },
+    "./rag":            { "types": "./dist/rag/index.d.ts",          "default": "./dist/rag/index.js" },
+    "./rag/store.factory": { "types": "./dist/rag/store.factory.d.ts", "default": "./dist/rag/store.factory.js" },
+    "./memory":         { "types": "./dist/memory/index.d.ts",       "default": "./dist/memory/index.js" },
+    "./memory/factory": { "types": "./dist/memory/factory.d.ts",     "default": "./dist/memory/factory.js" },
+    "./tools":          { "types": "./dist/tools/index.d.ts",        "default": "./dist/tools/index.js" },
+    "./service":        { "types": "./dist/service/index.d.ts",      "default": "./dist/service/index.js" }
   }
 }

@@ -45,6 +45,21 @@ export interface SessionStore {
   append(sessionId: string, turn: ChatTurn): Promise<void>;
   getWindow(sessionId: string, limit?: number): Promise<ChatTurn[]>;
   clear(sessionId: string): Promise<void>;
+  /** 历史会话清单（按最近活跃降序）：会话记录功能的列表数据源 */
+  listSessions(): Promise<SessionSummary[]>;
+  /** 取某会话的全量轮次（压缩后含摘要轮，如实返回）；未知会话返回 [] */
+  getHistory(sessionId: string): Promise<ChatTurn[]>;
+}
+
+/** 会话摘要：历史会话列表的一行（listSessions 的返回项）。
+ *
+ * - turns     压缩后的当前轮数（含合成摘要轮），不是历史累计值
+ * - updatedAt 最后一次 append 的时间（ISO 8601）——列表按它降序
+ */
+export interface SessionSummary {
+  sessionId: string;
+  turns: number;
+  updatedAt: string;
 }
 
 /** 长期记忆：用户偏好键值表（跨会话存"这个用户是谁"）。

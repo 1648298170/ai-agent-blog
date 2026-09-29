@@ -1,7 +1,7 @@
 // store.memory.ts —— 内存版 RAG 存储：Map 实现 + 余弦相似度检索
 // 对应教程《RAG TS 全链路》里 pgvector 的 `<=>` 余弦距离：这里算的是相似度（1 - 距离），
 // 值越大方向越近。第 2 阶段 kb 应用按 rag/types.ts 的 RagStore 契约换成 pgvector 版。
-import type { Chunk, RagFilter, RagStore, RetrievedChunk } from "./types.js";
+import type { Chunk, DocumentSummary, RagFilter, RagStore, RetrievedChunk } from "./types.js";
 
 /**
  * 余弦相似度：只看向量方向、不看模长。
@@ -50,6 +50,20 @@ export function createInMemoryRagStore(): RagStore {
       for (const [id, chunk] of chunks) {
         if (chunk.docId === docId) chunks.delete(id);
       }
+    },
+
+    /** 文档级清单：遍历一次按 docId 聚合（块的 title 同文档恒定，取首见即可） */
+    async listDocs(): Promise<DocumentSummary[]> {
+      const docs = new Map<string, DocumentSummary>();
+      for (const chunk of chunks.values()) {
+        const existing = docs.get(chunk.docId);
+        if (existing) {
+          existing.chunks += 1;
+        } else {
+          docs.set(chunk.docId, { docId: chunk.docId, title: chunk.title, chunks: 1 });
+        }
+      }
+      return [...docs.values()];
     },
 
     async search(queryEmbedding: number[], k: number, filter?: RagFilter): Promise<RetrievedChunk[]> {

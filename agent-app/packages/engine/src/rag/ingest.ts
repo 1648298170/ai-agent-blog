@@ -7,7 +7,7 @@ import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
 import { chunkText } from "./chunker.js";
 import { embed } from "./embedder.js";
-import { createJsonRagStore } from "./persistence.js";
+import { createRagStoreFromEnv } from "./store.factory.js";
 import { getRagStore, setRagStore } from "./retrieve.js";
 import type { Chunk } from "./types.js";
 
@@ -63,8 +63,10 @@ export async function ingestSource(fileName: string, text: string): Promise<Inge
   const pieces = chunkText(trimmed);
   const vectors = await embed(pieces); // 入库与检索必须同一个 embedding 模型，坐标空间才一致
 
-  // 换库的接缝：本进程起用 JSON 快照库（内存检索 + 文件落盘），问答侧读同一份快照
-  setRagStore(createJsonRagStore());
+  // 换库的接缝升级为 env 工厂（RAG_STORE=memory|json|pgvector，默认 json）：
+  // 不配置时仍是 JSON 快照库（内存检索 + 文件落盘），问答侧读同一份快照——行为与改造前一致；
+  // 配 pgvector 时入库直写 PG，问答侧同一开关读到同一个库
+  setRagStore(createRagStoreFromEnv());
   const store = getRagStore();
 
   const chunks: Chunk[] = pieces.map((piece, i) => ({
