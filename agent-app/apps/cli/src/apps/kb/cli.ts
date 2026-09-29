@@ -12,9 +12,9 @@ import { pathToFileURL } from "node:url";
 import { generateText } from "ai";
 import type { ModelMessage } from "ai";
 import { createModel } from "@agent-app/engine/llm";
-import { InMemorySessionStore } from "@agent-app/engine/memory";
+import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
 import type { ChatTurn } from "@agent-app/engine/memory";
-import { createJsonRagStore, formatCitations, searchKnowledge, setRagStore } from "@agent-app/engine/rag";
+import { createRagStoreFromEnv, formatCitations, searchKnowledge, setRagStore } from "@agent-app/engine/rag";
 import type { RetrievedChunk } from "@agent-app/engine/rag";
 import { enableTrace } from "@agent-app/engine/trace";
 
@@ -55,8 +55,10 @@ function printDegradedAnswer(err: unknown, hits: RetrievedChunk[]): void {
  */
 export async function main(args: string[] = []): Promise<void> {
   if (args.includes("--trace")) enableTrace(); // 每一步执行轨迹：--trace 或环境变量 AGENT_TRACE=1
-  setRagStore(createJsonRagStore()); // 读与入库同一个快照，跨进程共享知识库
-  const sessionStore = new InMemorySessionStore();
+  // 换库接缝升级为 env 工厂：RAG_STORE=pgvector 时读 PG，默认 json 读 .data/kb-store.json 快照
+  setRagStore(createRagStoreFromEnv());
+  // 会话存储同步升级（SESSION_STORE=memory|redis，默认 memory——与改造前一致）
+  const sessionStore = createSessionStoreFromEnv();
   let sessionId = newSessionId();
 
   console.log("=== 知识库问答（kb） ===");

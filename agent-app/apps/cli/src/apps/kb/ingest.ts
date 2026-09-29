@@ -7,6 +7,7 @@
 // app 之间禁止互相 import），本文件只保留 CLI 的参数解析、前置校验与打印——输出与行为不变。
 import { basename, extname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import { loadEnv } from "@agent-app/engine/config";
 import { extractTextFromFile, ingestSource, SUPPORTED_EXTENSIONS } from "@agent-app/engine/rag";
 import type { IngestResult } from "@agent-app/engine/rag";
 
@@ -68,7 +69,16 @@ export async function main(args: string[] = []): Promise<void> {
   console.log(`入库完成：${result.fileName}`);
   console.log(`  标题：${result.title}    docId：${result.docId}`);
   console.log(`  本次切块 ${result.chunks} 块，知识库当前共 ${result.total} 块`);
-  console.log(`  快照已写入 .data/kb-store.json，运行 pnpm kb 即可提问`);
+  // 落点提示跟随 RAG_STORE（loadEnv：环境变量优先于 .env）：json（默认）写快照文件；
+  // pgvector 写 PG 表；memory 进程退出即失
+  const kind = (loadEnv().RAG_STORE ?? "").trim().toLowerCase();
+  if (kind === "pgvector") {
+    console.log("  已写入 PostgreSQL（kb_chunks 表），运行 pnpm kb 即可提问");
+  } else if (kind === "memory") {
+    console.log("  已写入内存库（进程退出即失，仅自检用），运行 pnpm kb 即可提问");
+  } else {
+    console.log("  快照已写入 .data/kb-store.json，运行 pnpm kb 即可提问");
+  }
 }
 
 // 直接运行（pnpm kb:ingest）时自动执行；被路由导入时由调用方调 main(rest)

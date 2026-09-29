@@ -9,8 +9,9 @@
 // （HTTP API 复用同一套逻辑），本文件经包子路径导入。
 import readline from "node:readline/promises";
 import { pathToFileURL } from "node:url";
-import { InMemorySessionStore } from "@agent-app/engine/memory";
-import { createJsonRagStore, setRagStore } from "@agent-app/engine/rag";
+import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
+import type { SessionStore } from "@agent-app/engine/memory";
+import { createRagStoreFromEnv, setRagStore } from "@agent-app/engine/rag";
 import { buildHandoffPack, formatHandoffPack, handoffReply, runWorker, supervise, isUnresolvedSignal } from "@agent-app/engine/service";
 import type { RouteDecision } from "@agent-app/engine/service";
 import { enableTrace } from "@agent-app/engine/trace";
@@ -29,7 +30,7 @@ function printConfigHint(detail: string): void {
 
 /** 转人工：建工单 + HandoffPack，打印工单块与用户告知，回写会话 */
 async function doHandoff(
-  sessionStore: InMemorySessionStore,
+  sessionStore: SessionStore,
   sessionId: string,
   reason: string,
 ): Promise<void> {
@@ -46,8 +47,10 @@ async function doHandoff(
  */
 export async function main(args: string[] = []): Promise<void> {
   if (args.includes("--trace")) enableTrace(); // 每一步执行轨迹：--trace 或环境变量 AGENT_TRACE=1
-  setRagStore(createJsonRagStore()); // knowledge 工人与 kb 问答共用同一份知识库快照
-  const sessionStore = new InMemorySessionStore();
+  // 换库接缝升级为 env 工厂：knowledge 工人与 kb 问答共用同一个知识库（默认 json 快照）
+  setRagStore(createRagStoreFromEnv());
+  // 会话存储同步升级（SESSION_STORE=memory|redis，默认 memory——与改造前一致）
+  const sessionStore = createSessionStoreFromEnv();
   let sessionId = newSessionId();
   let unresolvedRounds = 0; // 连续未解决计数（service.md 硬规则 3：第三轮再转，耐心就见底了）
 

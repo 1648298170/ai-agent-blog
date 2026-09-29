@@ -7,9 +7,9 @@ import { pathToFileURL } from "node:url";
 import type { ModelMessage } from "ai";
 import { runToolLoop } from "@agent-app/engine/agent-loop";
 import { createModel } from "@agent-app/engine/llm";
-import { InMemorySessionStore } from "@agent-app/engine/memory";
+import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
 import type { ChatTurn } from "@agent-app/engine/memory";
-import { createJsonRagStore, setRagStore } from "@agent-app/engine/rag";
+import { createRagStoreFromEnv, setRagStore } from "@agent-app/engine/rag";
 import { enableTrace } from "@agent-app/engine/trace";
 import { createDemoTools } from "@agent-app/engine/tools";
 import { searchKnowledgeBase } from "@agent-app/engine/tools";
@@ -41,9 +41,11 @@ export async function main(args: string[] = []): Promise<void> {
     return;
   }
 
-  const sessionStore = new InMemorySessionStore();
-  // 挂载知识库（读 .data/kb-store.json 快照，与 kb 问答 / 客服 knowledge 工人共享同一份）
-  setRagStore(createJsonRagStore());
+  // 会话存储升级为 env 工厂（SESSION_STORE=memory|redis，默认 memory——与改造前一致）
+  const sessionStore = createSessionStoreFromEnv();
+  // 挂载知识库（env 工厂：RAG_STORE=memory|json|pgvector，默认 json 读 .data/kb-store.json 快照，
+  // 与 kb 问答 / 客服 knowledge 工人共享同一份）
+  setRagStore(createRagStoreFromEnv());
   // 工具表：三个演示工具 + 知识库检索（模型按问题自主决定调不调——Agentic RAG 的最小形态）
   const tools = { ...createDemoTools(), searchKnowledgeBase };
   let sessionId = newSessionId();
