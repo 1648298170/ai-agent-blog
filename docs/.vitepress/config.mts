@@ -68,6 +68,35 @@ export default defineConfig({
         ]
       },
       {
+        text: '周概览 · 每周导航',
+        collapsed: true,
+        items: [
+          { text: '第 1 周 · TypeScript 进阶 + Monorepo 工程化', link: '/week01/' },
+          { text: '第 2 周 · 代码质量门禁 + 测试 + Next.js 全栈路由', link: '/week02/' },
+          { text: '第 3 周 · Node.js 核心 + NestJS 入门', link: '/week03/' },
+          { text: '第 4 周 · PostgreSQL + Prisma + 全栈整合', link: '/week04/' },
+          { text: '第 5 周 · 认证授权 + 安全基础', link: '/week05/' },
+          { text: '第 6 周 · Redis + 缓存 + 队列 + 并发控制', link: '/week06/' },
+          { text: '第 7 周 · Docker + CI/CD', link: '/week07/' },
+          { text: '第 8 周 · 云部署 + Nginx + 可观测性入门', link: '/week08/' },
+          { text: '第 9 周 · Python 核心 + Pydantic', link: '/week09/' },
+          { text: '第 10 周 · FastAPI + SSE 流式响应', link: '/week10/' },
+          { text: '第 11 周 · LLM API 基础 + 结构化输出 + Vercel AI SDK', link: '/week11/' },
+          { text: '第 12 周 · LangGraph + ReAct + 工具调用', link: '/week12/' },
+          { text: '第 13 周 · 多 Agent 协作 + Human-in-the-Loop', link: '/week13/' },
+          { text: '第 14 周 · RAG Pipeline 基础', link: '/week14/' },
+          { text: '第 15 周 · RAG 进阶 + 引用溯源', link: '/week15/' },
+          { text: '第 16 周 · Agent 评估工程', link: '/week16/' },
+          { text: '第 17 周 · 记忆架构 + 上下文工程', link: '/week17/' },
+          { text: '第 18 周 · MCP 协议 + 工具生态', link: '/week18/' },
+          { text: '第 19 周 · Agent 安全 + A2A + 国产生态', link: '/week19/' },
+          { text: '第 20 周 · 全栈整合 + 平台主链路', link: '/week20/' },
+          { text: '第 21 周 · 生产化 + 可观测性 + 成本控制', link: '/week21/' },
+          { text: '第 22 周 · 系统设计 + 项目复盘 + 简历', link: '/week22/' },
+          { text: '第 23 周 · 面试冲刺', link: '/week23/' }
+        ]
+      },
+      {
         text: 'Track A · Node + TS 主线',
         collapsed: false,
         items: [
@@ -87,6 +116,7 @@ export default defineConfig({
               { text: 'Monorepo 与 pnpm workspace', link: '/week01/day4' },
               { text: 'Turborepo 任务管道', link: '/week01/day5' },
               { text: '共享类型包与工具包', link: '/week01/day6' },
+              { text: '周复盘', link: '/week01/day7' },
               { text: 'ESLint 与 Prettier', link: '/week02/day1' },
               { text: 'Husky 与 Git 钩子', link: '/week02/day2' },
               { text: 'Vitest 单元测试', link: '/week02/day3' }
@@ -104,7 +134,9 @@ export default defineConfig({
               { text: 'NestJS 入门', link: '/week03/day3' },
               { text: 'Controller 与 DTO', link: '/week03/day4' },
               { text: 'Service 与依赖注入', link: '/week03/day5' },
-              { text: 'Pipe 参数校验', link: '/week03/day6' }
+              { text: 'Pipe 参数校验', link: '/week03/day6' },
+              { text: '周复盘', link: '/week03/day7' },
+              { text: '第 2 周复盘', link: '/week02/day7' }
             ]
           },
           {
@@ -123,7 +155,8 @@ export default defineConfig({
               { text: 'Refresh Token', link: '/week05/day3' },
               { text: 'RBAC', link: '/week05/day4' },
               { text: 'OAuth2', link: '/week05/day5' },
-              { text: 'Web 安全', link: '/week05/day6' }
+              { text: 'Web 安全', link: '/week05/day6' },
+              { text: '周复盘', link: '/week05/day7' }
             ]
           },
           {
@@ -148,7 +181,9 @@ export default defineConfig({
               { text: '结构化日志', link: '/week08/day4' },
               { text: '监控入门', link: '/week08/day5' },
               { text: '健康检查与优雅关闭', link: '/week08/day6' },
-              { text: '阶段二里程碑', link: '/week08/day7' }
+              { text: '阶段二里程碑', link: '/week08/day7' },
+              { text: '周复盘（第 6 周）', link: '/week06/day7' },
+              { text: '周复盘（第 7 周）', link: '/week07/day7' }
             ]
           },
           {
@@ -164,7 +199,8 @@ export default defineConfig({
               { text: 'Agent 循环深入（补篇）', link: '/week11/agent-loop-ts' },
               { text: 'RAG TS 全链路（补篇）', link: '/week11/rag-ts' },
               { text: 'MCP TypeScript SDK（补篇）', link: '/week11/mcp-ts' },
-              { text: '记忆 TS 版（补篇）', link: '/week11/memory-ts' }
+              { text: '记忆 TS 版（补篇）', link: '/week11/memory-ts' },
+              { text: '周复盘', link: '/week11/day7' }
             ]
           },
           {
@@ -182,7 +218,9 @@ export default defineConfig({
               { text: 'Adaptive RAG', link: '/week15/day3' },
               { text: '引用溯源', link: '/week15/day4' },
               { text: 'RAG 评估', link: '/week15/day5' },
-              { text: '知识库管理 UI', link: '/week15/day6' }
+              { text: '知识库管理 UI', link: '/week15/day6' },
+              { text: '周复盘（第 14 周）', link: '/week14/day7' },
+              { text: '周复盘（第 15 周）', link: '/week15/day7' }
             ]
           },
           {
@@ -200,7 +238,8 @@ export default defineConfig({
               { text: 'Guardrails', link: '/week19/day3' },
               { text: 'A2A 协议', link: '/week19/day4' },
               { text: 'Dify 上手', link: '/week19/day5' },
-              { text: 'Coze 与选型', link: '/week19/day6' }
+              { text: 'Coze 与选型', link: '/week19/day6' },
+              { text: '周复盘', link: '/week16/day7' }
             ]
           },
           {
@@ -220,6 +259,8 @@ export default defineConfig({
               { text: '死循环防御', link: '/week21/day4' },
               { text: '日志指标告警', link: '/week21/day5' },
               { text: '语义缓存', link: '/week21/day6' },
+              { text: '周复盘（第 20 周）', link: '/week20/day7' },
+              { text: '压测日与周复盘', link: '/week21/day7' },
               { text: '知识库问答落地', link: '/products/kb' },
               { text: '文档智能落地', link: '/products/docintel' },
               { text: '客服系统落地', link: '/products/service' }
@@ -235,6 +276,7 @@ export default defineConfig({
               { text: 'STAR 复盘', link: '/week22/day4' },
               { text: '简历优化', link: '/week22/day5' },
               { text: '模拟面试', link: '/week22/day6' },
+              { text: '周复盘', link: '/week22/day7' },
               { text: 'Agent 八股', link: '/week23/day1' },
               { text: '工程八股', link: '/week23/day2' },
               { text: '系统设计模拟', link: '/week23/day3' },
@@ -252,15 +294,84 @@ export default defineConfig({
         text: 'Track B · Python 第二引擎',
         collapsed: true,
         items: [
-          { text: 'Python 快速上手', link: '/week09/' },
-          { text: 'FastAPI 服务', link: '/week10/' },
-          { text: 'LangGraph Agent', link: '/week12/' },
-          { text: '多 Agent 与 HITL', link: '/week13/' },
-          { text: 'RAG 全链路', link: '/week14/' },
-          { text: '评估工程', link: '/week16/' },
-          { text: '记忆与上下文', link: '/week17/' },
-          { text: 'MCP', link: '/week18/' },
-          { text: '安全与生态', link: '/week19/' }
+          {
+            text: 'Python 快速上手',
+            collapsed: true,
+            items: [
+              { text: 'Python 工程环境', link: '/week09/day1' },
+              { text: 'Python 类型注解', link: '/week09/day2' },
+              { text: 'asyncio 基础', link: '/week09/day3' },
+              { text: 'Pydantic v2 基础', link: '/week09/day4' },
+              { text: 'pydantic-settings', link: '/week09/day5' },
+              { text: 'Python 装饰器与上下文管理器', link: '/week09/day6' },
+              { text: '周复盘', link: '/week09/day7' }
+            ]
+          },
+          {
+            text: 'FastAPI 服务',
+            collapsed: true,
+            items: [
+              { text: 'FastAPI 起步', link: '/week10/day1' },
+              { text: 'Pydantic 请求体与响应模型', link: '/week10/day2' },
+              { text: 'FastAPI 分层架构', link: '/week10/day3' },
+              { text: 'SQLAlchemy 2.0 与 Depends', link: '/week10/day4' },
+              { text: 'SSE 流式响应', link: '/week10/day5' },
+              { text: '前端消费 SSE', link: '/week10/day6' },
+              { text: '周复盘', link: '/week10/day7' }
+            ]
+          },
+          {
+            text: 'LangGraph Agent',
+            collapsed: true,
+            items: [
+              { text: 'LangGraph 核心概念', link: '/week12/day1' },
+              { text: '构建第一个 Graph', link: '/week12/day2' },
+              { text: '条件边与路由', link: '/week12/day3' },
+              { text: '手写 ReAct 循环', link: '/week12/day4' },
+              { text: 'Function Calling 定义 Tool Schema', link: '/week12/day5' },
+              { text: 'Checkpointer 状态持久化', link: '/week12/day6' },
+              { text: '周复盘', link: '/week12/day7' }
+            ]
+          },
+          {
+            text: '多 Agent 与 HITL',
+            collapsed: true,
+            items: [
+              { text: '多 Agent 架构设计', link: '/week13/day1' },
+              { text: 'Supervisor 实现', link: '/week13/day2' },
+              { text: 'Worker Agent 实现与工具集成', link: '/week13/day3' },
+              { text: 'Human-in-the-Loop', link: '/week13/day4' },
+              { text: '前端审批 UI', link: '/week13/day5' },
+              { text: '容错三道防线', link: '/week13/day6' },
+              { text: '阶段三里程碑验收', link: '/week13/day7' }
+            ]
+          },
+          {
+            text: '记忆与上下文',
+            collapsed: true,
+            items: [
+              { text: '记忆四分类', link: '/week17/day1' },
+              { text: '短期记忆', link: '/week17/day2' },
+              { text: '长期记忆', link: '/week17/day3' },
+              { text: '向量记忆', link: '/week17/day4' },
+              { text: 'System Prompt 设计', link: '/week17/day5' },
+              { text: '记忆整合到 LangGraph', link: '/week17/day6' },
+              { text: '周复盘', link: '/week17/day7' }
+            ]
+          },
+          {
+            text: 'MCP',
+            collapsed: true,
+            items: [
+              { text: 'MCP 协议全景', link: '/week18/day1' },
+              { text: '第一个 MCP Server', link: '/week18/day2' },
+              { text: 'MCP Client 集成', link: '/week18/day3' },
+              { text: 'MCP Resources', link: '/week18/day4' },
+              { text: 'MCP 安全护栏', link: '/week18/day5' },
+              { text: '工具审批 UI 升级', link: '/week18/day6' },
+              { text: '周复盘', link: '/week18/day7' }
+            ]
+          }
         ]
       }
     ]
