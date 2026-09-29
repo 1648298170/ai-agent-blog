@@ -7,3 +7,7 @@ docs/.vitepress/dist/
 
 # OMC 本地运行状态
 .omc/
+
+# 自动化工具本地产物（Playwright 快照 / 临时脚本）
+.playwright-mcp/
+.temp/

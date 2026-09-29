@@ -2,3 +2,9 @@ node_modules/
 dist/
 .env
 .data/
+
+# 临时进程 PID 文件（自动化验证产物）
+*.pid
+
+# TS 增量构建信息
+*.tsbuildinfo
