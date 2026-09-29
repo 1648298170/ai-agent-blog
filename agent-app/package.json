@@ -5,15 +5,19 @@
   "type": "module",
   "description": "教程 TS 主线的可运行项目：pnpm workspace 单仓（@agent-app/engine 引擎 + cli/api/web 三端）",
   "scripts": {
-    "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
     "cli": "tsx apps/cli/src/index.ts",
     "chat": "tsx apps/cli/src/apps/chat/cli.ts",
     "kb:ingest": "tsx apps/cli/src/apps/kb/ingest.ts",
     "kb": "tsx apps/cli/src/apps/kb/cli.ts",
     "service": "tsx apps/cli/src/apps/service/cli.ts",
     "test:service": "tsx apps/cli/src/apps/service/__tests__.ts",
-    "test:api": "pnpm --filter @agent-app/api test",
+    "test:api": "turbo run test --filter=@agent-app/api",
+    "test:engine": "pnpm --filter @agent-app/engine test",
+    "test:infra": "node scripts/run-infra-tests.mjs",
+    "infra:up": "docker compose up -d",
+    "infra:down": "docker compose down",
     "selftest": "tsx apps/cli/src/selftest.ts",
     "api": "pnpm --filter @agent-app/engine build && pnpm --filter @agent-app/api build && node apps/api/dist/main.js"
   },
@@ -23,6 +27,8 @@
   "devDependencies": {
     "@types/node": "^26.6.2",
     "tsx": "^4.23.15",
+    "turbo": "^2.11.5",
     "typescript": "^7.0.2"
-  }
+  },
+  "packageManager": "pnpm@11.17.0"
 }
