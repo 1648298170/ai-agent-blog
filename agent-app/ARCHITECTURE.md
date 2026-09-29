@@ -143,6 +143,8 @@ throw new Error(`步数用完（${maxSteps}），模型仍在要工具`); // 防
 
 **快照 `persistence.ts`**：`JsonRagStore` 装饰器包住内存库，upsert/deleteDoc 时把全量 chunk 写进 `.data/kb-store.json`。入库和问答是两个进程，靠这个文件共享知识库——内存版的权宜，接口不变，换 pgvector 时删掉这层即可。
 
+> 🐘 **pgvector 实现已就位（week14 实战）**：`store.pgvector.ts`（kb_chunks 表 + `<=>` 余弦检索）与 env 工厂 `store.factory.ts` 均在库——`RAG_STORE=pgvector` 一键切换，`json`（默认）行为不变。
+
 ### 4.3 三层记忆（`engine/memory/`）
 
 > 🧠 **先原理后实现**：Agent 为什么没记忆、三层各自解决什么问题、压缩的取舍——单独写在 [`packages/engine/src/memory/README.md`](./packages/engine/src/memory/README.md)，读代码前先读它。
@@ -159,6 +161,8 @@ throw new Error(`步数用完（${maxSteps}），模型仍在要工具`); // 防
 - **滚动**：已有摘要会并入下一轮的压缩 prompt（"已有摘要：…"），信息不因压缩断档
 - **可测试性**：摘要器是构造函数可注入参数（`new InMemorySessionStore({ summarize })`）——自检注入假摘要器，离线覆盖"压缩成功"和"失败降级"两条路径，不打一次真 API
 - **降级**：没 key / 网关不通 → 退回纯窗口截断，绝不炸主流程
+
+> 🟥 **Redis / PG 实现已就位（week17 实战）**：`session.redis.ts`（`agent:sess:{id}` list + TTL 24h 续期）与 `preference.pg.ts`（user_preferences 行级 upsert）共用 `compression.ts` 这一份压缩算法——`SESSION_STORE=redis` / `PREFERENCE_STORE=pg` 一键切换，默认 `memory` 行为不变（情景记忆 pgvector 版为后续路线）。
 
 ### 4.4 小零件
 

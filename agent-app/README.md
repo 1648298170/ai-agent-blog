@@ -47,6 +47,8 @@ pnpm typecheck
 | `pnpm kb:ingest <文件>` | 知识库入库：切块 → 向量化 → 快照落盘（.txt / .md / .pdf） | [week11 · RAG TS](../docs/week11/rag-ts.md) |
 | `pnpm cli service` / `pnpm service` | 智能客服 REPL：硬规则 + 三分类路由 + 三工人 + 转人工 | [products · 客服系统](../docs/products/service.md) |
 | `pnpm test:service` | 客服硬规则离线自测（纯函数断言，无网络） | [products · 客服系统](../docs/products/service.md) |
+| `pnpm infra:up` / `pnpm infra:down` | 真实持久化基座：pgvector(pg16) + redis(7) 容器起停 | [week14](../docs/week14/index.md)、[week17](../docs/week17/index.md) |
+| `pnpm test:infra` | 基础设施集成测试（RUN_INFRA_TESTS=1，需先 `infra:up`） | week14 / week17 实战 |
 | `pnpm typecheck` | `tsc --noEmit` 零错误检查 | — |
 
 ## 目录结构（pnpm workspace 单仓）
@@ -160,6 +162,84 @@ $env:AGENT_TRACE = "1"; pnpm api     # 方式二：环境变量（HTTP API 服�
 
 > 查询与入库必须用同一个 EMBEDDING_MODEL，混用则检索失真；换网关时 embedding 模型要跟着换。
 
+## 真实持久化（Docker）
+
+week14（pgvector）+ week17（Redis 记忆）实战落地：**同一套接口（`RagStore` / `SessionStore` / `PreferenceStore` 签名一行未改），三份实现**——内存（selftest/离线）、JSON 快照（默认）、pgvector/Redis（真实持久化），由环境变量一键切换，业务代码零改动。
+
+### 1. 起基础设施
+
+```powershell
+pnpm infra:up      # docker compose up -d：pgvector/pgvector:pg16 + redis:7-alpine（含 healthcheck）
+docker compose ps  # 等两个服务 healthy
+pnpm infra:down    # 用完关掉（数据卷保留；docker compose down -v 才删数据）
+```
+
+端口选择（实测本机后写死在 compose 注释里）：**postgres 映射宿主机 5433**（本机 5432 已被常驻容器 `my-postgres` 占用，避免冲突）、**redis 直通 6379**。默认连接串与之对齐：`PG_CONNECTION_STRING=postgres://agent:agent@localhost:5433/agent`、`REDIS_URL=redis://localhost:6379`。
+
+### 2. 切换存储（env 开关，默认 = 改造前的离线行为）
+
+| 环境变量 | 可选值 | 默认 | 说明 |
+| --- | --- | --- | --- |
+| `RAG_STORE` | `memory` / `json` / `pgvector` | `json` | 知识库：内存 / `.data/kb-store.json` 快照 / PostgreSQL+pgvector（HNSW 余弦检索） |
+| `SESSION_STORE` | `memory` / `redis` | `memory` | 会话窗口：内存 Map / Redis list（`agent:sess:{id}`，TTL 24h 续期，跨进程共享） |
+| `PREFERENCE_STORE` | `memory` / `pg` | `memory` | 用户偏好：内存 Map / PG `user_preferences` 表（行级 upsert） |
+| `PG_CONNECTION_STRING` | 连接串 | `postgres://agent:agent@localhost:5433/agent` | 两个 PG 实现共用 |
+| `REDIS_URL` | 连接串 | `redis://localhost:6379` | Redis 会话存储用 |
+| `EMBEDDING_DIM` | 整数 1~16000 | `2048` | 建表时固定（GLM embedding-3 = 2048 维）。换维度模型须 `DROP TABLE kb_chunks` 全库重嵌；另 ANN 索引（HNSW/IVFFlat）只支持 ≤2000 维，超限时检索自动走精确顺序扫描 |
+
+写进 `.env` 或临时环境变量都行（环境变量优先）。示例——CLI 切 pgvector + Redis：
+
+```powershell
+$env:RAG_STORE = "pgvector"; $env:SESSION_STORE = "redis"
+pnpm kb:ingest .\samples\company-faq.md    # 入库直写 PG（真实 GLM embedding）
+pnpm kb                                     # 问答检索走 PG 的 <=> 余弦 + HNSW
+Remove-Item Env:RAG_STORE, Env:SESSION_STORE   # 清掉开关，立刻回到默认离线行为
+```
+
+不配置任何开关 = `json` + `memory`，与引入真实持久化之前的行为**完全一致**（离线优先原则：没装 Docker 的机器照常跑）。
+
+### 3. 跑基础设施集成测试
+
+```powershell
+pnpm test:infra    # = RUN_INFRA_TESTS=1 下跑 engine 的 vitest（Windows 用 node 包装脚本设 env，无 cross-env）
+```
+
+覆盖：pgvector upsert / score 排序 / docId 过滤 / deleteDoc / NULL 向量跳过；Redis append/getWindow / **TTL 续期**（`ttl` > 0）/ clear / 压缩（注入假 Summarizer）与降级。服务没起时套件自动 skip 并打印原因，不影响普通 `pnpm test`。
+
+### 4. 验证数据真的在里面
+
+```powershell
+docker compose exec postgres psql -U agent -c "select count(*) from kb_chunks"       # PG 里的知识块数
+docker compose exec redis redis-cli --scan --pattern "agent:sess:*"                  # 会话 key
+docker compose exec redis redis-cli ttl "agent:sess:<sessionId>"                     # TTL > 0（24h 续期）
+```
+
+> 情景记忆（EpisodicStore）的 pgvector 版为后续路线（见 `packages/engine/src/memory/README.md` 扩展表）。
+
+## web 客户端（Next.js · 教程第 20 周前端形态）
+
+`apps/web`：手写 scaffold 的 Next.js 15 前端（App Router + React 19 + Tailwind v4，非 create-next-app），消费上面这套 BFF API。week20 架构边界：**前端只见契约**——类型全部来自 `@agent-app/shared`（SSE 事件、kb/service 响应形状），不依赖 `@agent-app/engine`；前端零密钥，所有 LLM / embedding 调用都发生在 BFF 侧。
+
+### 启动
+
+```powershell
+# 前置：BFF 起在 3000
+pnpm api                                # 或分步：pnpm build 后 node apps/api/dist/main.js
+pnpm --filter @agent-app/web dev        # 前端开发服务器 http://localhost:3001
+```
+
+环境变量 `NEXT_PUBLIC_API_BASE`（默认 `http://localhost:3000`）：BFF 地址，Next 构建期内联；部署时改地址只需带着它重新 `pnpm --filter @agent-app/web build`。
+
+### 三个页面
+
+| 路由 | 功能 |
+| --- | --- |
+| `/`（智能对话） | SSE 流式对话：fetch + ReadableStream 手解析（不用 EventSource，便于携带 sessionId 与读错误体）；`session`→`step`（思考过程面板，Thought/Action/Observation 三段式，可折叠）→`token`（逐段追加正文，`[1][2]` 引用标记原样保留）→`done`/`error`（红色错误 + hint）；顶部显示 sessionId + 「新会话」 |
+| `/kb`（知识库管理） | 上传入库（前端扩展名闸 + multipart，成功显示「N 块入库」并刷新列表）、文档列表（标题 / docId / 块数 / 删除，confirm 确认后刷新）、问答试用（answer + 引用列表 no/title/score，`degraded=true` 显示黄色「降级：检索原文」徽标 + hint） |
+| `/service`（智能客服） | 对话式：每条回复带路由徽标（订单蓝 / 退款紫 / 知识库绿 / 转人工琥珀）+ reason；`route=human` 渲染工单卡片（工单号 / 原因 / 用户摘要 / 最近对话 / 时间）；sessionId 经 localStorage 跨刷新保持 |
+
+响应式：移动端单列 + 底部 tab 导航（64px 触达区），桌面端顶栏导航 + 限宽 `max-w-4xl`（kb 页双栏）。字体走系统栈（刻意不用 `next/font/google`，构建离线可行）。
+
 ## HTTP API（NestJS · 教程第 20 周 BFF 形态）
 
 引擎与产品逻辑不变，外面套一层 NestJS 服务壳（模块 / 控制器 / DTO 校验 / 全局异常过滤），对应教程 [week20](../docs/week20/index.md) 的 BFF 架构层：
@@ -172,7 +252,7 @@ pnpm api        # 等价：构建 @agent-app/engine + @agent-app/api 后 node ap
 | --- | --- | --- | --- |
 | GET | `/api/health` | 健康检查 | 正常 |
 | POST | `/api/chat` | 非流式对话（手写工具循环 + 会话记忆） | 500 + 中文配置提示 |
-| GET | `/api/chat/stream?message=` | SSE 流式对话：`session` → `step`（工具调用/结果）→ `delta`（答案分片）→ `done` | SSE `error` 事件 + 配置提示 |
+| GET | `/api/chat/stream?message=` | SSE 流式对话：`session` → `step`（工具调用/结果）→ `token`（答案分片）→ `done` | SSE `error` 事件 + 配置提示 |
 | POST | `/api/kb/ingest` | multipart 文件上传入库（字段名 `file`，支持 .txt/.md/.pdf） | 500 + embeddings 配置提示 |
 | POST | `/api/kb/ingest-path` | 服务端本地路径入库（开发用） | 同上 |
 | POST | `/api/kb/query` | 知识库问答 `{ question, topK? }` → `{ answer, citations }` | 500 + 配置提示 |
@@ -191,4 +271,7 @@ curl -X POST http://localhost:3000/api/kb/ingest -F "file=@samples/company-faq.m
 
 - **装饰器元数据**：NestJS 依赖注入需要 `emitDecoratorMetadata`，而 tsx/esbuild 不支持，因此 API 走 `tsc` 编译后以 `node apps/api/dist/main.js` 运行（`pnpm build` + `pnpm api`）
 - **引擎零改动复用**：控制器/服务直接调用 `@agent-app/engine` 的 `runToolLoop` / `searchKnowledge` / `supervise` / `buildHandoffPack`（客服与入库核心上移引擎包，CLI 与 HTTP API 共用同一套产品逻辑），HTTP 层只是同一套产品逻辑的另一张脸
+- **Swagger 文档**：交互式 API 文档挂在 `http://localhost:3000/api/docs`（OpenAPI JSON 见 `/api/docs-json`，DTO 的 `@ApiProperty` 中文描述自动汇成 Schema）
+- **测试**：`pnpm test:api` 跑 vitest 单测 + e2e（18 个用例，引擎模型调用全 mock，零网络）
+- **优雅关闭**：`app.enableShutdownHooks()` 已启用——SIGINT/SIGTERM 时先走 Nest 生命周期销毁钩子再退出；启动/异常日志统一走 Nest `Logger`（带时间戳与上下文）
 - **后续扩展**（教程 week20 完整范围，本项目未实现）：认证 / 多租户 RBAC / 限流，以及 Next.js 前端（`useChat` + 审批 UI）
