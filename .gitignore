@@ -4,3 +4,6 @@ docs/.vitepress/dist/
 .turbo/
 *.log
 .DS_Store
+
+# OMC 本地运行状态
+.omc/
