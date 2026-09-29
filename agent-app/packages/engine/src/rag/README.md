@@ -39,6 +39,24 @@ RAG（Retrieval-Augmented Generation，检索增强生成）的思路：
 | ③ 相似度 | **余弦相似度** | O(d) 每对 | `store.memory.ts` → `cosineSimilarity()` |
 | ④ 找最像 | Top-K 最近邻（本项目暴力扫；工业版 ANN 索引） | O(n·d) | `store.memory.ts` → `search()` |
 
+### 本目录文件清单（11 个文件，各自管什么）
+
+| 文件 | 职责 |
+| --- | --- |
+| `types.ts` | 契约：`Chunk` / `RagStore`（+listDocs）/ `DocumentSummary`，换库接缝 |
+| `chunker.ts` | 递归切块三级瀑布（段落→句子→硬切），纯函数 |
+| `embedder.ts` | 批量向量化（32/批）+ 中文配置错误礼仪 |
+| `store.memory.ts` | 内存 Map 库 + 余弦相似度（NaN 安全），自检与离线场景用 |
+| `store.pgvector.ts` | **PostgreSQL + pgvector 实现**（HNSW 索引 + `<=>` 余弦距离），`RAG_STORE=pgvector` 时启用 |
+| `store.factory.ts` | **env 工厂总开关**：`RAG_STORE=memory\|json\|pgvector` 一行换库，默认 json |
+| `persistence.ts` | JSON 快照装饰器（`.data/kb-store.json`），内存库的跨进程存档 |
+| `retrieve.ts` | 总装出口：`searchKnowledge`（检索）+ `formatCitations`（引用）+ `setRagStore` 换库 |
+| `ingest.ts` | **入库核心**（CLI 与 HTTP API 共用）：抽文本 → 切块 → 向量化 → upsert |
+| `index.ts` | 桶导出（`@agent-app/engine/rag` 子路径的公共面） |
+| `README.md` | 本文 |
+
+典型组合：`RAG_STORE=json`（默认，零依赖）或 `RAG_STORE=pgvector`（`pnpm infra:up` 起库后切换）——检索代码一行不改。
+
 ## 三、Embedding：把"语义"变成"坐标"（②的核心）
 
 **是什么**：一个深度神经网络 `f(文本) → ℝⁿ`，把任意文本压成一个 n 维浮点向量（本项目 GLM `embedding-3` 是 2048 维）。可以理解为：给每段文本在高维空间里安排一个"住址"，**意思越近的文本住得越近**。
@@ -87,7 +105,7 @@ cos(a,c) = (1×0 + 0×1) / 1 = 0                                    ← 无关�
 
 **本项目 = 暴力精确检索**：O(n·d)，n=块数、d=2048。几百块 × 每块几微秒 = 毫秒级，**结果精确、实现透明**——学习阶段就该从暴力开始，先理解"找最像"本身。
 
-**工业版 = ANN 近似最近邻**（教程 week14 pgvector 的主题）：十万块以上暴力扫不动，用索引换精度：
+**工业版 = ANN 近似最近邻**：十万块以上暴力扫不动，用索引换精度——**本项目已实现**：`store.pgvector.ts`（`RAG_STORE=pgvector` 切换，`pnpm infra:up` 起库），HNSW 索引 + `<=>` 余弦距离：
 
 - **HNSW**（分层可导航小世界图）：跳表思想的图版本——建多层"高速公路"，贪心搜索从顶层一路跳到底层，O(log n)，召回 ~99%
 - **IVFFlat**：先用 **k-means 聚类**把向量分桶，查询只扫最近的几个桶
