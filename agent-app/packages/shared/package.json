@@ -1,0 +1,21 @@
+{
+  "name": "@agent-app/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "跨端共享契约（纯类型包）：api/cli/web 共用的 SSE 事件、错误体、路由与转人工上下文包",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=18.18"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "typescript": "^7.0.2"
+  },
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+  }
+}
