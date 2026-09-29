@@ -1,8 +1,9 @@
 # 读代码前先读这篇：Agent 为什么需要评估，评测框架怎么工作
 
 > 本目录解决 Agent 的"好坏怎么量化"问题。Agent 能跑 ≠ Agent 好——改了 prompt、
-> 换了模型、加了工具之后，"感觉回答变好了"不是工程结论，18 个离线用例的全绿
-> 加上检索套件 recall@3 达标才是。与 `rag/`、`memory/` 同一套工程哲学：
+> 换了模型、加了工具之后，"感觉回答变好了"不是工程结论，76 个用例的全绿才是
+> （18 条离线确定性 + 50 条检索 + 8 条评审，后两档有 key 时自动加跑）。
+> 与 `rag/`、`memory/` 同一套工程哲学：
 > **离线优先**——Tier 1 套件零依赖零网络零 key，`pnpm eval` 任何机器上确定性跑通；
 > Tier 2 检索套件与 Tier 3 评审套件需要 API key，有 key 自动加跑、无 key 整套跳过
 > （跳过 ≠ 失败）。配合教程 [week16 · Agent 评估工程](../../../../../docs/week16/index.md)
@@ -18,7 +19,7 @@ Agent 系统的每次变更——改 system prompt、换 embedding 模型、调�
 
 1. **谁来判对错？**（评分器——先从确定性断言做起）
 2. **拿什么判？**（golden dataset——版本化的期望答案集）
-3. **变坏怎么拦？**（基线比对 + 退出码——P3 接 CI 做回归门禁）
+3. **变坏怎么拦？**（基线比对 + 退出码——已落地：本地基线门禁 + CI 的 Tier 1 门禁 job）
 
 行业现状：89% 团队有可观测性（看得见 Agent 在干嘛），只有 52% 做离线评估
 （知道它干得好不好）。评估是 Agent 工程里最稀缺的工程能力。
@@ -53,7 +54,7 @@ tool-call / 文本。那评的意义在哪？三件事都是真的：
 剧本模型解决的是"把**模型的不确定性**从评测里剔出去"：Tier 1 要的是每次跑结果完全一致。
 真实模型的评估（该调工具时调不调）属于 Tier 2/3 的活。
 
-## 三、文件地图（12 个文件）
+## 三、文件地图（13 个文件）
 
 | 文件 | 职责 |
 | --- | --- |
@@ -69,10 +70,13 @@ tool-call / 文本。那评的意义在哪？三件事都是真的：
 | `report.ts` | `[PASS]/[FAIL]` 逐例 + 汇总表 + 检索指标行 + `.data/eval-report.json` 落盘 |
 | `baseline.ts` | 回归基线（P3）：报告压成套件级数字快照，跌幅 >3% 或通过率回退 → 违规 |
 | `index.ts` | 桶导出（`@agent-app/engine/evals` 子路径的公共面） |
+| `README.md` | 本文 |
 
 ## 四、数据从哪来：golden dataset
 
-`dataset.ts` 里 18 个 case 就是教程 week16 Day 1 说的 **golden dataset v0**：
+全套 golden 数据 = **18 离线（`dataset.ts` 的 `EVAL_CASES`）+ 50 检索（`corpus.ts` 的 `EVAL_QUERIES`）+ 8 评审（`dataset.ts` 的 `EVAL_JUDGE_CASES`）= 76 例**，当前 `EVAL_DATASET_VERSION = "3"`。
+
+`dataset.ts` 里 18 个离线 case 就是教程 week16 Day 1 说的 **golden dataset v0**：
 
 - **轨迹 10 例**：查物流（2 种问法）、投诉建单、搜订单→查物流两连、搜不到→建单降级，
   以及 3 个**负例**（"你好"、"谢谢"、"问营业时间"——期望空工具序列，闲聊不许碰工具）
@@ -135,7 +139,7 @@ pnpm eval --update-baseline     # 把本轮结果存为回归基线（见第七�
 3. **评的是「判得准不准」，不是「回答好不好」**：`scoreJudge(expectedPass,
    verdict)` 的 passed = 判定与期望**一致**——负例判出不通过同样是过。
    这让「judge 是不是好好先生」变成可测试的断言，数据集的两个负例（judge-07
-   编造政策 / judge-08 纔客套话）就是专门用来抓它的。
+   编造政策 / judge-08 纯客套话）就是专门用来抓它的。
 4. **严格 JSON 指令 + 宽松解析双保险**：输出约定为单行
    `{"pass": boolean, "reason": string}` 且禁止 markdown 围栏；解析侧复用
    `json-utils.ts` 的 `extractJson`（取第一个 `{` 到最后一个 `}`，天然容忍
@@ -195,12 +199,12 @@ pnpm eval                     # 之后每轮：自动比对基线，回归 → [
 
 | 步骤 | 文件 | 学什么 | 通关标准 |
 | --- | --- | --- | --- |
-| 0 | 本文 | 三档分层 + 剧本模型的意义 | 能回答第八节 7 问 |
+| 0 | 本文 | 三档分层 + 剧本模型的意义 | 能回答第八节 13 问 |
 | 1 | `types.ts` | 评测的四种数据形状（case/result/report） | 能说出 EvalReport 里五个字段各自给谁用 |
-| 2 | `dataset.ts` | golden dataset 长什么样、怎么扩 | 自己加一个 case 并跑绿 |
+| 2 | `dataset.ts` + `corpus.ts` | golden dataset 与检索语料库长什么样、怎么扩 | 自己加一个 case 并跑绿 |
 | 3 | `fixtures.ts` | 剧本模型工厂 + 夹具工具 | 能解释 `doGenerate` 游标与"剧本用尽"错误 |
-| 4 | `scorers/` | 两个确定性评分器 | 能说出空序列特判与 null 路由的语义 |
-| 5 | `runner.ts` + `report.ts` | 采集 → 打分 → 汇总的管线 | 能说出"单例失败不炸整轮"的实现位置 |
+| 4 | `scorers/` | 四个评分器（轨迹/路由/检索/评审）的口径差异 | 能说出空序列特判、null 路由、倒数排名、二元判定的语义 |
+| 5 | `runner.ts` + `report.ts` | 采集 → 打分 → 汇总的管线 | 能说出"单例失败不炸整轮"与"无 key 整套 skipped"的实现位置 |
 | 6 | `scorers/judge.ts` | rubric 二元判定 + 严格 JSON / 宽松解析 | 能解释「宁可误杀」与负例的校准作用 |
 | 7 | `baseline.ts` + eval CLI | 回归门禁三态与容差口径 | 能说出哪些变化会拦退出码、哪些只是提示 |
 | 8 | ✋ 动手 | 破坏性实验：把 traj-05 的期望改成 `["query_logistics"]` 再跑 | 亲眼看到 [FAIL] + 退出码 1，再改回来 |
