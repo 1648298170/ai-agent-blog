@@ -10,10 +10,12 @@ import { AllExceptionsFilter } from "../common/all-exceptions.filter.js";
 import { ChatController } from "./chat.controller.js";
 import { ChatService } from "./chat.service.js";
 
-/** ChatService 的最小替身：控制器只调 chat / chatStream 两个方法 */
+/** ChatService 的最小替身：控制器只调 chat / chatStream / listSessions / getSessionHistory */
 const chatServiceMock = {
   chat: vi.fn(),
   chatStream: vi.fn(),
+  listSessions: vi.fn(),
+  getSessionHistory: vi.fn(),
 };
 
 describe("ChatController（/api/chat）", () => {
@@ -22,6 +24,8 @@ describe("ChatController（/api/chat）", () => {
   beforeEach(async () => {
     chatServiceMock.chat.mockReset();
     chatServiceMock.chatStream.mockReset();
+    chatServiceMock.listSessions.mockReset();
+    chatServiceMock.getSessionHistory.mockReset();
 
     const moduleRef = await Test.createTestingModule({
       controllers: [ChatController],
@@ -67,7 +71,7 @@ describe("ChatController（/api/chat）", () => {
   });
 
   it("POST /api/chat 服务层抛 LLM 错误 → 500 + { statusCode, message, hint } 形状", async () => {
-    chatServiceMock.chat.mockRejectedValue(new Error("LLM 调用失败：401 Unauthorized"));
+    chatServiceMock.chat.mockRejectedValue(new Error("【模拟】LLM 调用失败：401 Unauthorized"));
 
     const res = await request(app.getHttpServer()).post("/api/chat").send({ message: "你好" });
 
@@ -85,5 +89,35 @@ describe("ChatController（/api/chat）", () => {
     expect(res.headers["content-type"]).toContain("text/event-stream");
     expect(res.text).toContain("缺少必填查询参数 message");
     expect(chatServiceMock.chatStream).not.toHaveBeenCalled();
+  });
+
+  it("GET /api/chat/sessions 按 s_ 前缀过滤：共享存储里的 cs_ 客服会话不出现", async () => {
+    // 会话存储与 service 线共用（Redis 模式同库）：混入的 cs_ 会话应被过滤掉
+    chatServiceMock.listSessions.mockResolvedValue([
+      { sessionId: "s_aaa", turns: 2, updatedAt: "2026-01-01T00:00:00.000Z" },
+      { sessionId: "cs_bbb", turns: 4, updatedAt: "2026-01-02T00:00:00.000Z" },
+      { sessionId: "s_ccc", turns: 6, updatedAt: "2026-01-03T00:00:00.000Z" },
+    ]);
+
+    const res = await request(app.getHttpServer()).get("/api/chat/sessions");
+
+    expect(res.status).toBe(200);
+    expect(res.body.map((s: { sessionId: string }) => s.sessionId)).toEqual(["s_aaa", "s_ccc"]);
+  });
+
+  it("GET /api/chat/sessions/:sessionId → 服务层返回的 { sessionId, turns } 原样透传", async () => {
+    chatServiceMock.getSessionHistory.mockResolvedValue({
+      sessionId: "s_aaa",
+      turns: [{ role: "user", content: "你好" }],
+    });
+
+    const res = await request(app.getHttpServer()).get("/api/chat/sessions/s_aaa");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      sessionId: "s_aaa",
+      turns: [{ role: "user", content: "你好" }],
+    });
+    expect(chatServiceMock.getSessionHistory).toHaveBeenCalledExactlyOnceWith("s_aaa");
   });
 });

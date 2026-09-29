@@ -17,6 +17,10 @@ vi.mock("@agent-app/engine/rag", () => ({
   searchKnowledge: vi.fn(),
   createJsonRagStore: vi.fn(() => ({})),
   setRagStore: vi.fn(),
+  getRagStore: vi.fn(() => ({
+    listDocs: vi.fn(async () => []),
+    deleteDoc: vi.fn(async () => undefined),
+  })),
   ingestSource: vi.fn(),
   extractTextFromBuffer: vi.fn(),
   extractTextFromFile: vi.fn(),

@@ -1,5 +1,6 @@
 // kb.service.ts —— 知识库业务：apps/kb/cli.ts 的 HTTP 化（入库 + 带引用问答）
-// 构造时挂 JSON 快照库（与 CLI 同一份 .data/kb-store.json，跨进程共享）。
+// 构造时经 env 工厂挂库（RAG_STORE=memory|json|pgvector，默认 json 快照，
+// 与 CLI 同一份 .data/kb-store.json，跨进程共享；配 pgvector 时与 CLI 共用同一个 PG）。
 // 问答流程同 CLI：检索 top-k → 空结果老实说不知道 → 命中块拼进 prompt →
 // 只依据资料作答并标 [1][2]；LLM 挂了降级返回检索原文 + 出处（不给报错页）。
 // 单仓化改造：入库核心（extract / ingestSource）上移 @agent-app/engine/rag，
@@ -10,16 +11,20 @@ import { basename } from "node:path";
 import { generateText } from "ai";
 import type { ModelMessage } from "ai";
 import { createModel } from "@agent-app/engine/llm";
+// 注意：工厂从子路径 @agent-app/engine/rag/store.factory 引入（而不是 rag 主出口）——
+// kb.service.spec.ts 对 "@agent-app/engine/rag" 整包 vi.mock，主出口的 mock 面越窄越稳；
+// 子路径直连真实工厂，默认（无 RAG_STORE）→ json 快照库，构造零 I/O，测试行为不变。
+import { createRagStoreFromEnv } from "@agent-app/engine/rag/store.factory";
 import {
-  createJsonRagStore,
   extractTextFromBuffer,
   extractTextFromFile,
+  getRagStore,
   ingestSource,
   searchKnowledge,
   setRagStore,
   SUPPORTED_EXTENSIONS,
 } from "@agent-app/engine/rag";
-import type { IngestResult, RetrievedChunk } from "@agent-app/engine/rag";
+import type { DocumentSummary, IngestResult, RetrievedChunk } from "@agent-app/engine/rag";
 import { ConfigProvider } from "../common/config.provider.js";
 
 // 与 apps/kb/cli.ts 完全一致的提示词与提示语
@@ -56,7 +61,8 @@ export interface KbAnswer {
 @Injectable()
 export class KbService {
   constructor(private readonly config: ConfigProvider) {
-    setRagStore(createJsonRagStore()); // 与 CLI 同一份快照：入库与问答跨进程共享
+    // env 工厂（默认 json）：与 CLI 同一份快照，入库与问答跨进程共享
+    setRagStore(createRagStoreFromEnv());
   }
 
   /** 校验扩展名（multipart 上传与 ingest-path 共用的闸） */
@@ -95,6 +101,17 @@ export class KbService {
       throw new BadRequestException(`文档内容为空，无块可入库：${filePath}`);
     }
     return ingestSource(fileName, text);
+  }
+
+  /** 文档清单（知识库管理页的列表数据源）：委托当前 RagStore 聚合 */
+  async listDocs(): Promise<DocumentSummary[]> {
+    return getRagStore().listDocs();
+  }
+
+  /** 下架整篇文档：同一 docId 的所有切块一并移除 */
+  async deleteDoc(docId: string): Promise<{ deleted: string }> {
+    await getRagStore().deleteDoc(docId);
+    return { deleted: docId };
   }
 
   /**

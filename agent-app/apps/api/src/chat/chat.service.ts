@@ -10,8 +10,8 @@ import type { ModelMessage } from "ai";
 import type { ChatStreamEvent } from "@agent-app/shared";
 import { runToolLoop } from "@agent-app/engine/agent-loop";
 import { createModel } from "@agent-app/engine/llm";
-import { InMemorySessionStore } from "@agent-app/engine/memory";
-import type { ChatTurn } from "@agent-app/engine/memory";
+import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
+import type { ChatTurn, SessionSummary } from "@agent-app/engine/memory";
 import { createDemoTools } from "@agent-app/engine/tools";
 import { ConfigProvider } from "../common/config.provider.js";
 
@@ -35,7 +35,8 @@ export type { ChatStreamEvent };
 
 @Injectable()
 export class ChatService {
-  private readonly sessionStore = new InMemorySessionStore();
+  // env 工厂（SESSION_STORE=memory|redis，默认 memory——与改造前一致；配 redis 时跨实例共享）
+  private readonly sessionStore = createSessionStoreFromEnv();
   private readonly tools = createDemoTools();
 
   constructor(private readonly config: ConfigProvider) {}
@@ -110,5 +111,16 @@ export class ChatService {
 
     await this.sessionStore.append(sessionId, { role: "assistant", content: answer });
     emit({ type: "done" });
+  }
+
+  /** 历史会话清单（按最近活跃降序）：委托给会话存储（memory / redis 行为一致） */
+  listSessions(): Promise<SessionSummary[]> {
+    return this.sessionStore.listSessions();
+  }
+
+  /** 某个会话的全量轮次（压缩后含摘要轮）；会话不存在/已过期时 turns 为空数组 */
+  async getSessionHistory(sessionId: string): Promise<{ sessionId: string; turns: ChatTurn[] }> {
+    const turns = await this.sessionStore.getHistory(sessionId);
+    return { sessionId, turns };
   }
 }

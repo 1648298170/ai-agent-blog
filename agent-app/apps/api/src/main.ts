@@ -43,6 +43,9 @@ async function bootstrap(): Promise<void> {
   // （开发 Ctrl+C / 生产容器停止都走这条路，避免请求被拦腰掐断）
   app.enableShutdownHooks();
 
+  // CORS：web（apps/web 默认 3001 端口）跨域调用 API 必需；学习项目放开来源即可
+  app.enableCors({ origin: true });
+
   // 全局参数校验：未知字段剥掉（whitelist）+ 请求体转 DTO 实例（transform）
   app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }));
   // 全局异常过滤：引擎的中文错误 → { statusCode, message, hint }，HttpException 放行
