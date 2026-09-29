@@ -40,6 +40,7 @@
     "./memory":         { "types": "./dist/memory/index.d.ts",       "default": "./dist/memory/index.js" },
     "./memory/factory": { "types": "./dist/memory/factory.d.ts",     "default": "./dist/memory/factory.js" },
     "./tools":          { "types": "./dist/tools/index.d.ts",        "default": "./dist/tools/index.js" },
-    "./service":        { "types": "./dist/service/index.d.ts",      "default": "./dist/service/index.js" }
+    "./service":        { "types": "./dist/service/index.d.ts",      "default": "./dist/service/index.js" },
+    "./evals":          { "types": "./dist/evals/index.d.ts",        "default": "./dist/evals/index.js" }
   }
 }

@@ -1,0 +1,5 @@
+{
+  "//": "仅给编辑器用：VS Code 只自动识别名为 tsconfig.json 的配置，test/ 下放一份就近副本，spec 文件才能继承 types:['node'] 与 NodeNext（tsc 校验仍走 ../tsconfig.test.json，turbo 不受影响）",
+  "extends": "../tsconfig.test.json",
+  "include": ["."]
+}
