@@ -1,0 +1,52 @@
+# docker-compose.yml —— 教程 week14（pgvector）+ week17（Redis 会话记忆）的真实持久化基座
+#
+# 端口选择（2026-09 实测本机已占用端口后敲定，见根 README「真实持久化（Docker）」）：
+#   postgres  → 宿主机 5433 → 容器 5432
+#     本机 5432 已被另一个常驻容器 my-postgres 占用（docker ps 可见），
+#     为避免与用户现有容器冲突，本项目固定映射到 5433。
+#     连接串默认值：postgres://agent:agent@localhost:5433/agent（PG_CONNECTION_STRING 可覆盖）
+#   redis     → 宿主机 6379 → 容器 6379（实测空闲）
+#     连接串默认值：redis://localhost:6379（REDIS_URL 可覆盖）
+#
+# 用法（agent-app 目录下）：
+#   pnpm infra:up    # = docker compose up -d，等两个服务 healthy
+#   pnpm infra:down  # = docker compose down（保留数据卷；加 -v 才删数据）
+#
+# 说明：无 build 段（直接用官方镜像）；数据落 named volume，容器重建不丢。
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: agent-app-postgres
+    environment:
+      POSTGRES_USER: agent
+      POSTGRES_PASSWORD: agent
+      POSTGRES_DB: agent
+    ports:
+      - "5433:5432"
+    volumes:
+      - agent_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U agent -d agent"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: agent-app-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - agent_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+
+volumes:
+  agent_pgdata:
+  agent_redisdata:
