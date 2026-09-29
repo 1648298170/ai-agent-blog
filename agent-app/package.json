@@ -1,0 +1,28 @@
+{
+  "name": "agent-app-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "教程 TS 主线的可运行项目：pnpm workspace 单仓（@agent-app/engine 引擎 + cli/api/web 三端）",
+  "scripts": {
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "cli": "tsx apps/cli/src/index.ts",
+    "chat": "tsx apps/cli/src/apps/chat/cli.ts",
+    "kb:ingest": "tsx apps/cli/src/apps/kb/ingest.ts",
+    "kb": "tsx apps/cli/src/apps/kb/cli.ts",
+    "service": "tsx apps/cli/src/apps/service/cli.ts",
+    "test:service": "tsx apps/cli/src/apps/service/__tests__.ts",
+    "test:api": "pnpm --filter @agent-app/api test",
+    "selftest": "tsx apps/cli/src/selftest.ts",
+    "api": "pnpm --filter @agent-app/engine build && pnpm --filter @agent-app/api build && node apps/api/dist/main.js"
+  },
+  "engines": {
+    "node": ">=18.18"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}
