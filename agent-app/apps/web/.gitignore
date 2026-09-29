@@ -1,0 +1,6 @@
+# Next.js 构建产物
+.next/
+out/
+
+# 本地环境
+.env*.local

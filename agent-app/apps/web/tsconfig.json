@@ -1,0 +1,31 @@
+{
+  // 偏离说明：不继承根 tsconfig.base.json —— 根配置是 module/moduleResolution: "NodeNext"
+  //（Node ESM 包解析，要求相对导入带 .js 后缀），而 Next 15 App Router 要求
+  // moduleResolution: "bundler" + jsx: "preserve" + next 插件，两者互斥；
+  // Next 官方脚手架即为本文件形态，故这里独立成套（偏离是刻意的，见 apps/web/README.md）。
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "paths": {
+      "@/*": ["./*"]
+    },
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
