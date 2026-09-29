@@ -5,7 +5,8 @@
   "type": "module",
   "description": "CLI 端：chat / kb / service 三个 REPL + 无网络自检（tsx 直跑源码，无构建产物）",
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "eval": "tsx src/apps/eval/cli.ts"
   },
   "engines": {
     "node": ">=18.18"

@@ -12,8 +12,11 @@ if (cmd === "chat") {
 } else if (cmd === "service") {
   const { main } = await import("./apps/service/cli.js");
   await main(rest);
+} else if (cmd === "eval") {
+  const { main } = await import("./apps/eval/cli.js");
+  await main(rest);
 } else {
-  console.log("用法：pnpm cli chat | kb | service");
+  console.log("用法：pnpm cli chat | kb | service | eval");
   if (cmd !== undefined) {
     console.error(`未知命令：${cmd}`);
     process.exitCode = 1;

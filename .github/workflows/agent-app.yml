@@ -1,5 +1,6 @@
-# agent-app 质量门禁：push/PR 触及 agent-app 时跑构建 + 类型检查 + 离线自检 + API 测试
-# 全部命令零网络依赖（selftest 用假模型、vitest mock 引擎），无需配置任何 Secret
+# agent-app 质量门禁：push/PR 触及 agent-app 时跑构建 + 类型检查 + 离线自检 + API 测试 + 评测套件
+# 全部命令零网络依赖（selftest 用假模型、vitest mock 引擎、eval 的 Tier 2/3 无 key 自动跳过），
+# 无需配置任何 Secret
 name: agent-app
 
 on:
@@ -53,4 +54,35 @@ jobs:
 
       - name: API 测试（vitest 单测 + e2e，引擎调用全部 mock）
         run: pnpm --filter @agent-app/api test
+        working-directory: agent-app
+
+  # 评测套件（P3）：CI 无 key → 检索/评审套件自动跳过（跳过 ≠ 失败，退出码 0），
+  # Tier 1（轨迹/路由）确定性门禁。零 Secret；基线是 .data 本地文件（不进 git），
+  # CI 侧不比对基线，回归门禁只覆盖 Tier 1。
+  evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm 版本读取 agent-app/package.json 的 packageManager 字段，本地与 CI 同版本
+      - uses: pnpm/action-setup@v4
+        with:
+          working-directory: agent-app
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: agent-app/pnpm-lock.yaml
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+        working-directory: agent-app
+
+      - name: 构建（shared → engine → api，pnpm 按依赖拓扑序）
+        run: pnpm -r build
+        working-directory: agent-app
+
+      - name: 评测套件（Tier 1 门禁；无 key 时 Tier 2/3 跳过）
+        run: pnpm eval
         working-directory: agent-app

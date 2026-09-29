@@ -12,6 +12,7 @@
     "kb:ingest": "tsx apps/cli/src/apps/kb/ingest.ts",
     "kb": "tsx apps/cli/src/apps/kb/cli.ts",
     "service": "tsx apps/cli/src/apps/service/cli.ts",
+    "eval": "tsx apps/cli/src/apps/eval/cli.ts",
     "test:service": "tsx apps/cli/src/apps/service/__tests__.ts",
     "test:api": "turbo run test --filter=@agent-app/api",
     "test:engine": "pnpm --filter @agent-app/engine test",
