@@ -41,3 +41,100 @@ export interface ServiceHandoffPack {
   recentTranscript: string;
   createdAt: string;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// week20 web 前端（apps/web）消费的 HTTP 响应契约（纯类型增量，不改任何已有类型）
+// 形状与 apps/api 各控制器的实际返回逐字段一致（chat.controller / kb.service / service.dto）。
+// week20 架构边界：前端只见契约不见引擎，因此这些类型放 shared，
+// 而不是让 web 依赖 @agent-app/engine 去拿 IngestResult / DocumentSummary。
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** POST /api/chat 响应（非流式；web 主要消费 GET /api/chat/stream 的 SSE） */
+export interface ChatResponse {
+  sessionId: string;
+  reply: string;
+}
+
+/** POST /api/kb/ingest 响应：入库结果（与 engine/rag 的 IngestResult 同形） */
+export interface KbIngestResult {
+  /** 入库文件名（含扩展名） */
+  fileName: string;
+  /** 引用块里显示的标题（文件名去扩展名） */
+  title: string;
+  /** 文档 id：文件名 + 内容哈希前 8 位（同内容重传命中同 id，upsert 覆盖） */
+  docId: string;
+  /** 本次切块数 */
+  chunks: number;
+  /** 入库后知识库总块数 */
+  total: number;
+}
+
+/** GET /api/kb/documents 列表项：一个 docId 一行的文档级摘要 */
+export interface KbDocumentSummary {
+  docId: string;
+  title: string;
+  /** 该文档被切成了多少块 */
+  chunks: number;
+}
+
+/** 知识库问答的引用来源：编号 + 标题 + 余弦相似度（编号由后端分配，模型编不了出处） */
+export interface KbCitation {
+  no: number;
+  title: string;
+  score: number;
+}
+
+/** POST /api/kb/query 响应：degraded=true 表示 LLM 不可用，answer 为检索原文拼接 */
+export interface KbQueryAnswer {
+  answer: string;
+  citations: KbCitation[];
+  degraded: boolean;
+  /** degraded 时的配置指引 */
+  hint?: string;
+}
+
+/** DELETE /api/kb/documents/:docId 响应：返回被删除的 docId */
+export interface KbDeleteResponse {
+  deleted: string;
+}
+
+/** POST /api/service/message 响应：route=human 时附带转人工上下文包（与 api 的 ServiceReply 同形） */
+export interface ServiceMessageResponse {
+  sessionId: string;
+  /** order / refund / knowledge / human（human 是业务流程的正常一步，不是异常） */
+  route: RouteTarget;
+  /** 路由判定依据（转人工时进工单，是接手人的第一眼信息） */
+  reason: string;
+  reply: string;
+  handoff?: ServiceHandoffPack;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 会话记录（conversation-history）契约：GET /api/chat/sessions 两个端点的响应形状。
+// 与 @agent-app/engine 的 SessionSummary / ChatTurn 逐字段同形——前端只见契约
+// 不见引擎，因此这里独立声明一份（web 不依赖 engine，架构边界不变）。
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** GET /api/chat/sessions 列表项：一个会话一行的摘要 */
+export interface SessionSummary {
+  sessionId: string;
+  /** 压缩后的当前轮数（含合成摘要轮） */
+  turns: number;
+  /** 最后活跃时间（ISO 8601），列表按它降序 */
+  updatedAt: string;
+}
+
+/** 会话历史里的单轮对话（与 engine 的 ChatTurn 同形；system 为压缩产生的摘要轮） */
+export interface SessionTurn {
+  role: "user" | "assistant" | "system";
+  content: string;
+  /** 该轮 assistant 回答触发的工具名（可选） */
+  toolName?: string;
+}
+
+/** GET /api/chat/sessions/:sessionId 响应：全量轮次（压缩后含摘要轮）。
+ *  会话不存在或已过期时 turns 为空数组（200，不报 404）。 */
+export interface SessionHistoryResponse {
+  sessionId: string;
+  turns: SessionTurn[];
+}
