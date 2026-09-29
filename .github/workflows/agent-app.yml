@@ -1,0 +1,56 @@
+# agent-app 质量门禁：push/PR 触及 agent-app 时跑构建 + 类型检查 + 离线自检 + API 测试
+# 全部命令零网络依赖（selftest 用假模型、vitest mock 引擎），无需配置任何 Secret
+name: agent-app
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "agent-app/**"
+      - ".github/workflows/agent-app.yml"
+  pull_request:
+    paths:
+      - "agent-app/**"
+      - ".github/workflows/agent-app.yml"
+
+concurrency:
+  group: agent-app-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm 版本读取 agent-app/package.json 的 packageManager 字段，本地与 CI 同版本
+      - uses: pnpm/action-setup@v4
+        with:
+          working-directory: agent-app
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: agent-app/pnpm-lock.yaml
+
+      # --frozen-lockfile：lockfile 与 package.json 不一致直接报错，杜绝"本地能跑 CI 挂"
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+        working-directory: agent-app
+
+      - name: 构建（shared → engine → api，pnpm 按依赖拓扑序）
+        run: pnpm -r build
+        working-directory: agent-app
+
+      - name: 类型检查（全包）
+        run: pnpm typecheck
+        working-directory: agent-app
+
+      - name: 离线自检（引擎零件 13 项，假模型零网络）
+        run: pnpm selftest
+        working-directory: agent-app
+
+      - name: API 测试（vitest 单测 + e2e，引擎调用全部 mock）
+        run: pnpm --filter @agent-app/api test
+        working-directory: agent-app
