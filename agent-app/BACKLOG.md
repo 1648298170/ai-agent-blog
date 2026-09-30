@@ -16,6 +16,7 @@
 
 ### 🟡 待办（生产壳与工程链，可打包为「week20 生产化」批次）
 - #5 API 生产壳：认证 + 限流 + CORS 收紧 + Helmet（原有挂账）
+- #5.1 思考过程可见性开关：`AGENT_SHOW_STEPS` 全局默认（教学项目默认开）+ `?steps=0` 单次覆盖（chat/service 两条 SSE 流都收，关则不发 step 事件、前端无需改）。**设计已定稿**：common 小函数读 env+query 双档，onStep 回调判开关，默认行为不变；安全动机=step 事件透传工具入参、推理文本暴露提示词形状（week19 E1 佐证）
 - #6 结构化日志与请求关联 ID（X-Request-ID 贯穿，替代演示级 trace 图标流）
 - #7 提交链机械约束：husky + lint-staged + commitlint + `pnpm audit` 进 CI
 - #8 统一 formatter（prettier/biome）
