@@ -111,6 +111,12 @@ function registerEngineTool(server: McpServer, name: string, engineTool: AgentTo
 export function createMcpServer(): McpServer {
   const server = new McpServer({ name: "agent-app", version: SERVER_VERSION });
 
+  // 安全/正确性修复（week19 红队实验发现）：resolveStore 原本只挂在 RESOURCES 的
+  // list/read 回调上——MCP 客户端只调 tools/call searchKnowledge 时（模型从不
+  // list resources），检索走的是出厂内存空库，静默返回 0 命中。这里在注册工具前
+  // 先装配存储（幂等、零 I/O 懒加载），保证工具路径与资源路径看到同一个库。
+  resolveStore();
+
   // ── TOOLS：引擎真实工具的 MCP 镜像（schema 与 execute 都是原对象，零复制）──
   const demoTools = createDemoTools();
   registerEngineTool(server, "getOrderStatus", demoTools.getOrderStatus);
