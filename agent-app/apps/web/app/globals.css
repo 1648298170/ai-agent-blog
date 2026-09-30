@@ -31,13 +31,34 @@
   animation: step-item-in 0.28s ease-out both;
 }
 
-/* 面板内滚条的低调样式：细、圆角、灰色（默认粗黑滚动条在 13px 字号下很吵） */
-.step-item-in::-webkit-scrollbar,
-ol::-webkit-scrollbar {
-  width: 6px;
+/*
+ * 全站细滚动条：滚动条是配角，不抢内容。
+ * 标准属性覆盖 Chrome 121+ / Edge / Firefox；::-webkit-* 回退旧版 Safari。
+ * 拇指浅灰圆角、轨道透明、悬停加深。
+ */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(203 213 225) transparent;
 }
 
-ol::-webkit-scrollbar-thumb {
-  background: rgb(209 213 219);
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgb(203 213 225);
   border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgb(148 163 184);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
