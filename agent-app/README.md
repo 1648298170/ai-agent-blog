@@ -42,6 +42,7 @@ pnpm typecheck
 | --- | --- | --- |
 | `pnpm chat` | readline 聊天 REPL：会话窗口 + 手写工具循环 + 演示工具 | [week11 主线补篇 · Agent 循环 TS 深入](../docs/week11/agent-loop-ts.md) |
 | `pnpm chat --selftest` / `pnpm selftest` | 无网络自检（切块 / 余弦检索 / 会话存储） | [week11 · RAG TS 全链路](../docs/week11/rag-ts.md)、[week11 · 记忆 TS 版](../docs/week11/memory-ts.md) |
+| `pnpm chat --mcp "cmd /c pnpm mcp:server"` | 聊天 REPL 接入外部 MCP 服务器（spawn stdio 子进程，工具表自动合并） | —（MCP 专题教程规划中） |
 | `pnpm cli chat` | 入口路由：聊天 | 同 `pnpm chat` |
 | `pnpm cli kb` / `pnpm kb` | 知识库问答 REPL：检索 top5 → 带引用回答 | [products · 知识库问答](../docs/products/kb.md)、[week11 · RAG TS](../docs/week11/rag-ts.md) |
 | `pnpm kb:ingest <文件>` | 知识库入库：切块 → 向量化 → 快照落盘（.txt / .md / .pdf） | [week11 · RAG TS](../docs/week11/rag-ts.md) |
@@ -149,6 +150,21 @@ $env:AGENT_TRACE = "1"; pnpm api     # 方式二：环境变量（HTTP API 服�
 | 🧠 | 记忆压缩 | `🧠 会话 cs_xxx 超过 40 条：压缩 21 条旧消息为滚动摘要…` |
 
 > 顺带修复：模型三分类原来走 `generateObject`（依赖网关 response_format 结构化输出），`glm-4-flash` 会静默无视导致解析失败；现改为 `generateText` + 严格 JSON 指令 + 宽松解析（`engine/json-utils.ts`）+ 不合规自动重试一次，任何 OpenAI 兼容网关行为一致。
+
+## 接入外部 MCP 服务器（--mcp）
+
+聊天 REPL 可以把**任何** MCP 服务器的工具并进自己的工具表（stdio 子进程方式）：
+
+```powershell
+pnpm chat --mcp "cmd /c pnpm mcp:server" --trace   # 狗粮：接我们自己的 pnpm mcp:server
+```
+
+要点：
+
+- **MCP 工具与本地工具对循环不可区分**：`--mcp` 会 spawn 服务器进程、`listTools`、把每个工具的 JSON Schema 适配成引擎 `AgentTool`（`engine/mcp/adapter.ts` 照单全收，参数校验责任在服务器侧），合并进工具表后 `runToolLoop` 一行未改——重名时 MCP 版本胜出并打印警告
+- **Windows 下命令要包一层 `cmd /c`**：stdio 传输用 `spawn` 且不开 shell，`pnpm`/`npx` 是 `.cmd` 垫片，直唤会 ENOENT；这不是 bug 是安全纪律，包一层就好（macOS/Linux 直接写命令）
+- 退出 REPL（`/exit` 或 Ctrl-Z 回车 / EOF）时桥会按 stdin EOF → SIGTERM → SIGKILL 的序列收掉服务器进程
+- 真模型 + 真子进程的冒烟：`pnpm test:mcp-dogfood`（离线单测见 `engine/test/mcp-client.spec.ts`）
 
 ## 配置说明
 

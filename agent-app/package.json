@@ -18,6 +18,7 @@
     "test:api": "turbo run test --filter=@agent-app/api",
     "test:engine": "pnpm --filter @agent-app/engine test",
     "test:infra": "node scripts/run-infra-tests.mjs",
+    "test:mcp-dogfood": "node scripts/mcp-dogfood.mjs",
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down",
     "selftest": "tsx apps/cli/src/selftest.ts",
