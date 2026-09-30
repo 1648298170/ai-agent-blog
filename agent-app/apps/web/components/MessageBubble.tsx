@@ -7,12 +7,14 @@ import type { ReactNode } from "react";
 import ApprovalCard from "./ApprovalCard";
 import StepPanel from "./StepPanel";
 
-/** 思考过程面板的一步：step 事件原样落地（output 是 unknown，展示层负责摘要） */
+/** 思考过程面板的一步：step 事件原样落地（output 是 unknown，展示层负责摘要）。
+ *  text = 模型本步伴随工具调用的推理文本（常为 undefined——有就展示，没有就明说） */
 export interface StepRecord {
   step: number;
   toolName: string;
   input: unknown;
   output: unknown;
+  text?: string;
 }
 
 /** 工具审批记录（week18 Day 6）：approval SSE 事件落地 + 用户裁决后的终态。

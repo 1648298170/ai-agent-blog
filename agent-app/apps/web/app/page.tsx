@@ -107,6 +107,7 @@ export default function ChatPage() {
               toolName: event.toolCall.toolName,
               input: event.toolCall.input,
               output: event.output,
+              text: event.text, // 模型步间推理文本（常为 undefined——StepPanel 诚实展示）
             },
           ],
         }));

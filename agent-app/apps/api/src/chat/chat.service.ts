@@ -195,7 +195,13 @@ export class ChatService {
         maxSteps: 5,
         signal,
         onStep: (event) =>
-          emit({ type: "step", step: event.step, toolCall: event.toolCall, output: event.output }),
+          emit({
+            type: "step",
+            step: event.step,
+            toolCall: event.toolCall,
+            output: event.output,
+            text: event.text, // 模型步间推理文本（常为 undefined——诚实透传，不造模板话）
+          }),
       });
 
       // 最终答案流式生成：messages 已含全部工具往来，streamText 只做纯文本收尾。

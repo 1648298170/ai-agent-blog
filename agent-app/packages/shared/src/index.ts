@@ -12,7 +12,7 @@
  */
 export type ChatStreamEvent =
   | { type: "session"; sessionId: string }
-  | { type: "step"; step: number; toolCall: { toolName: string; input: unknown }; output: unknown }
+  | { type: "step"; step: number; toolCall: { toolName: string; input: unknown }; output: unknown; text?: string }
   | { type: "approval"; approvalId: string; sessionId: string; toolName: string; input: unknown }
   | { type: "token"; text: string }
   | { type: "done" }

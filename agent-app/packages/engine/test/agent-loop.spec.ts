@@ -12,6 +12,7 @@ import { MockLanguageModelV2 } from "ai/test";
 import type { LanguageModelV2 } from "@ai-sdk/provider";
 import { z } from "zod";
 import { runToolLoop, TOOL_LOOP_ABORTED } from "../src/agent-loop.js";
+import type { ToolLoopStepEvent } from "../src/agent-loop.js";
 
 /** 假模型的用量上报：全 0（形状要合规，数值没人消费；同 evals/fixtures.ts） */
 const ZERO_USAGE = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
@@ -157,5 +158,75 @@ describe("runToolLoop 的 signal（断开中止）", () => {
     await expect(
       runToolLoop({ model, messages: [{ role: "user", content: "hi" }], tools: {}, signal: controller.signal }),
     ).rejects.toThrow(TOOL_LOOP_ABORTED);
+  });
+});
+
+describe("runToolLoop 的步间文本（Thought 管道）", () => {
+  /** 一轮「文本 + 工具调用」混合响应：模型先说一句再调工具（部分模型的行为） */
+  function mixedResponse(text: string, toolName: string, input: Record<string, unknown>): ScriptedResponse {
+    return {
+      content: [
+        { type: "text" as const, text },
+        {
+          type: "tool-call" as const,
+          toolCallId: `text-spec-call-${Math.random().toString(36).slice(2, 8)}`,
+          toolName,
+          input: JSON.stringify(input),
+        },
+      ],
+      finishReason: "tool-calls",
+      usage: ZERO_USAGE,
+      warnings: [],
+    };
+  }
+
+  it("模型伴随工具调用的文本 → onStep 事件原样携带（text 字段）", async () => {
+    let call = 0;
+    const model = new MockLanguageModelV2({
+      doGenerate: async () => {
+        call += 1;
+        // 第一轮：文本 + 工具调用混合（模型先说一句再动手）；第二轮：正常收尾
+        return call === 1
+          ? mixedResponse("我先查一下订单状态。", "echo", { message: "A-1024" })
+          : textResponse("最终回答：订单已发货。");
+      },
+    });
+    const events: ToolLoopStepEvent[] = [];
+
+    const result = await runToolLoop({
+      model,
+      messages: [{ role: "user", content: "查订单" }],
+      tools: echoTools(),
+      maxSteps: 2,
+      onStep: (event) => events.push(event),
+    });
+
+    expect(events.length).toBe(1);
+    expect(events[0]?.text).toBe("我先查一下订单状态。"); // Thought 管道有真数据
+    expect(events[0]?.toolCall.toolName).toBe("echo"); // 其余字段不受影响
+    expect(result.text).toContain("最终回答"); // 循环正常出口不受影响
+  });
+
+  it("无伴随文本的工具步 → text 为 undefined（诚实空，不造模板话）", async () => {
+    let call = 0;
+    const model = new MockLanguageModelV2({
+      doGenerate: async () => {
+        call += 1;
+        // 第一轮：纯工具调用、无伴随文本（function-calling 模型常态）；第二轮：收尾
+        return call === 1 ? toolCallResponse("echo", { message: "第一步" }) : textResponse("最终回答。");
+      },
+    });
+    const events: ToolLoopStepEvent[] = [];
+
+    await runToolLoop({
+      model,
+      messages: [{ role: "user", content: "你好" }],
+      tools: echoTools(),
+      maxSteps: 2,
+      onStep: (event) => events.push(event),
+    });
+
+    expect(events.length).toBe(1);
+    expect(events[0]?.text).toBeUndefined(); // function-calling 模型的常态：无伴随文本
   });
 });

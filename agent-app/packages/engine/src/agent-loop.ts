@@ -62,6 +62,12 @@ export interface ToolLoopStepEvent {
   step: number;
   toolCall: { toolName: string; input: unknown };
   output: unknown;
+  /**
+   * 模型本步伴随工具调用的文本（有些模型会在调工具前先"说"一句推理或说明）。
+   * function-calling 模型（如 glm-4-flash）此字段常为 undefined——工具选择本身就是它的
+   * "思考"。诚实 UI 原则：有就展示、没有就明说，绝不用模板话冒充模型推理。
+   */
+  text?: string;
 }
 
 /**
@@ -114,6 +120,8 @@ export async function runToolLoop(options: RunToolLoopOptions): Promise<ToolLoop
     }
 
     messages.push(...result.response.messages); // ① 入账：模型的调用意图
+    // 步间文本快照：模型伴随工具调用"说"的那句话（有则随 onStep 广播，无则 undefined）
+    const stepText = result.text.trim();
     trace("⚙", `行动 step ${step} → 要调 ${result.toolCalls.length} 个工具：` +
       result.toolCalls.map((c) => `${c.toolName}(${preview(c.input, 120)})`).join("、"));
 
@@ -159,6 +167,7 @@ export async function runToolLoop(options: RunToolLoopOptions): Promise<ToolLoop
         step,
         toolCall: { toolName: call.toolName, input: call.input },
         output: output.value,
+        text: stepText || undefined, // 空串归一为 undefined：订阅方 "in text" 判断更省心
       });
     }
   }

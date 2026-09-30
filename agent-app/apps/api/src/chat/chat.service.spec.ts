@@ -101,6 +101,7 @@ describe("ChatService", () => {
         step: 1,
         toolCall: { toolName: "getOrderStatus", input: { orderId: "A-1024" } },
         output: "已发货",
+        text: "我先查一下订单状态。", // 模型步间推理文本（Thought 管道透传断言用）
       });
       return { text: "最终回答（被忽略，改走 streamText）", messages: [], steps: 1 };
     });
@@ -122,6 +123,7 @@ describe("ChatService", () => {
     const step = events[1];
     if (step.type !== "step") throw new Error("unreachable：第二事件必须是 step");
     expect(step.toolCall.toolName).toBe("getOrderStatus");
+    expect(step.text).toBe("我先查一下订单状态。"); // Thought 管道：步间文本透传到 SSE
     const tokens = events.filter((e) => e.type === "token");
     expect(tokens.map((t) => (t.type === "token" ? t.text : ""))).toEqual(["已", "发货"]);
     // streamText 拿到的是 runToolLoop 返回的 messages + 同款系统提示词

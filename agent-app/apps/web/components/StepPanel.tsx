@@ -50,7 +50,8 @@ export default function StepPanel({
             <li key={step.step} className="space-y-1 leading-relaxed">
               <p>
                 <span className="font-semibold text-purple-600">Thought</span>{" "}
-                第 {step.step} 步：需要外部信息，决定调用工具
+                {/* 诚实原则：模型本步有推理文本就原样展示，没有就明说——绝不拿模板话冒充模型思考 */}
+                {step.text?.trim() || "（本步无文本推理——工具选择即模型的决策）"}
               </p>
               <p className="break-all">
                 <span className="font-semibold text-blue-600">Action</span>{" "}
