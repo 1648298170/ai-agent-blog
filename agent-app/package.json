@@ -7,6 +7,7 @@
   "scripts": {
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
+    "lint:deps": "dependency-cruiser packages/engine/src --config dependency-cruiser.cjs",
     "cli": "tsx apps/cli/src/index.ts",
     "chat": "tsx apps/cli/src/apps/chat/cli.ts",
     "kb:ingest": "tsx apps/cli/src/apps/kb/ingest.ts",
@@ -21,6 +22,9 @@
     "test:mcp-dogfood": "node scripts/mcp-dogfood.mjs",
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down",
+    "stack:up": "docker compose --profile app up -d --build",
+    "stack:down": "docker compose --profile app rm -sf api web",
+    "stack:logs": "docker compose --profile app logs -f api web",
     "selftest": "tsx apps/cli/src/selftest.ts",
     "api": "pnpm --filter @agent-app/engine build && pnpm --filter @agent-app/api build && node apps/api/dist/main.js"
   },
@@ -29,6 +33,7 @@
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
+    "dependency-cruiser": "^18.4.0",
     "tsx": "^4.23.15",
     "turbo": "^2.11.5",
     "typescript": "^7.0.2"

@@ -48,6 +48,10 @@ jobs:
         run: pnpm typecheck
         working-directory: agent-app
 
+      - name: 架构边界（引擎分层依赖检查，dependency-cruiser）
+        run: pnpm lint:deps
+        working-directory: agent-app
+
       - name: 离线自检（引擎零件 13 项，假模型零网络）
         run: pnpm selftest
         working-directory: agent-app

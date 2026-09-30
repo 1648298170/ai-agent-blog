@@ -7,3 +7,11 @@ allowBuilds:
   esbuild: true
 minimumReleaseAgeExclude:
   - '@nestjs/testing@12.1.1'
+# dependency-cruiser 18.x 只认经典 TypeScript 编译器（>=2 <7），仓库主线的 typescript@7（tsgo）
+# 会被它的版本门禁拒收 → .ts 一个都不解析、tsconfig 静默跳过（假绿）。这里注入一份经典 TS 5.9
+# 到 dependency-cruiser 自己的 node_modules：它用 createRequire(自身路径) 找 "typescript"，
+# 会先命中注入的 5.9（放行），根目录的 typescript@7 不受影响，typecheck/build 继续走 tsgo。
+packageExtensions:
+  'dependency-cruiser@*':
+    dependencies:
+      typescript: '~5.9.0'
