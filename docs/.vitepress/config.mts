@@ -233,12 +233,14 @@ export default defineConfig({
               { text: 'promptfoo 实操', link: '/week16/day4' },
               { text: 'DeepEval 实操', link: '/week16/day5' },
               { text: '评估进 CI', link: '/week16/day6' },
+              { text: '自建评估框架 TS（补篇）', link: '/week16/evals-ts' },
               { text: 'Prompt Injection 攻防', link: '/week19/day1' },
               { text: 'OWASP 自查', link: '/week19/day2' },
               { text: 'Guardrails', link: '/week19/day3' },
               { text: 'A2A 协议', link: '/week19/day4' },
               { text: 'Dify 上手', link: '/week19/day5' },
               { text: 'Coze 与选型', link: '/week19/day6' },
+              { text: '红队实测记录（补篇）', link: '/week19/redteam-notes' },
               { text: '周复盘', link: '/week16/day7' }
             ]
           },
@@ -253,6 +255,7 @@ export default defineConfig({
               { text: '统一认证', link: '/week20/day4' },
               { text: '流式对话 UI', link: '/week20/day5' },
               { text: '平台导航整合', link: '/week20/day6' },
+              { text: '客服流式化实战（补篇）', link: '/week20/service-streaming' },
               { text: 'Tracing 与可观测', link: '/week21/day1' },
               { text: '成本与模型路由', link: '/week21/day2' },
               { text: '限流配额', link: '/week21/day3' },
