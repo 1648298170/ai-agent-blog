@@ -10,3 +10,34 @@
     system-ui, -apple-system, "Segoe UI", Roboto, "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
 }
+
+/*
+ * 思考过程面板（StepPanel）的步骤入场动画：
+ * 流式时新步骤淡入 + 轻微上移归位（DeepSeek 式「过程在眼前长出来」的体感）。
+ * both 填充模式防闪烁；0.28s 足够可感知又不拖节奏。
+ */
+@keyframes step-item-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.step-item-in {
+  animation: step-item-in 0.28s ease-out both;
+}
+
+/* 面板内滚条的低调样式：细、圆角、灰色（默认粗黑滚动条在 13px 字号下很吵） */
+.step-item-in::-webkit-scrollbar,
+ol::-webkit-scrollbar {
+  width: 6px;
+}
+
+ol::-webkit-scrollbar-thumb {
+  background: rgb(209 213 219);
+  border-radius: 9999px;
+}
