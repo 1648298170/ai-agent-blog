@@ -2,7 +2,30 @@
 
 > 挂账不遗忘。每项标注触发条件——到条件再开工，不提前透支。
 
-## ① Multi-Agent 教学落地（下一项，等现有七模块学完再开工）
+## ① 压缩水位线升级：按模型上下文上限 × buffer 替代固定条数阈值（week17 Day 2 学完后的首选练习）
+
+**触发条件**：学完 `docs/week17/day2.md`（短期记忆/compaction）——适合自己动手当练习，做完我验收；也可指定由我实现。
+
+**现状的问题**（红队之外的诚实差距）：`compression.ts` 写死「40 条消息」触发压缩。工业做法（opencode / Claude Code）是**按模型上下文窗口算水位线**——条数不是 token 的合格代理变量（40 条"你好" vs 40 条 10KB 日志天差地别）；换小窗口模型或长文本工具输出时会失守。
+
+**工业标准设计（照此实现）**：
+
+```text
+水位线 = 模型上下文窗口 × (1 - buffer比例)      ← buffer 默认 25%：留给回答 + 压缩调用本身
+压缩触发：估算 token > 水位线
+估算三层：
+  ① 校准：上次 generateText 返回的 usage.inputTokens（SDK 现成，反馈式修正估算）
+  ② 估算：字符数 × 模型系数（中文 ≈1 token/字，英文 ≈0.25/字符）
+  ③ 兜底：无任何数据时退回条数阈值（= 现状行为，向下兼容）
+压缩目标：压到窗口 50% 水位（而非固定保留 20 条）
+配置：MODEL_CONTEXT_TOKENS 按模型查表（glm-4-flash=128K…），env 可覆盖
+```
+
+**改动边界**：只动 `compression.ts`（"算法唯一实现"接缝就是为此留的），session.memory / session.redis 零感知；MODEL_CONTEXT_TOKENS 进 config.ts 的 ENV_KEYS。
+
+**验收**：单测——估算三层各自可断言（注假 usage/注假系数）；水位触发与 40 条兜底两条路径；两存储实现行为一致。动手实验不变：`pnpm service --trace` 看 🧠 事件。
+
+## ② Multi-Agent 教学落地（等现有七模块学完再开工）
 
 **触发条件**：按各模块 README 建议顺序学完 tools → rag → memory → service → mcp → guardrails → evals（多 Agent 是单 Agent 的乘法，基础不牢学它容易糊涂）。
 
