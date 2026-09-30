@@ -268,7 +268,8 @@ pnpm api        # 等价：构建 @agent-app/engine + @agent-app/api 后 node ap
 | --- | --- | --- | --- |
 | GET | `/api/health` | 健康检查 | 正常 |
 | POST | `/api/chat` | 非流式对话（手写工具循环 + 会话记忆） | 500 + 中文配置提示 |
-| GET | `/api/chat/stream?message=` | SSE 流式对话：`session` → `step`（工具调用/结果）→ `token`（答案分片）→ `done` | SSE `error` 事件 + 配置提示 |
+| GET | `/api/chat/stream?message=` | SSE 流式对话：`session` → `approval`（高危工具待审批，week18 Day 6）→ `step`（工具调用/结果）→ `token`（答案分片）→ `done` | SSE `error` 事件 + 配置提示 |
+| POST | `/api/chat/approve` | 工具审批裁决 `{ sessionId, approvalId, approved }` → `{ approvalId, approved }`；未知/过期/超时已自动拒绝 → 404 中文错误 | 404 `{ statusCode, message }` |
 | POST | `/api/kb/ingest` | multipart 文件上传入库（字段名 `file`，支持 .txt/.md/.pdf） | 500 + embeddings 配置提示 |
 | POST | `/api/kb/ingest-path` | 服务端本地路径入库（开发用） | 同上 |
 | POST | `/api/kb/query` | 知识库问答 `{ question, topK? }` → `{ answer, citations }` | 500 + 配置提示 |
@@ -287,6 +288,7 @@ curl -X POST http://localhost:3000/api/kb/ingest -F "file=@samples/company-faq.m
 
 - **装饰器元数据**：NestJS 依赖注入需要 `emitDecoratorMetadata`，而 tsx/esbuild 不支持，因此 API 走 `tsc` 编译后以 `node apps/api/dist/main.js` 运行（`pnpm build` + `pnpm api`）
 - **引擎零改动复用**：控制器/服务直接调用 `@agent-app/engine` 的 `runToolLoop` / `searchKnowledge` / `supervise` / `buildHandoffPack`（客服与入库核心上移引擎包，CLI 与 HTTP API 共用同一套产品逻辑），HTTP 层只是同一套产品逻辑的另一张脸
+- **工具审批（week18 Day 6）**：引擎的 `agent-loop.ts` 一行未改——API 层把传给 `runToolLoop` 的工具表先包壳：命中 `AGENT_CONFIRM_TOOLS` 名单（默认 `createTicket`，置空关闭）的工具，execute 前发 `approval` SSE 事件并挂起，等 `POST /api/chat/approve` 裁决（允许放行 / 拒绝回结构化拒绝值，模型可见）；`AGENT_CONFIRM_TIMEOUT_MS`（默认 60s）超时自动拒绝。登记簿在进程内存里，多流并发按 UUID 各挂各的、sessionId 匹配才唤醒
 - **Swagger 文档**：交互式 API 文档挂在 `http://localhost:3000/api/docs`（OpenAPI JSON 见 `/api/docs-json`，DTO 的 `@ApiProperty` 中文描述自动汇成 Schema）
 - **测试**：`pnpm test:api` 跑 vitest 单测 + e2e（18 个用例，引擎模型调用全 mock，零网络）
 - **优雅关闭**：`app.enableShutdownHooks()` 已启用——SIGINT/SIGTERM 时先走 Nest 生命周期销毁钩子再退出；启动/异常日志统一走 Nest `Logger`（带时间戳与上下文）

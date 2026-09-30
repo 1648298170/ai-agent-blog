@@ -1,13 +1,13 @@
 // chat.controller.ts —— /api/chat：非流式 + SSE 流式两个入口
 // SSE 用 @Res() 接管原生响应（week20 Day 2 同款）：三个响应头 + flushHeaders 让浏览器
 // 立刻进入接收状态，事件逐帧写出；@Res() 路由绕过拦截器，res.end() 必须亲手收尾。
-import { Body, Controller, Get, Param, Post, Query, Res } from "@nestjs/common";
-import { ApiBadRequestResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from "@nestjs/swagger";
+import { Body, Controller, Get, NotFoundException, Param, Post, Query, Res } from "@nestjs/common";
+import { ApiBadRequestResponse, ApiExcludeEndpoint, ApiNotFoundResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
-import type { SessionHistoryResponse, SessionSummary } from "@agent-app/shared";
+import type { ApproveChatResponse, SessionHistoryResponse, SessionSummary } from "@agent-app/shared";
 import { buildConfigHint } from "../common/all-exceptions.filter.js";
 import { ChatService } from "./chat.service.js";
-import { CreateChatDto } from "./dto.js";
+import { ApproveChatDto, CreateChatDto } from "./dto.js";
 
 @ApiTags("chat")
 @Controller("api/chat")
@@ -43,6 +43,27 @@ export class ChatController {
   })
   async getSessionHistory(@Param("sessionId") sessionId: string): Promise<SessionHistoryResponse> {
     return this.chatService.getSessionHistory(sessionId);
+  }
+
+  /**
+   * 工具审批裁决（week18 Day 6）：流式对话里高危工具执行前会发 approval SSE 事件，
+   * 前端把事件带回的 sessionId + approvalId 连同用户裁决 POST 回来，唤醒挂起的工具调用。
+   * 未知 / 已过期（超时自动拒绝）/ 已裁决过 / sessionId 不匹配 → 404 中文错误。
+   */
+  @Post("approve")
+  @ApiOkResponse({ description: "裁决已送达：允许 → 挂起的工具调用继续执行；拒绝 → 收到结构化拒绝值 { denied: true, reason }" })
+  @ApiBadRequestResponse({ description: "请求体校验失败（缺 sessionId / approvalId / approved 类型不符）" })
+  @ApiNotFoundResponse({ description: "审批不存在或已过期（超时未裁决会自动拒绝）、sessionId 不匹配" })
+  async approve(@Body() dto: ApproveChatDto): Promise<ApproveChatResponse> {
+    const delivered = this.chatService.approve({
+      sessionId: dto.sessionId,
+      approvalId: dto.approvalId,
+      approved: dto.approved,
+    });
+    if (!delivered) {
+      throw new NotFoundException("审批请求不存在或已过期（超时未裁决会自动拒绝），本次工具调用已按拒绝处理");
+    }
+    return { approvalId: dto.approvalId, approved: dto.approved };
   }
 
   /**

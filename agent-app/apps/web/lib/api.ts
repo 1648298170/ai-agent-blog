@@ -3,6 +3,8 @@
 // 前端零密钥——所有 LLM / embedding 调用都发生在 BFF（apps/api）侧。
 import type {
   ApiErrorBody,
+  ApproveChatRequest,
+  ApproveChatResponse,
   ChatStreamEvent,
   KbDeleteResponse,
   KbDocumentSummary,
@@ -82,6 +84,15 @@ export function sendServiceMessage(
 /** GET /api/chat/sessions → 历史会话列表（按最近活跃降序） */
 export function fetchSessions(): Promise<SessionSummary[]> {
   return fetchJson("/api/chat/sessions");
+}
+
+/**
+ * POST /api/chat/approve —— 工具审批裁决（week18 Day 6）：approval SSE 事件带回的
+ * sessionId + approvalId 连同用户裁决一起回传。审批已超时自动拒绝 / 未知 id / 会话
+ * 不匹配时 API 返回 404 中文错误（readErrorMessage 抛出，调用方据此渲染「已过期」态）。
+ */
+export function approveChat(body: ApproveChatRequest): Promise<ApproveChatResponse> {
+  return postJson("/api/chat/approve", body);
 }
 
 /** GET /api/chat/sessions/:sessionId → 该会话全量轮次（不存在/过期时 turns 为空数组） */

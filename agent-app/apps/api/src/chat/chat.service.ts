@@ -14,6 +14,12 @@ import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
 import type { ChatTurn, SessionSummary } from "@agent-app/engine/memory";
 import { createDemoTools } from "@agent-app/engine/tools";
 import { ConfigProvider } from "../common/config.provider.js";
+import {
+  ToolApprovalRegistry,
+  readConfirmTimeoutMs,
+  readConfirmToolNames,
+  wrapToolsWithApproval,
+} from "./tool-approval.js";
 
 // ReAct 式提示词：与 apps/chat/cli.ts 完全一致
 const SYSTEM_PROMPT =
@@ -38,6 +44,12 @@ export class ChatService {
   // env 工厂（SESSION_STORE=memory|redis，默认 memory——与改造前一致；配 redis 时跨实例共享）
   private readonly sessionStore = createSessionStoreFromEnv();
   private readonly tools = createDemoTools();
+  /**
+   * 工具审批登记簿（week18 Day 6）：approvalId → 挂起中的裁决，进程内存实现
+   * （已知取舍同 service 线的 unresolvedRounds：重启即清，等价于「已过期」）。
+   * 流式端点与 approve 端点共用同一个 ChatService 单例，因此共用这张表。
+   */
+  private readonly approvals = new ToolApprovalRegistry();
 
   constructor(private readonly config: ConfigProvider) {}
 
@@ -86,11 +98,26 @@ export class ChatService {
     await this.sessionStore.append(sessionId, { role: "user", content: input.message });
     const history = await this.sessionStore.getWindow(sessionId, 20);
 
+    // 高危工具审批（week18 Day 6）：命中 AGENT_CONFIRM_TOOLS 名单的工具先包壳——
+    // execute 前发 approval 事件并挂起，等 POST /api/chat/approve 裁决。
+    // 名单为空（显式置空）→ 原表直传：不包壳、不发新事件，与改造前完全一致。
+    // 只作用于流式端点：非流式 chat() 没有 SSE 通道，包壳只会白等 60s。
+    const confirmTools = readConfirmToolNames();
+    const tools =
+      confirmTools.size === 0
+        ? this.tools
+        : wrapToolsWithApproval(this.tools, confirmTools, {
+            sessionId,
+            registry: this.approvals,
+            emit,
+            timeoutMs: readConfirmTimeoutMs(),
+          });
+
     const result = await runToolLoop({
       model: createModel(),
       messages: toModelMessages(history),
       system: SYSTEM_PROMPT,
-      tools: this.tools,
+      tools,
       maxSteps: 5,
       onStep: (event) =>
         emit({ type: "step", step: event.step, toolCall: event.toolCall, output: event.output }),
@@ -111,6 +138,14 @@ export class ChatService {
 
     await this.sessionStore.append(sessionId, { role: "assistant", content: answer });
     emit({ type: "done" });
+  }
+
+  /**
+   * 用户裁决回填（POST /api/chat/approve）：唤醒挂起的工具调用。
+   * 返回 false = 未知 / 已过期（超时自动拒绝）/ 已裁决过 / sessionId 不匹配——控制器转 404。
+   */
+  approve(decision: { sessionId: string; approvalId: string; approved: boolean }): boolean {
+    return this.approvals.resolveApproval(decision);
   }
 
   /** 历史会话清单（按最近活跃降序）：委托给会话存储（memory / redis 行为一致） */

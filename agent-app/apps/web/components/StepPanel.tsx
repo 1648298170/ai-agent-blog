@@ -5,8 +5,9 @@
 import { useState } from "react";
 import type { StepRecord } from "./MessageBubble";
 
-/** 未知输出 → 单行摘要（JSON 压平，超长截断；面板要的是「发生了什么」，不是全文） */
-function summarize(value: unknown): string {
+/** 未知输出 → 单行摘要（JSON 压平，超长截断；面板要的是「发生了什么」，不是全文）。
+ *  审批卡片（ApprovalCard）复用同一摘要规则：工具入参预览与 Observation 观感一致。 */
+export function summarize(value: unknown): string {
   let text: string;
   if (typeof value === "string") {
     text = value;

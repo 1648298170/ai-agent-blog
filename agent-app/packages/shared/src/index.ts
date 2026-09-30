@@ -6,10 +6,14 @@
 /** SSE 流式对话事件：session → step*（工具步）→ token*（答案分片）→ done；任一环节出错转 error。
  * 事件名与负载和 apps/api 的 GET /api/chat/stream 线上格式逐字段一致（week20 BFF 契约）；
  * 未来 web 前端（apps/web）的事件面板 / useChat 适配层直接消费本类型。
+ * week18 Day 6 审批增量：高危工具（AGENT_CONFIRM_TOOLS 名单）执行前，会在它的 step
+ * 事件之前插入 approval 事件（sessionId + approvalId + 工具名 + 入参）——前端渲染审批卡，
+ * 用户经 POST /api/chat/approve 裁决；超时未裁决由 BFF 自动拒绝（不发额外事件）。
  */
 export type ChatStreamEvent =
   | { type: "session"; sessionId: string }
   | { type: "step"; step: number; toolCall: { toolName: string; input: unknown }; output: unknown }
+  | { type: "approval"; approvalId: string; sessionId: string; toolName: string; input: unknown }
   | { type: "token"; text: string }
   | { type: "done" }
   | { type: "error"; message: string; hint?: string };
@@ -137,4 +141,27 @@ export interface SessionTurn {
 export interface SessionHistoryResponse {
   sessionId: string;
   turns: SessionTurn[];
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// week18 Day 6 工具审批（human-in-the-loop）契约：POST /api/chat/approve 的请求/响应形状。
+// 高危工具（BFF 侧 AGENT_CONFIRM_TOOLS 名单）执行前，流里先来 approval 事件；
+// 前端把事件带回的 sessionId + approvalId 连同用户裁决 POST 回来，BFF 唤醒挂起的工具调用。
+// 校验用的 DTO 类（class-validator）定义在 apps/api/src/chat/dto.ts——这里只放线上的纯类型。
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** POST /api/chat/approve 请求体：approval 事件带回的会话/审批 id + 用户裁决 */
+export interface ApproveChatRequest {
+  /** 发起审批的会话 id（approval 事件的 sessionId 字段） */
+  sessionId: string;
+  /** 待审批的工具调用 id（approval 事件的 approvalId 字段，UUID） */
+  approvalId: string;
+  /** true=允许执行该工具调用；false=拒绝（工具收到结构化拒绝值，模型可见可礼貌收尾） */
+  approved: boolean;
+}
+
+/** POST /api/chat/approve 响应：回显裁决（approvalId + approved） */
+export interface ApproveChatResponse {
+  approvalId: string;
+  approved: boolean;
 }

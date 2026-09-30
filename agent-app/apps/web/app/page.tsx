@@ -2,6 +2,8 @@
 // 事件流（@agent-app/shared 的 ChatStreamEvent，与 api 实际线格式逐字段一致）：
 //   session → 记录 sessionId 并写入 localStorage（刷新后据此恢复）
 //   step    → 累积进该条回答的「思考过程」面板（Thought/Action/Observation）
+//   approval→ 高危工具待执行：渲染审批卡片（week18 Day 6），允许/拒绝经
+//             POST /api/chat/approve 裁决；流式期间连接保持打开、页面可交互
 //   token   → 逐段追加正文（注意：api 实际事件名是 token，不是 delta）
 //   done    → 收尾；error → 红色错误 + hint（如 LLM 未配置的中文提示）
 // 会话记录：挂载时读 localStorage 里保存的 sessionId → GET /api/chat/sessions/:id
@@ -11,9 +13,9 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChatStreamEvent, SessionTurn } from "@agent-app/shared";
 import MessageBubble from "../components/MessageBubble";
-import type { ChatMessage } from "../components/MessageBubble";
+import type { ApprovalRecord, ChatMessage } from "../components/MessageBubble";
 import SessionHistoryPanel from "../components/SessionHistoryPanel";
-import { fetchSessionHistory, streamChat } from "../lib/api";
+import { approveChat, fetchSessionHistory, streamChat } from "../lib/api";
 
 /** localStorage key：聊天会话跨刷新保持（与 service 页同一模式） */
 const SESSION_STORAGE_KEY = "agent:chat:sessionId";
@@ -71,7 +73,23 @@ export default function ChatPage() {
     });
   }
 
-  /** SSE 事件 → 状态机：session / step / token / done / error 五分支 */
+  /** 就地更新某条审批记录（按 approvalId 定位；审批挂在流式中的最后一条消息上） */
+  function patchApproval(approvalId: string, fn: (record: ApprovalRecord) => ApprovalRecord): void {
+    setMessages((prev) =>
+      prev.map((msg) => {
+        const approvals = msg.approvals ?? [];
+        if (!approvals.some((record) => record.approvalId === approvalId)) return msg;
+        return {
+          ...msg,
+          approvals: approvals.map((record) =>
+            record.approvalId === approvalId ? fn(record) : record,
+          ),
+        };
+      }),
+    );
+  }
+
+  /** SSE 事件 → 状态机：session / step / approval / token / done / error 六分支 */
   function handleEvent(event: ChatStreamEvent): void {
     switch (event.type) {
       case "session":
@@ -93,6 +111,21 @@ export default function ChatPage() {
           ],
         }));
         break;
+      case "approval":
+        // 高危工具待执行：卡片挂到正在流式生成的这条回答上（此刻流仍开着，按钮可点）
+        patchLast((msg) => ({
+          ...msg,
+          approvals: [
+            ...(msg.approvals ?? []),
+            {
+              approvalId: event.approvalId,
+              toolName: event.toolName,
+              input: event.input,
+              status: "pending",
+            },
+          ],
+        }));
+        break;
       case "token":
         patchLast((msg) => ({ ...msg, content: msg.content + event.text }));
         break;
@@ -107,6 +140,22 @@ export default function ChatPage() {
           errorHint: event.hint,
         }));
         break;
+    }
+  }
+
+  /** 用户裁决：POST /api/chat/approve → 卡片转终态；404（超时已自动拒绝等）→ 过期态 */
+  async function handleApprove(approvalId: string, approved: boolean): Promise<void> {
+    if (sessionId === null) return; // 理论上不会发生：approval 事件必然在 session 事件之后
+    try {
+      await approveChat({ sessionId, approvalId, approved });
+      patchApproval(approvalId, (record) => ({
+        ...record,
+        status: approved ? "approved" : "denied",
+      }));
+    } catch (err) {
+      // 典型场景：60s 超时 BFF 已自动拒绝，审批条目过期 → 404 中文错误
+      const message = err instanceof Error ? err.message : String(err);
+      patchApproval(approvalId, (record) => ({ ...record, status: "expired", note: message }));
     }
   }
 
@@ -219,7 +268,13 @@ export default function ChatPage() {
             </p>
           </div>
         ) : (
-          messages.map((message) => <MessageBubble key={message.id} message={message} />)
+          messages.map((message) => (
+            <MessageBubble
+              key={message.id}
+              message={message}
+              onApprove={(approvalId, approved) => void handleApprove(approvalId, approved)}
+            />
+          ))
         )}
       </div>
 
