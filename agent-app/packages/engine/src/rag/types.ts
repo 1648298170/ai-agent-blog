@@ -63,12 +63,27 @@ export interface DocumentSummary {
   chunks: number;
 }
 
+/** 文档全文：readDoc 的返回形状（MCP resources 的读载体）。
+ * 与 Chunk 的关键差别：embedding 不随文档返回——读文档只需要人读得懂的正文，
+ * 2048 维浮点向量对调用方（MCP 客户端 / 管理页）是纯噪音，且会让返回体膨胀百倍。
+ */
+export interface DocumentContent {
+  docId: string;
+  title: string;
+  /** 该文档被切成了多少块（chunks 个切块按 index 排序后拼接成 text） */
+  chunks: number;
+  /** 全部切块按 index 升序、以空行分隔拼回的文档正文 */
+  text: string;
+}
+
 /** RAG 存储接口：内存版见 store.memory.ts，第 2 阶段可换 pgvector 版。
  *
- * 五个方法正好覆盖一个知识库的一生：
+ * 六个方法正好覆盖一个知识库的一生：
  *   upsert    入库/更新（切块 + 向量化之后调用）
  *   deleteDoc 下架整篇文档（重传新版前先删旧版，最怕新旧两版同时在库）
  *   listDocs  文档级清单（管理页列表：传过什么、各占多少块）
+ *   readDoc   读整篇文档（listDocs 给目录，readDoc 给正文——契约生长对照：
+ *            SessionStore 曾以同样方式长出 listSessions/getHistory）
  *   search    检索：给查询向量，还我最像的 k 块
  *   count     库里现在有多少块（给入库完成的统计输出用）
  *
@@ -81,6 +96,8 @@ export interface RagStore {
   deleteDoc(docId: string): Promise<void>;
   /** 文档级清单：按 docId 聚合（管理页的列表数据源，非检索路径） */
   listDocs(): Promise<DocumentSummary[]>;
+  /** 读整篇文档：按 index 升序拼回全文；docId 不存在时抛中文错误（错误礼仪同 embedder.ts） */
+  readDoc(docId: string): Promise<DocumentContent>;
   search(queryEmbedding: number[], k: number, filter?: RagFilter): Promise<RetrievedChunk[]>;
   count(): Promise<number>;
 }

@@ -1,7 +1,7 @@
 // store.memory.ts —— 内存版 RAG 存储：Map 实现 + 余弦相似度检索
 // 对应教程《RAG TS 全链路》里 pgvector 的 `<=>` 余弦距离：这里算的是相似度（1 - 距离），
 // 值越大方向越近。第 2 阶段 kb 应用按 rag/types.ts 的 RagStore 契约换成 pgvector 版。
-import type { Chunk, DocumentSummary, RagFilter, RagStore, RetrievedChunk } from "./types.js";
+import type { Chunk, DocumentContent, DocumentSummary, RagFilter, RagStore, RetrievedChunk } from "./types.js";
 
 /**
  * 余弦相似度：只看向量方向、不看模长。
@@ -64,6 +64,24 @@ export function createInMemoryRagStore(): RagStore {
         }
       }
       return [...docs.values()];
+    },
+
+    /** 读整篇文档：同 docId 的块按 index 升序、空行分隔拼回全文（embedding 不随文返回） */
+    async readDoc(docId: string): Promise<DocumentContent> {
+      // 先圈出同文档的块并按阅读顺序排序：块是按 index 依次切的，
+      // 拼回全文必须还原入库时的顺序，乱序的"全文"比没有更糟
+      const own = [...chunks.values()]
+        .filter((chunk) => chunk.docId === docId)
+        .sort((x, y) => x.index - y.index);
+      if (own.length === 0) {
+        // 错误礼仪同 embedder.ts：中文报错 + 告诉用户怎么修，不甩英文堆栈
+        throw new Error(
+          `文档不存在：${docId}。请先入库对应文档（pnpm kb:ingest <文件>），` +
+            "或用 listDocs 查看当前知识库里实际有哪些文档。",
+        );
+      }
+      const { title } = own[0]; // 块的 title 同文档恒定（listDocs 同款假设），取首块即可
+      return { docId, title, chunks: own.length, text: own.map((chunk) => chunk.text).join("\n\n") };
     },
 
     async search(queryEmbedding: number[], k: number, filter?: RagFilter): Promise<RetrievedChunk[]> {

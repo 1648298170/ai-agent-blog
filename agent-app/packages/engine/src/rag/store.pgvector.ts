@@ -19,7 +19,7 @@
 // 连不上时抛带修复指引的中文错误（错误礼仪同 embedder.ts：告诉用户怎么修，不甩英文堆栈）。
 import postgres from "postgres";
 import { loadEnv } from "../config.js";
-import type { Chunk, DocumentSummary, RagFilter, RagStore, RetrievedChunk } from "./types.js";
+import type { Chunk, DocumentContent, DocumentSummary, RagFilter, RagStore, RetrievedChunk } from "./types.js";
 
 /** 默认连接串：本仓 docker-compose.yml 的 postgres（宿主机 5433 → 容器 5432，见 compose 注释） */
 export const DEFAULT_PG_CONNECTION_STRING = "postgres://agent:agent@localhost:5433/agent";
@@ -194,6 +194,38 @@ export function createPgVectorRagStore(options: PgVectorRagStoreOptions = {}): R
           ORDER BY doc_id`;
         return rows;
       } catch (err) {
+        throw connectionError(connectionString, err instanceof Error ? err.message : String(err));
+      }
+    },
+
+    /**
+     * 读整篇文档：doc_id 圈定 + ORDER BY idx 还原阅读顺序，应用层空行拼接。
+     * 空结果 = 文档不存在，抛与内存版同文案的中文错误（两个实现一张脸，换库不换错误礼仪）。
+     */
+    async readDoc(docId: string): Promise<DocumentContent> {
+      await ensureReady();
+      const sql = getClient();
+      try {
+        const rows = await sql<{ title: string; idx: number; text: string }[]>`
+          SELECT title, idx, text
+          FROM kb_chunks
+          WHERE doc_id = ${docId}
+          ORDER BY idx`;
+        if (rows.length === 0) {
+          throw new Error(
+            `文档不存在：${docId}。请先入库对应文档（pnpm kb:ingest <文件>），` +
+              "或用 listDocs 查看当前知识库里实际有哪些文档。",
+          );
+        }
+        return {
+          docId,
+          title: rows[0].title, // 块的 title 同文档恒定（listDocs 同款假设），取首行即可
+          chunks: rows.length,
+          text: rows.map((row) => row.text).join("\n\n"),
+        };
+      } catch (err) {
+        // 上面主动抛的「文档不存在」不是连接问题，原样上抛（包成 connectionError 反而误导排障）
+        if (err instanceof Error && err.message.startsWith("文档不存在")) throw err;
         throw connectionError(connectionString, err instanceof Error ? err.message : String(err));
       }
     },

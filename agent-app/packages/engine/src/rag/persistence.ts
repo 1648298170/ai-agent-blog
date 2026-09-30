@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { createInMemoryRagStore } from "./store.memory.js";
-import type { Chunk, DocumentSummary, RagFilter, RagStore, RetrievedChunk } from "./types.js";
+import type { Chunk, DocumentContent, DocumentSummary, RagFilter, RagStore, RetrievedChunk } from "./types.js";
 
 /** 默认快照位置：agent-app/.data/kb-store.json（.data/ 已进 .gitignore） */
 const DEFAULT_STORE_PATH = join(process.cwd(), ".data", "kb-store.json");
@@ -92,6 +92,12 @@ export function createJsonRagStore(filePath: string = DEFAULT_STORE_PATH): RagSt
     async listDocs(): Promise<DocumentSummary[]> {
       await ensureLoaded();
       return memory.listDocs();
+    },
+
+    // 读整篇文档同样只等加载、全权委托内存库（转发模式与 listDocs 一致）
+    async readDoc(docId: string): Promise<DocumentContent> {
+      await ensureLoaded();
+      return memory.readDoc(docId);
     },
 
     async search(
