@@ -206,7 +206,7 @@ export default function ServicePage() {
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1 flex-col pb-20 md:pb-0">
       {/* 会话栏：当前 sessionId + 历史会话 + 新会话（relative 供面板绝对定位锚定） */}
       <div className="relative">
         <div className="flex items-center justify-between gap-2 py-3">

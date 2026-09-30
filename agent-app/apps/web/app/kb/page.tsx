@@ -113,7 +113,7 @@ export default function KbPage() {
   }
 
   return (
-    <div className="flex-1 py-4">
+    <div className="min-h-0 flex-1 overflow-y-auto pb-20 py-4 md:pb-8">
       <h1 className="mb-4 text-lg font-bold">📚 知识库管理</h1>
 
       {/* 上传 + 列表：移动端单列，桌面端双栏 */}
