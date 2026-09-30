@@ -183,7 +183,8 @@ pnpm infra:down    # 用完关掉（数据卷保留；docker compose down -v 才
 | `RAG_STORE` | `memory` / `json` / `pgvector` | `json` | 知识库：内存 / `.data/kb-store.json` 快照 / PostgreSQL+pgvector（HNSW 余弦检索） |
 | `SESSION_STORE` | `memory` / `redis` | `memory` | 会话窗口：内存 Map / Redis list（`agent:sess:{id}`，TTL 24h 续期，跨进程共享） |
 | `PREFERENCE_STORE` | `memory` / `pg` | `memory` | 用户偏好：内存 Map / PG `user_preferences` 表（行级 upsert） |
-| `PG_CONNECTION_STRING` | 连接串 | `postgres://agent:agent@localhost:5433/agent` | 两个 PG 实现共用 |
+| `EPISODIC_STORE` | `memory` / `pgvector` | `memory` | 情景记忆：内存数组 / PG `episodic_memories` 表（`<=>` 余弦 top-k 召回历史会话摘要） |
+| `PG_CONNECTION_STRING` | 连接串 | `postgres://agent:agent@localhost:5433/agent` | 三个 PG 实现共用（pgvector 两个表 + 偏好长表） |
 | `REDIS_URL` | 连接串 | `redis://localhost:6379` | Redis 会话存储用 |
 | `EMBEDDING_DIM` | 整数 1~16000 | `2048` | 建表时固定（GLM embedding-3 = 2048 维）。换维度模型须 `DROP TABLE kb_chunks` 全库重嵌；另 ANN 索引（HNSW/IVFFlat）只支持 ≤2000 维，超限时检索自动走精确顺序扫描 |
 
@@ -212,9 +213,8 @@ pnpm test:infra    # = RUN_INFRA_TESTS=1 下跑 engine 的 vitest（Windows 用 
 docker compose exec postgres psql -U agent -c "select count(*) from kb_chunks"       # PG 里的知识块数
 docker compose exec redis redis-cli --scan --pattern "agent:sess:*"                  # 会话 key
 docker compose exec redis redis-cli ttl "agent:sess:<sessionId>"                     # TTL > 0（24h 续期）
+docker compose exec postgres psql -U agent -c "select session_id, summary, created_at from episodic_memories order by seq desc limit 5"   # 最近归档的情景记忆（EPISODIC_STORE=pgvector 时写入）
 ```
-
-> 情景记忆（EpisodicStore）的 pgvector 版为后续路线（见 `packages/engine/src/memory/README.md` 扩展表）。
 
 ## web 客户端（Next.js · 教程第 20 周前端形态）
 

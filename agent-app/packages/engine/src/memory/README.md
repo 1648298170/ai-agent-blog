@@ -2,7 +2,7 @@
 
 > 本目录解决 Agent 的"记性"问题。与隔壁 `rag/` 同构：`types.ts` 是宪法，
 > 每层都有"内存版（默认）+ 真实存储版（Redis/PG）"两套实现，由
-> `SESSION_STORE` / `PREFERENCE_STORE` 环境变量经 `factory.ts` 一行切换。
+> `SESSION_STORE` / `PREFERENCE_STORE` / `EPISODIC_STORE` 环境变量经 `factory.ts` 一行切换。
 > 配合教程 [week17 · 记忆架构 + 上下文工程](../../../../../docs/week17/index.md) 与 week11 补篇 [记忆 TS 版](../../../../../docs/week11/memory-ts.md)。
 
 ---
@@ -22,14 +22,14 @@
 | --- | --- | --- | --- | --- |
 | 工作记忆 | `SessionStore`（session.**memory**.ts 默认 / session.**redis**.ts 可切） | 逐字对话窗口 | 本会话内（Redis 版 24h TTL 跨重启） | "你刚才说什么来着？" |
 | 长期语义记忆 | `PreferenceStore`（preference.**memory**.ts 默认 / preference.**pg**.ts 可切） | 提炼后的事实（"用户喜欢简洁回复"） | 跨会话、按用户 | "我都来过三次了它还不认识我" |
-| 情景记忆 | `EpisodicStore`（episodic.memory.ts） | 历史会话的摘要+向量 | 跨会话、按相似度召回 | "还是上次那个问题" |
+| 情景记忆 | `EpisodicStore`（episodic.**memory**.ts 默认 / episodic.**pgvector**.ts 可切） | 历史会话的摘要+向量 | 跨会话、按相似度召回（pgvector 版跨重启） | "还是上次那个问题" |
 
 关键区别一句话：
 
 - **短期 vs 情景**：短期是"逐字"且**困在本 sessionId 里**；情景是"摘要"且**跨会话检索**——用户说"接着昨天聊"，只有情景记忆能救
 - **长期 vs 情景**：长期是"提炼后的结论"（KV 结构，确定性注入）；情景是"当时的经过"（向量检索，按相关性召回）
 
-### 本目录文件地图（10 个文件）
+### 本目录文件地图（11 个文件）
 
 | 文件 | 职责 |
 | --- | --- |
@@ -38,13 +38,14 @@
 | `session.redis.ts` | 短期记忆·Redis 版：`agent:sess:{id}` list + 24h TTL 续期 + ZSET 会话索引（多实例共享） |
 | `preference.memory.ts` | 长期记忆·内存版：两层 Map + 限长护栏 |
 | `preference.pg.ts` | 长期记忆·PG 版：`user_preferences` 行级 upsert |
-| `episodic.memory.ts` | 情景记忆：摘要向量 + 余弦 top-3 召回 |
+| `episodic.memory.ts` | 情景记忆·内存版：摘要向量 + 余弦 top-3 召回 |
+| `episodic.pgvector.ts` | 情景记忆·pgvector 版：`episodic_memories` 表 + `<=>` 余弦 top-k（同分按入库顺序稳定；HNSW 索引仅 ≤2000 维） |
 | `compression.ts` | **压缩算法唯一实现**（40 阈值/20 保留/滚动摘要/离线降级），内存版与 Redis 版共用 |
-| `factory.ts` | **env 工厂总开关**：`SESSION_STORE=memory\|redis`、`PREFERENCE_STORE=memory\|pg`，默认内存 |
+| `factory.ts` | **env 工厂总开关**：`SESSION_STORE=memory\|redis`、`PREFERENCE_STORE=memory\|pg`、`EPISODIC_STORE=memory\|pgvector`，默认内存 |
 | `index.ts` | 桶导出（`@agent-app/engine/memory` 子路径的公共面） |
 | `README.md` | 本文 |
 
-典型组合：不设环境变量 = 全内存（离线优先，行为与最初版一致）；`SESSION_STORE=redis` + `PREFERENCE_STORE=pg`（`pnpm infra:up` 起库后切换）= 跨重启、跨进程的真实持久化。
+典型组合：不设环境变量 = 全内存（离线优先，行为与最初版一致）；`SESSION_STORE=redis` + `PREFERENCE_STORE=pg`（`pnpm infra:up` 起库后切换）= 跨重启、跨进程的真实持久化；`EPISODIC_STORE=pgvector` 一并切上则情景记忆也跨重启（与偏好共用同一个 PG 实例，`EMBEDDING_DIM` 口径也同 `rag/`）。
 
 ### 为什么要两个版本？——"算法"和"存哪"是正交的两件事
 
@@ -163,12 +164,12 @@
 - **向量/余弦忘了** → 隔壁 `../rag/README.md` 第三、四节（两个模块共享同一套数学）
 - **实现读不懂** → 每个文件头部注释 = 该文件的小地图
 
-## 七、扩展路线（接口已留缝；前两项 ✅ 已实现）
+## 七、扩展路线（接口已留缝；三项 ✅ 全部落地）
 
 | 现在 | 教程主线 | 状态 |
 | --- | --- | --- |
 | `SessionStore` 内存版 | **Redis**（`EX` TTL 天然匹配会话生命周期，多实例共享） | ✅ **已实现**：`session.redis.ts`（`agent:sess:{id}` list，TTL 24h 续期，与内存版共用 `compression.ts` 压缩算法；`SESSION_STORE=redis` 切换，默认 memory） |
 | `PreferenceStore` 内存版 | **PG 长表**（行级 upsert、永不丢） | ✅ **已实现**：`preference.pg.ts`（`user_preferences` 表，`(user_id, key)` 主键 upsert；`PREFERENCE_STORE=pg` 切换，默认 memory） |
-| `EpisodicStore` 内存版 | **pgvector**（万级历史也不怕，ANN 索引） | ⏳ 后续路线：`episodic.pgvector.ts`（可参考隔壁 `rag/store.pgvector.ts` 的建表与 `<=>` 检索写法） |
+| `EpisodicStore` 内存版 | **pgvector**（万级历史也不怕，ANN 索引） | ✅ **已实现**：`episodic.pgvector.ts`（`episodic_memories` 表，`<=>` 余弦 top-k、同分按入库顺序稳定排序，追加式归档同内存版语义；HNSW 索引仅 ≤2000 维，与 `rag/store.pgvector.ts` 同一限制；`EPISODIC_STORE=pgvector` 切换，默认 memory） |
 
 三个接口都没动过签名——这就是 `types.ts` 存在的意义。真实持久化的启动方式（Docker）与切换开关见根 README「真实持久化（Docker）」一节。
