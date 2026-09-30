@@ -15,6 +15,10 @@ export default defineConfig({
     include: ["test/**/*.spec.ts"],
     // 每个文件独立模块注册表：与 apps/api 同款隔离，防止引擎模块级单例（如 rag store）互相串
     isolate: true,
+    // infra 集成测试共用同一个真实 PG/Redis：并行文件会在共享表上互相插数据，
+    // 让「相对计数」类断言偶发失败（before 与 count 之间被别的 spec 插入 N 块）。
+    // 串行化文件执行——全套件 <2s，串行损失可忽略，换确定性。
+    fileParallelism: false,
     testTimeout: 30000,
     hookTimeout: 30000,
     env: {

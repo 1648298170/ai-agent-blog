@@ -30,7 +30,22 @@ export interface RunToolLoopOptions {
    * 纯观察性钩子——不传时行为与旧版完全一致（既有调用方零改动）。
    */
   onStep?: (event: ToolLoopStepEvent) => void;
+  /**
+   * 可选中止信号（生产缺陷修复：SSE 客户端断开后停止烧 token）。
+   * API 层把客户端断开（response close）接到 AbortController 上、signal 传进来：
+   * - 透传给每一步 generateText 的 abortSignal（SDK 在模型调用层响应中止，
+   *   正在进行的请求会以 AbortError 拒绝）；
+   * - 每步工具执行回灌之后、发起下一次模型调用之前检查 aborted——客户端已经
+   *   不在了，继续调模型纯粹是烧 token，直接抛「已中止」退出循环。
+   * 不传（默认 undefined）时行为与旧版完全一致：abortSignal: undefined 是
+   * generateText 的默认值，前置检查也被短路（?.）——既有调用方（CLI / 评测）
+   * 零改动、零感知。
+   */
+  signal?: AbortSignal;
 }
+
+/** 中止时抛出的错误消息（导出常量：调用方/测试按它识别「循环因 abort 而退出」） */
+export const TOOL_LOOP_ABORTED = "工具循环已中止：调用方在完成前 abort 了 signal";
 
 /** 循环结果：最终回复文本 + 维护到底的完整消息历史 + 实际步数 */
 export interface ToolLoopResult {
@@ -79,13 +94,19 @@ function errorOutput(value: unknown) {
  * 直接在本函数的对应行插入即可——这正是手写版存在的意义。
  */
 export async function runToolLoop(options: RunToolLoopOptions): Promise<ToolLoopResult> {
-  const { model, tools, system, maxSteps = 5, onStep } = options;
+  const { model, tools, system, maxSteps = 5, onStep, signal } = options;
   const schemaTools = toSchemaTools(tools);
   const messages: ModelMessage[] = [...options.messages]; // 复制一份，不动调用方的数组
 
   for (let step = 1; step <= maxSteps; step++) {
+    // 调度下一次模型调用之前先看信号：客户端已断开就不再发起（烧 token 没有意义）。
+    // 抛错而不是返回半截结果——与「请求进行中被 abort」时 generateText 的拒绝
+    // 语义保持一致，调用方用同一条 catch 路径处理两种中止时机。
+    if (signal?.aborted) {
+      throw new Error(TOOL_LOOP_ABORTED);
+    }
     trace("▶", `思考 step ${step} → 调用模型（上下文 ${messages.length} 条消息，可用工具 ${Object.keys(tools).length} 个）`);
-    const result = await generateText({ model, messages, tools: schemaTools, system });
+    const result = await generateText({ model, messages, tools: schemaTools, system, abortSignal: signal });
 
     if (result.toolCalls.length === 0) {
       trace("◆", `完成 → 模型给出最终回答（${result.text.length} 字，共 ${step} 步）`);

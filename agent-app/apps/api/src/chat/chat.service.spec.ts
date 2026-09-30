@@ -198,4 +198,104 @@ describe("ChatService", () => {
     expect(runToolLoop).toHaveBeenCalledOnce();
     expect(events[events.length - 1].type).toBe("done");
   });
+
+  // ══ 生产缺陷修复（D2 断开中止）════════════════════════════════════════
+
+  it("D2 chatStream：signal 原样透传给 runToolLoop（options.signal 即传入的 AbortSignal）", async () => {
+    vi.mocked(runToolLoop).mockResolvedValue({ text: "好的", messages: [], steps: 1 });
+    streamTextMock.mockReturnValue({
+      textStream: (async function* () {
+        yield "好";
+      })(),
+    });
+    const controller = new AbortController();
+
+    await service.chatStream({ message: "你好" }, () => {}, { signal: controller.signal });
+
+    const options = vi.mocked(runToolLoop).mock.calls[0][0];
+    expect(options.signal).toBe(controller.signal);
+  });
+
+  it("D2 chatStream：客户端断开（模型调用期间 abort）→ 静默返回——不抛错、无 token/done、不回写半截答案", async () => {
+    // 还原真实时序：abort 发生在模型调用进行中 → runToolLoop 以 AbortError 拒绝
+    const controller = new AbortController();
+    vi.mocked(runToolLoop).mockImplementation(async () => {
+      controller.abort(); // 客户端在这一刻断开
+      throw new Error("This operation was aborted"); // 模拟 SDK 的 AbortError
+    });
+
+    const events: ChatStreamEvent[] = [];
+    await expect(
+      service.chatStream({ message: "你好" }, (event) => events.push(event), { signal: controller.signal }),
+    ).resolves.toBeUndefined(); // 关键：安静收场，不向上抛
+
+    expect(events.map((e) => e.type)).toEqual(["session"]); // 断开后零新事件
+    // 半截答案不回写会话：真实 InMemorySessionStore 里只有那条 user 提问
+    const session = events[0];
+    if (session.type !== "session") throw new Error("unreachable：首事件必须是 session");
+    const history = await service.getSessionHistory(session.sessionId);
+    expect(history.turns).toEqual([{ role: "user", content: "你好" }]);
+  });
+
+  it("D2 chatStream：token 流期间断开 → 停止 emit、不发 done、不回写会话", async () => {
+    const controller = new AbortController();
+    vi.mocked(runToolLoop).mockResolvedValue({ text: "被忽略", messages: [], steps: 1 });
+    streamTextMock.mockReturnValue({
+      textStream: (async function* () {
+        yield "第"; // 第一段正常送达
+        controller.abort(); // 断开发生在两段 token 之间
+        yield "一"; // 已断开：消费侧检查 signal 后不再 emit
+        yield "更不该出现的第三段";
+      })(),
+    });
+
+    const events: ChatStreamEvent[] = [];
+    await expect(
+      service.chatStream({ message: "你好" }, (event) => events.push(event), { signal: controller.signal }),
+    ).resolves.toBeUndefined();
+
+    // 只有第一段 token 被发出；断开后：后续 token 不 emit、无 done
+    expect(events.map((e) => e.type)).toEqual(["session", "token"]);
+    const token = events[1];
+    if (token.type !== "token") throw new Error("unreachable：第二事件必须是 token");
+    expect(token.text).toBe("第");
+    const session = events[0];
+    if (session.type !== "session") throw new Error("unreachable");
+    const history = await service.getSessionHistory(session.sessionId);
+    expect(history.turns).toEqual([{ role: "user", content: "你好" }]); // 无 assistant 轮
+  });
+
+  it("D2 chatStream：非断开引发的错误照旧上抛（abort 静默只针对 signal.aborted）", async () => {
+    vi.mocked(runToolLoop).mockRejectedValue(new Error("模型网关不可达"));
+    const controller = new AbortController(); // 从未 abort
+
+    const events: ChatStreamEvent[] = [];
+    await expect(
+      service.chatStream({ message: "你好" }, (event) => events.push(event), { signal: controller.signal }),
+    ).rejects.toThrow("模型网关不可达");
+  });
+
+  it("D2 chat：signal 透传给 runToolLoop；断开引发的失败换算成中文错误上抛（既有错误路径）", async () => {
+    const controller = new AbortController();
+    vi.mocked(runToolLoop).mockImplementation(async () => {
+      controller.abort();
+      throw new Error("This operation was aborted");
+    });
+
+    await expect(
+      service.chat({ message: "你好" }, { signal: controller.signal }),
+    ).rejects.toThrow("客户端已断开连接");
+
+    // 透传断言（同一 mock 的首次调用）
+    const options = vi.mocked(runToolLoop).mock.calls[0][0];
+    expect(options.signal).toBe(controller.signal);
+  });
+
+  it("D2 chat：不传 options → runToolLoop 收到 signal: undefined（既有调用方零变化）", async () => {
+    vi.mocked(runToolLoop).mockResolvedValue({ text: "好的", messages: [], steps: 1 });
+
+    await service.chat({ message: "你好" });
+
+    expect(vi.mocked(runToolLoop).mock.calls[0][0].signal).toBeUndefined();
+  });
 });

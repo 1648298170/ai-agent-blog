@@ -141,4 +141,36 @@ describeRedis("Redis SessionStore（真实 Redis）", () => {
     expect(win[0].content).toBe("t22");
     expect(win.every((t) => t.role !== "system")).toBe(true); // 降级不产出摘要轮
   });
+
+  it("并发 append：50 个并发写入与顺序写入结果完全一致（延迟假 summarize 拉宽竞态窗口，不丢轮次）", async () => {
+    // 生产缺陷的 Redis 侧回归：旧实现「RPUSH →（超阈值）LRANGE → 压缩（秒级）
+    // → MULTI 重写」并发交错时后写者覆盖先写者。进程内串行链修复后，单进程的
+    // 50 并发必须与顺序语义完全一致（跨进程互斥由压缩锁保证，锁原语的
+    // 离线单测在 session-concurrency.spec.ts）
+    const makeStore = () =>
+      createRedisSessionStore({
+        url: REDIS_URL,
+        summarize: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 5)); // 微缩版的秒级 LLM 调用
+          return "并发测试用固定摘要";
+        },
+      });
+
+    const N = 50;
+    const sequential = makeStore();
+    for (let i = 1; i <= N; i++) {
+      await sequential.append(sid("conc-seq"), { role: "user", content: `t${i}` });
+    }
+
+    const concurrent = makeStore();
+    const target = sid("conc-race");
+    await Promise.all(
+      Array.from({ length: N }, (_, i) =>
+        concurrent.append(target, { role: "user", content: `t${i + 1}` }),
+      ),
+    );
+
+    // 并发 == 顺序：既不丢轮次，也没有走出分叉的压缩时序
+    expect(await concurrent.getHistory(target)).toEqual(await sequential.getHistory(sid("conc-seq")));
+  });
 });

@@ -55,6 +55,15 @@ function toModelMessages(window: ChatTurn[]): ModelMessage[] {
 /** SSE 事件流：session（含新会话 id）→ 若干 step（工具步）→ 若干 token → done；出错转 error */
 export type { ChatStreamEvent };
 
+/**
+ * 生成中止信号的接缝（生产缺陷修复：客户端断开后停止烧 token）。
+ * 控制器把「对端消失」（response close 且未写完）接到 AbortController.abort()，
+ * signal 经这个可选参数流进服务层——不传（既有调用方/测试）行为与旧版完全一致。
+ */
+export interface ChatAbortOptions {
+  signal?: AbortSignal;
+}
+
 @Injectable()
 export class ChatService {
   // env 工厂（SESSION_STORE=memory|redis，默认 memory——与改造前一致；配 redis 时跨实例共享）
@@ -82,7 +91,10 @@ export class ChatService {
    * 是 createTicket（非空），所以本端点默认即 400，要么改用流式端点、要么显式
    * AGENT_CONFIRM_TOOLS= 关闭审批（SECURITY.md 第五节已列为有意的行为变更）。
    */
-  async chat(input: { message: string; sessionId?: string }): Promise<{ sessionId: string; reply: string }> {
+  async chat(
+    input: { message: string; sessionId?: string },
+    options?: ChatAbortOptions,
+  ): Promise<{ sessionId: string; reply: string }> {
     if (readConfirmToolNames().size > 0) {
       throw new Error(NON_STREAM_APPROVAL_UNSUPPORTED);
     }
@@ -93,17 +105,29 @@ export class ChatService {
     await this.sessionStore.append(sessionId, { role: "user", content: input.message });
     const history = await this.sessionStore.getWindow(sessionId, 20);
 
-    const result = await runToolLoop({
-      model: createModel(),
-      messages: toModelMessages(history),
-      system: SYSTEM_PROMPT,
-      tools: this.tools,
-      maxSteps: 5,
-    });
+    try {
+      const result = await runToolLoop({
+        model: createModel(),
+        messages: toModelMessages(history),
+        system: SYSTEM_PROMPT,
+        tools: this.tools,
+        maxSteps: 5,
+        signal: options?.signal,
+      });
 
-    // ③ 回复回写会话
-    await this.sessionStore.append(sessionId, { role: "assistant", content: result.text });
-    return { sessionId, reply: result.text };
+      // ③ 回复回写会话
+      await this.sessionStore.append(sessionId, { role: "assistant", content: result.text });
+      return { sessionId, reply: result.text };
+    } catch (err) {
+      // 客户端断开引发的中止：换算成明确的中文错误后沿既有错误路径上抛（全局
+      // 过滤器记日志/组响应——对方虽已收不到，日志语义仍要可读）。刻意不静默：
+      // 非流式端点的调用方依赖「要么完整结果、要么明确失败」的二值语义，
+      // 静默返回半截结果会把「未完成」伪装成「完成」。
+      if (options?.signal?.aborted) {
+        throw new Error("客户端已断开连接，本次生成已中止，未产生完整回复");
+      }
+      throw err;
+    }
   }
 
   /**
@@ -118,7 +142,9 @@ export class ChatService {
   async chatStream(
     input: { message: string; sessionId?: string },
     emit: (event: ChatStreamEvent) => void,
+    options?: ChatAbortOptions,
   ): Promise<void> {
+    const signal = options?.signal;
     const sessionId = input.sessionId ?? newSessionId();
     emit({ type: "session", sessionId });
 
@@ -158,31 +184,47 @@ export class ChatService {
             timeoutMs: readConfirmTimeoutMs(),
           });
 
-    const result = await runToolLoop({
-      model: createModel(),
-      messages: toModelMessages(history),
-      system: SYSTEM_PROMPT,
-      tools,
-      maxSteps: 5,
-      onStep: (event) =>
-        emit({ type: "step", step: event.step, toolCall: event.toolCall, output: event.output }),
-    });
+    // 生成段整体套 try：客户端断开（signal.aborted）时安静收场——对方已经收不到
+    // 任何事件，发 error 事件毫无意义，还会在已关闭的 socket 上白写。
+    try {
+      const result = await runToolLoop({
+        model: createModel(),
+        messages: toModelMessages(history),
+        system: SYSTEM_PROMPT,
+        tools,
+        maxSteps: 5,
+        signal,
+        onStep: (event) =>
+          emit({ type: "step", step: event.step, toolCall: event.toolCall, output: event.output }),
+      });
 
-    // 最终答案流式生成：messages 已含全部工具往来，streamText 只做纯文本收尾
-    const { textStream } = streamText({
-      model: createModel(),
-      system: SYSTEM_PROMPT,
-      messages: result.messages,
-    });
+      // 最终答案流式生成：messages 已含全部工具往来，streamText 只做纯文本收尾。
+      // abortSignal 同样接上：断开后底层流被取消，不再向网关要新 token。
+      const { textStream } = streamText({
+        model: createModel(),
+        system: SYSTEM_PROMPT,
+        messages: result.messages,
+        abortSignal: signal,
+      });
 
-    let answer = "";
-    for await (const delta of textStream) {
-      answer += delta;
-      emit({ type: "token", text: delta });
+      let answer = "";
+      for await (const delta of textStream) {
+        if (signal?.aborted) break; // 断开后不再 emit（写已关的 socket 没有意义）
+        answer += delta;
+        emit({ type: "token", text: delta });
+      }
+
+      if (signal?.aborted) {
+        // 断开收场：不回写半截答案（污染下一轮上下文）、不发 done——客户端没等到
+        // 完整回答是既成事实，会话里保留它的提问即可，下次追问有上下文可续。
+        return;
+      }
+      await this.sessionStore.append(sessionId, { role: "assistant", content: answer });
+      emit({ type: "done" });
+    } catch (err) {
+      if (signal?.aborted) return; // abort 引发的拒绝（AbortError 等）：安静收场
+      throw err;
     }
-
-    await this.sessionStore.append(sessionId, { role: "assistant", content: answer });
-    emit({ type: "done" });
   }
 
   /**

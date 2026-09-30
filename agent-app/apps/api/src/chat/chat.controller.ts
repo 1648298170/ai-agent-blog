@@ -4,6 +4,10 @@
 // 红队加固轮：H3 流式端点消息长度 400（SSE 头之前判——头一旦 flush就只能走 error 事件，
 // 给不出 4xx 状态码）；H5 非流式端点的审批不支持错误映射 400（跟随既有 HttpException
 // 过滤器放行路径，见 all-exceptions.filter）。
+// 生产缺陷修复（D2 断开中止）：两个入口都监听 response 的 'close'—— writableEnded
+// 为 false 时说明对端在响应写完之前消失了，立即 abort 生成（signal 传入服务层，
+// 引擎循环停止调用模型，token 不再白烧）。'close' 在正常收尾时也会触发，所以必须
+// 用 writableEnded 区分「写完了」与「对端消失」。
 import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Query, Res } from "@nestjs/common";
 import { ApiBadRequestResponse, ApiExcludeEndpoint, ApiNotFoundResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
@@ -18,12 +22,28 @@ import { ApproveChatDto, CreateChatDto } from "./dto.js";
 export class ChatController {
   constructor(private readonly chatService: ChatService) {}
 
-  /** 非流式：跑完工具循环一次性返回 */
+  /** 把「对端消失」接到 AbortController：close 且未写完 → abort 生成 */
+  private wireDisconnectAbort(res: Response): AbortController {
+    const abort = new AbortController();
+    res.on("close", () => {
+      if (!res.writableEnded) abort.abort();
+    });
+    return abort;
+  }
+
+  /** 非流式：跑完工具循环一次性返回（passthrough 拿到 res 接断开信号，返回值仍走 Nest 序列化） */
   @Post()
   @ApiBadRequestResponse({ description: "请求体校验失败（缺 message / 类型不符 / 超过 8000 字符上限 / 未知字段被剥）；或该端点不支持工具审批（AGENT_CONFIRM_TOOLS 名单非空）" })
-  async chat(@Body() dto: CreateChatDto): Promise<{ sessionId: string; reply: string }> {
+  async chat(
+    @Body() dto: CreateChatDto,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<{ sessionId: string; reply: string }> {
+    const abort = this.wireDisconnectAbort(res);
     try {
-      return await this.chatService.chat({ message: dto.message, sessionId: dto.sessionId });
+      return await this.chatService.chat(
+        { message: dto.message, sessionId: dto.sessionId },
+        { signal: abort.signal },
+      );
     } catch (err) {
       // H5：服务层的「不支持审批」是客户端用法错误（应改用流式端点），映射 400——
       // 跟随既有的 HttpException 过滤器放行路径，其余错误原样上抛走 500 + hint 链路
@@ -105,6 +125,10 @@ export class ChatController {
     res.setHeader("X-Accel-Buffering", "no"); // 告诉反向代理别替我攒
     res.flushHeaders();
 
+    // D2：SSE 的断开检测。'close' 在客户端消失和我们自己 res.end() 时都会触发，
+    // 用 writableEnded 区分——只有「对端先走」才 abort，正常收尾不误伤。
+    const abort = this.wireDisconnectAbort(res);
+
     const write = (payload: unknown): void => {
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
     };
@@ -117,8 +141,10 @@ export class ChatController {
       await this.chatService.chatStream(
         { message: message.trim(), sessionId: sessionId?.trim() || undefined },
         write,
+        { signal: abort.signal },
       );
     } catch (err) {
+      if (abort.signal.aborted) return; // 客户端已断：error 事件写给谁？直接收尾
       const detail = err instanceof Error ? err.message : String(err);
       const hint = buildConfigHint(err);
       write(hint === undefined ? { type: "error", message: detail } : { type: "error", message: detail, hint });
