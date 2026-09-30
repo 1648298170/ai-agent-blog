@@ -11,8 +11,11 @@
 # 用法（agent-app 目录下）：
 #   pnpm infra:up    # = docker compose up -d，等两个服务 healthy
 #   pnpm infra:down  # = docker compose down（保留数据卷；加 -v 才删数据）
+#   pnpm stack:up    # = docker compose --profile app up -d --build，全栈（infra + api + web）
 #
 # 说明：无 build 段（直接用官方镜像）；数据落 named volume，容器重建不丢。
+# api / web 两个服务挂在 "app" profile 下：不带 --profile app 时完全不参与，
+# `docker compose up -d`（pnpm infra:up）的行为分毫不变——仓库「不配置 = 与改造前一致」铁律。
 
 services:
   postgres:
@@ -46,6 +49,69 @@ services:
       timeout: 3s
       retries: 10
       start_period: 5s
+
+  # ── app profile：一键全栈的两张应用脸（profile 门禁保证 infra-only 向后兼容）──
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: agent-app-api
+    profiles: ["app"]
+    ports:
+      - "3000:3000"
+    environment:
+      # 容器网络内部走「服务名 + 容器端口」——api 与 postgres/redis 同在 compose 网络，
+      # PG 对它暴露的是容器端口 5432（宿主机 5433 映射只服务于本机直连的 CLI/测试，容器内不适用）
+      PG_CONNECTION_STRING: postgres://agent:agent@postgres:5432/agent
+      REDIS_URL: redis://redis:6379
+      # 真实持久化全家桶：RAG/情景记忆进 pgvector，会话进 Redis，偏好进 PG（表幂等自动建）
+      RAG_STORE: pgvector
+      SESSION_STORE: redis
+      PREFERENCE_STORE: pg
+      EPISODIC_STORE: pgvector
+      # 模型网关四件套：compose 变量替换从 agent-app/.env 流入（.env 永不进镜像）。
+      # 空默认值保证无 .env 也能起容器——首次调 LLM 才报中文配置提示（引擎既有降级礼仪）
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+      EMBEDDING_DIM: ${EMBEDDING_DIM:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      # node:22-slim 没有 curl，用镜像自带的 node + fetch 探 /api/health
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    container_name: agent-app-web
+    profiles: ["app"]
+    ports:
+      - "3001:3001"
+    environment:
+      PORT: "3001"
+      # HOSTNAME 显式钉 0.0.0.0：Docker 默认把 HOSTNAME 设成容器 ID，
+      # standalone server.js 拿它当绑定地址会绑不上（见 Dockerfile.web 注释）
+      HOSTNAME: 0.0.0.0
+      # 浏览器侧地址：页面 JS 跑在用户宿主机的浏览器里，访问宿主机映射端口 →
+      # localhost:3000 是正确值（浏览器不在 compose 网络里，认识不了服务名 api；
+      # 与 api 侧连接串用服务名/容器端口是方向相反的同一枚硬币）
+      NEXT_PUBLIC_API_BASE: http://localhost:3000
+    depends_on:
+      api:
+        condition: service_started
+    restart: unless-stopped
 
 volumes:
   agent_pgdata:

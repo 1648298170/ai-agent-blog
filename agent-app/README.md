@@ -232,6 +232,20 @@ docker compose exec redis redis-cli ttl "agent:sess:<sessionId>"                
 docker compose exec postgres psql -U agent -c "select session_id, summary, created_at from episodic_memories order by seq desc limit 5"   # 最近归档的情景记忆（EPISODIC_STORE=pgvector 时写入）
 ```
 
+### 5. 一键全栈（Docker）
+
+上面两步的「全都要」版：一条命令把 pg + redis + api + web 四个容器全拉起来（api/web 挂在 `app` profile 下，不带 profile 的 `docker compose up -d` = `pnpm infra:up` 行为分毫不变）。
+
+```powershell
+pnpm stack:up     # = docker compose --profile app up -d --build：构建两镜像并起全栈
+pnpm stack:logs   # 跟看 api + web 日志
+pnpm stack:down   # 只撤 api + web，pg/redis 原地不动（数据卷照旧保留）
+```
+
+- 上来什么：`postgres` / `redis`（同上）+ `api`（NestJS BFF，:3000，健康检查 `/api/health`，Swagger `/api/docs`）+ `web`（Next.js standalone，:3001）
+- 存储开关在 compose 里替你设好（RAG/情景=pgvector、会话=redis、偏好=pg）；模型 key 从 `.env` 经变量替换流入容器，`.env` 永不进镜像
+- 地址方向记住一句话：**容器互访用服务名**（api 连 `postgres:5432`），**浏览器访问用宿主机端口**（页面里是 `localhost:3000`——浏览器跑在你的机器上，不在 compose 网络里）
+
 ## web 客户端（Next.js · 教程第 20 周前端形态）
 
 `apps/web`：手写 scaffold 的 Next.js 15 前端（App Router + React 19 + Tailwind v4，非 create-next-app），消费上面这套 BFF API。week20 架构边界：**前端只见契约**——类型全部来自 `@agent-app/shared`（SSE 事件、kb/service 响应形状），不依赖 `@agent-app/engine`；前端零密钥，所有 LLM / embedding 调用都发生在 BFF 侧。

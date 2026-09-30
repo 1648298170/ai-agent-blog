@@ -29,6 +29,10 @@ const ENV_KEYS = [
   "RAG_STORE",
   "SESSION_STORE",
   "PREFERENCE_STORE",
+  // 2026-09 补遗：EPISODIC_STORE 此前漏在清单外——进程环境变量方式会被丢掉，
+  // 只有写进 .env 文件才生效（与 README「临时环境变量也行」的口径不符）。
+  // Docker 容器里没有 .env（env 全靠 compose 注入），缺这一行情景记忆会静默回退内存版。
+  "EPISODIC_STORE",
   "PG_CONNECTION_STRING",
   "REDIS_URL",
   "EMBEDDING_DIM",

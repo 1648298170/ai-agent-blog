@@ -1,0 +1,59 @@
+# Dockerfile.web —— Next.js 前端（apps/web）的 standalone 镜像
+# 依赖 next.config.mjs 的 output: "standalone"（自包含 server.js + 追踪出的依赖），
+# 运行命令：node server.js（从 .next/standalone/web 的原生位置启动，理由见 runtime 注释）。
+
+# ── 阶段 1：base —— Node 22 + corepack/pnpm（同 Dockerfile.api）──
+FROM node:22-slim AS base
+RUN corepack enable
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+WORKDIR /app
+
+# ── 阶段 2：deps —— 与 Dockerfile.api 同款 fetch/store 缓存结构 ──
+# 顺序讲究（同 Dockerfile.api）：packageManager 所在的 package.json 与 pnpm-workspace.yaml
+# 先进容器，corepack 才会钉住 pnpm 11.17.0，lockfile 对账才过得了。
+FROM base AS deps
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+RUN pnpm fetch
+COPY apps/api/package.json apps/api/
+COPY apps/web/package.json apps/web/
+COPY apps/cli/package.json apps/cli/
+COPY packages/engine/package.json packages/engine/
+COPY packages/shared/package.json packages/shared/
+RUN pnpm install --frozen-lockfile --offline
+
+# ── 阶段 3：build —— turbo 构建 web 及其依赖（shared 的 dist/.d.ts 是类型检查前提）──
+FROM base AS build
+COPY --from=deps /app ./
+COPY . .
+ENV TURBO_TELEMETRY_DISABLED=1
+# `@agent-app/web...` = web 自身 + 依赖包 shared（shared 的 exports 指向 dist/.d.ts）。
+# NEXT_PUBLIC_API_BASE 是构建期内联的「浏览器侧」地址：页面 JS 跑在用户宿主机的浏览器里，
+# 访问的是宿主机映射端口 → localhost:3000 就是正确值（不是 compose 服务名 api——
+# 浏览器不在 compose 网络里，认识不了服务名；这是与 api 侧连接串方向相反的同一枚硬币）。
+# 构建后整备三件事：静态资源摆进 standalone（Next 要求）、瘦身（cache 只有重建加速价值）、
+# 补 .pnpm store——Next 的文件追踪在 pnpm 符号链接布局下只打出「空目录骨架」
+# （实测 31 个文件、package.json 都缺），standalone 里的相对符号链接全部悬空；
+# 把真实 store 完整拷到链接锚点上（.next/node_modules/.pnpm），链接即刻可解析。
+# 注：用 cp -a 而非 cp -rl——-l 硬链接模式会被 cp 判成「目录拷进自己」直接拒拷。
+RUN pnpm turbo run build --filter=@agent-app/web... \
+  && cp -r apps/web/.next/static apps/web/.next/standalone/web/.next/static \
+  && rm -rf apps/web/.next/cache \
+  && rm -rf apps/web/.next/node_modules/.pnpm \
+  && cp -a node_modules/.pnpm apps/web/.next/node_modules/.pnpm
+
+# ── 阶段 4：runtime —— 只带 .next 一棵树，从 standalone 的原生位置起服务 ──
+FROM node:22-slim AS runtime
+ENV NODE_ENV=production PORT=3001 HOSTNAME=0.0.0.0
+# 实测（Next 15.5 + pnpm + outputFileTracingRoot=agent-app）的产物拓扑：
+#   apps/web/.next/standalone/web/server.js      —— 自包含服务入口
+#   apps/web/.next/node_modules/.pnpm/…          —— 文件追踪打出的真实包农场
+#   standalone/web/node_modules 里的符号链接是 ../../../node_modules/.pnpm/…，
+#   锚点恰是 .next/node_modules——所以必须整棵 .next 原样搬运（相对层级不能动），
+#   并从 standalone/web 目录里启动 server.js，链接才解析得了。
+WORKDIR /runner
+COPY --from=build /app/apps/web/.next ./.next
+WORKDIR /runner/.next/standalone/web
+EXPOSE 3001
+# HOSTNAME=0.0.0.0 必须显式给：standalone server.js 读它决定绑定地址，
+# 而 Docker 会把 HOSTNAME 默认设成容器 ID，绑不上去（经典坑）
+CMD ["node", "server.js"]

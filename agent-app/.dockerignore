@@ -1,0 +1,16 @@
+# .dockerignore —— docker build 上下文瘦身 + 防密钥进镜像（Dockerfile.api / Dockerfile.web 共用）
+# 铁律：.env 绝不进 build 上下文 / 镜像——模型 key 等由 compose 的 ${VAR} 替换
+# 在「运行期」注入容器（compose 读的是 agent-app/.env 文本，与 docker build 上下文无关）。
+node_modules
+**/node_modules
+.next
+**/.next
+dist
+**/dist
+.data
+.turbo
+**/.turbo
+.env
+*.log
+.playwright-mcp
+.temp
