@@ -113,6 +113,26 @@ export interface ServiceMessageResponse {
   handoff?: ServiceHandoffPack;
 }
 
+/**
+ * SSE 流式客服事件：GET /api/service/stream 的线上契约（service 线的 ChatStreamEvent 对应物）。
+ * 与非流式端点相比多两重可视性：路由判定（route）在回复生成之前就送达前端，
+ * 工人的每一步工具调用（step）实时可见。事件序列：
+ *   LLM 路由：session → route → step*（工具步）→ token*（最终答案分片）→ done
+ *   硬规则转人工：session → route(human) → handoff（工单上下文包）→ token*（告知文本分片）→ done
+ *   降级转人工（模型路由/工人失败，service.md 上线检查清单第 8 条）：route 事件可能连发
+ *   两次——先业务路由、再 human 降级——前端以最后一次 route 为准刷新徽标；
+ *   转人工路径的 token 分片是固定告知文本按定宽切片（无模型分片边界，纯为逐段渲染体感）。
+ * 任一环节出错转 error（中文 message + 可选配置 hint），与 ChatStreamEvent 同一口径。
+ */
+export type ServiceStreamEvent =
+  | { type: "session"; sessionId: string }
+  | { type: "route"; route: RouteTarget; reason: string }
+  | { type: "step"; step: number; toolCall: { toolName: string; input: unknown }; output: unknown; text?: string }
+  | { type: "token"; text: string }
+  | { type: "handoff"; handoff: ServiceHandoffPack }
+  | { type: "done" }
+  | { type: "error"; message: string; hint?: string };
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 会话记录（conversation-history）契约：GET /api/chat/sessions 两个端点的响应形状。
 // 与 @agent-app/engine 的 SessionSummary / ChatTurn 逐字段同形——前端只见契约

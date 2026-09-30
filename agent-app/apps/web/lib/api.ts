@@ -11,6 +11,7 @@ import type {
   KbIngestResult,
   KbQueryAnswer,
   ServiceMessageResponse,
+  ServiceStreamEvent,
   SessionHistoryResponse,
   SessionSummary,
 } from "@agent-app/shared";
@@ -155,5 +156,55 @@ function emitFrame(frame: string, onEvent: (event: ChatStreamEvent) => void): vo
     const payload = normalized.slice("data:".length).trim();
     if (payload === "") continue;
     onEvent(JSON.parse(payload) as ChatStreamEvent);
+  }
+}
+
+/**
+ * 消费 GET /api/service/stream 的 SSE —— 与 streamChat 同一套 fetch + ReadableStream
+ * 手解析（按空行切帧、取 data: 行 JSON），事件类型换成 ServiceStreamEvent：
+ * session → route（路由判定先行）→ step*（工人工具步）→ token* → done；
+ * 转人工路径多一个 handoff 工单包事件，降级路径 route 事件连发两次（以最后一次为准）。
+ * signal 透传给 fetch：页面卸载/组件销毁时中止连接，服务端会随之停止生成。
+ */
+export async function streamServiceMessage(
+  input: { message: string; sessionId?: string; signal?: AbortSignal },
+  onEvent: (event: ServiceStreamEvent) => void,
+): Promise<void> {
+  const params = new URLSearchParams({ message: input.message });
+  if (input.sessionId) params.set("sessionId", input.sessionId);
+
+  const res = await fetch(`${API_BASE}/api/service/stream?${params.toString()}`, {
+    headers: { Accept: "text/event-stream" },
+    signal: input.signal,
+  });
+  if (!res.ok) throw new Error(await readErrorMessage(res));
+  if (res.body === null) throw new Error("响应没有可读流（当前环境不支持流式读取）");
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder("utf-8");
+  let buffer = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let sep = buffer.indexOf("\n\n");
+    while (sep !== -1) {
+      emitServiceFrame(buffer.slice(0, sep), onEvent);
+      buffer = buffer.slice(sep + 2);
+      sep = buffer.indexOf("\n\n");
+    }
+  }
+  buffer += decoder.decode(); // flush 尾字节
+  emitServiceFrame(buffer, onEvent); // 流结束时可能还剩最后一帧没等到空行
+}
+
+/** service 线的单帧解析（与 emitFrame 同规则；独立函数避免动既有 chat 解析的类型签名） */
+function emitServiceFrame(frame: string, onEvent: (event: ServiceStreamEvent) => void): void {
+  for (const line of frame.split("\n")) {
+    const normalized = line.replace(/\r$/, "");
+    if (!normalized.startsWith("data:")) continue;
+    const payload = normalized.slice("data:".length).trim();
+    if (payload === "") continue;
+    onEvent(JSON.parse(payload) as ServiceStreamEvent);
   }
 }

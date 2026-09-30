@@ -5,6 +5,7 @@
 // knowledge 只发知识库检索——职责之外的锤子不发给它，误伤面从工具表上就掐掉。
 import type { ModelMessage } from "ai";
 import { runToolLoop } from "../agent-loop.js";
+import type { ToolLoopStepEvent } from "../agent-loop.js";
 import type { AgentToolSet } from "../types.js";
 import { createModel } from "../llm.js";
 import type { ChatTurn } from "../memory/types.js";
@@ -63,4 +64,47 @@ export async function runWorker(name: WorkerName, input: WorkerInput): Promise<s
     maxSteps: 5,
   });
   return result.text;
+}
+
+/** 流式路径的可选钩子：onStep 逐工具步外发、signal 客户端断开即中止（语义同 runToolLoop） */
+export interface WorkerStreamingOptions {
+  /** 每次工具执行并回灌后同步调用（API 的 SSE 端点转成 step 事件） */
+  onStep?: (event: ToolLoopStepEvent) => void;
+  /** 中止信号：透传给循环每一步的模型调用，断开后不再烧 token */
+  signal?: AbortSignal;
+}
+
+/** 流式路径的产物：工具循环收尾后的完整消息历史（含全部工具往来，不含最终回复文本） */
+export interface WorkerStreamingResult {
+  messages: ModelMessage[];
+}
+
+/**
+ * 流式友好的工人路径（SSE 增量导出，既有 runWorker 一行未动、POST /message 字节不变）：
+ * 与 runWorker 同一套提示词 / 最小工具表 / maxSteps，只多两件事——
+ * ① onStep 把工具循环每一步（工具调用 + 输出）实时交给调用方（API 转成 step SSE 事件）；
+ * ② 返回循环后的完整消息历史，最终答案文本弃用（非流式产物）——调用方拿工人系统提示词
+ *    （workerSystemPrompt）+ 这些消息再 streamText 一次，换逐 token 可视的收尾流
+ *    （chat 线 week20 BFF 的同一形态：多一次生成调用，换 SSE 的逐段输出）。
+ */
+export async function runWorkerStreaming(
+  name: WorkerName,
+  input: WorkerInput,
+  options?: WorkerStreamingOptions,
+): Promise<WorkerStreamingResult> {
+  const result = await runToolLoop({
+    model: createModel(),
+    system: WORKER_PROMPTS[name],
+    messages: buildMessages(input),
+    tools: WORKER_TOOLS[name],
+    maxSteps: 5,
+    onStep: options?.onStep,
+    signal: options?.signal,
+  });
+  return { messages: result.messages };
+}
+
+/** 工人职责提示词的只读出口：流式收尾的 streamText 需要与循环内同一份人格口径 */
+export function workerSystemPrompt(name: WorkerName): string {
+  return WORKER_PROMPTS[name];
 }

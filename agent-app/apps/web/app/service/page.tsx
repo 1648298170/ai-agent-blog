@@ -1,16 +1,23 @@
-// app/service/page.tsx —— 智能客服页：对话式（POST /api/service/message，非流式）。
-// 助手气泡带路由徽标（order/refund/knowledge/human 四色）+ reason；
-// route=human 时追加 HandoffCard 工单卡片；sessionId 经 localStorage 跨请求/刷新保持。
+// app/service/page.tsx —— 智能客服页：对话式（GET /api/service/stream，SSE 流式）。
+// 事件流（@agent-app/shared 的 ServiceStreamEvent）：
+//   session → 记录 sessionId 并写入 localStorage（跨刷新保持）
+//   route   → 路由徽标 + reason 立即渲染（回复生成之前就到——比非流式时代更好的可视性；
+//             降级路径 route 会连发两次，以最后一次为准）
+//   step    → 累积进「思考过程」面板（Thought/Action/Observation，复用聊天页组件）
+//   token   → 逐段追加正文（转人工路径是告知文本定宽切片，同样渐进渲染）
+//   handoff → 渲染既有工单卡片；done 收尾；error 红色错误 + hint
 // 会话记录（与聊天页同一模式）：挂载时读 localStorage 保存的 sessionId →
 // GET /api/service/sessions/:id 恢复历史气泡（压缩摘要轮渲染为居中弱化条）；
 // 顶部「历史会话」面板列出 cs_ 会话并支持点击切换。
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { RouteTarget, ServiceHandoffPack, SessionTurn } from "@agent-app/shared";
+import type { RouteTarget, ServiceHandoffPack, ServiceStreamEvent, SessionTurn } from "@agent-app/shared";
 import HandoffCard from "../../components/HandoffCard";
+import type { StepRecord } from "../../components/MessageBubble";
 import SessionHistoryPanel from "../../components/SessionHistoryPanel";
-import { fetchServiceSessionHistory, sendServiceMessage } from "../../lib/api";
+import StepPanel from "../../components/StepPanel";
+import { fetchServiceSessionHistory, streamServiceMessage } from "../../lib/api";
 
 /** localStorage key：客服会话跨刷新保持（连续未解决计数按会话在 BFF 侧维护） */
 const SESSION_KEY = "agent-app:service-session-id";
@@ -23,24 +30,27 @@ const ROUTE_META: Record<RouteTarget, { label: string; className: string }> = {
   human: { label: "转人工", className: "border-amber-300 bg-amber-100 text-amber-800" },
 };
 
-/** 一条对话记录：助手侧携带路由判定 + 可选工单包；
+/** 一条对话记录：助手侧携带路由判定 + 思考步骤 + 可选工单包；
  *  system 轮只出现在恢复的历史里（压缩产生的 [会话摘要] 行），渲染为居中弱化条。 */
 interface ServiceTurn {
   id: number;
   role: "user" | "assistant" | "system";
   text: string;
+  /** 工人工具步（step 事件累积；复用聊天页的 StepRecord / StepPanel） */
+  steps: StepRecord[];
   route?: RouteTarget;
   reason?: string;
   handoff?: ServiceHandoffPack;
-  status: "pending" | "done" | "error";
+  status: "streaming" | "done" | "error";
   errorMessage?: string;
+  errorHint?: string;
 }
 
 let nextTurnId = 1;
 
 /** 恢复的历史轮 → 客服气泡（路由徽标/工单包不在历史里，只恢复原文） */
 function turnToServiceTurn(turn: SessionTurn): ServiceTurn {
-  return { id: nextTurnId++, role: turn.role, text: turn.content, status: "done" };
+  return { id: nextTurnId++, role: turn.role, text: turn.content, steps: [], status: "done" };
 }
 
 export default function ServicePage() {
@@ -86,34 +96,74 @@ export default function ServicePage() {
     });
   }
 
+  /** SSE 事件 → 状态机：session / route / step / token / handoff / done / error 七分支 */
+  function handleEvent(event: ServiceStreamEvent): void {
+    switch (event.type) {
+      case "session":
+        setSessionId(event.sessionId);
+        // BFF 分配/确认 sessionId 时落 localStorage，刷新可恢复
+        window.localStorage.setItem(SESSION_KEY, event.sessionId);
+        break;
+      case "route":
+        // 路由判定先行：徽标 + reason 在回复生成之前就渲染（降级连发时以最后一次为准）
+        patchLast((turn) => ({ ...turn, route: event.route, reason: event.reason }));
+        break;
+      case "step":
+        patchLast((turn) => ({
+          ...turn,
+          steps: [
+            ...turn.steps,
+            {
+              step: event.step,
+              toolName: event.toolCall.toolName,
+              input: event.toolCall.input,
+              output: event.output,
+              text: event.text, // 模型步间推理文本（常为 undefined——StepPanel 诚实展示）
+            },
+          ],
+        }));
+        break;
+      case "token":
+        patchLast((turn) => ({ ...turn, text: turn.text + event.text }));
+        break;
+      case "handoff":
+        patchLast((turn) => ({ ...turn, handoff: event.handoff }));
+        break;
+      case "done":
+        patchLast((turn) => ({ ...turn, status: "done" }));
+        break;
+      case "error":
+        patchLast((turn) => ({
+          ...turn,
+          status: "error",
+          errorMessage: event.message,
+          errorHint: event.hint,
+        }));
+        break;
+    }
+  }
+
   async function handleSend(): Promise<void> {
     const text = input.trim();
     if (text === "" || sending) return;
     setInput("");
     setSending(true);
+    // 用户轮即刻上屏；助手轮以 streaming 态占位（StepPanel 随 step 事件逐渐长出来）
     setTurns((prev) => [
       ...prev,
-      { id: nextTurnId++, role: "user", text, status: "done" },
-      { id: nextTurnId++, role: "assistant", text: "", status: "pending" },
+      { id: nextTurnId++, role: "user", text, steps: [], status: "done" },
+      { id: nextTurnId++, role: "assistant", text: "", steps: [], status: "streaming" },
     ]);
     try {
-      const res = await sendServiceMessage(text, sessionId ?? undefined);
-      setSessionId(res.sessionId);
-      window.localStorage.setItem(SESSION_KEY, res.sessionId);
-      patchLast((turn) => ({
-        ...turn,
-        status: "done",
-        text: res.reply,
-        route: res.route,
-        reason: res.reason,
-        handoff: res.handoff,
-      }));
+      await streamServiceMessage(
+        { message: text, sessionId: sessionId ?? undefined },
+        handleEvent,
+      );
+      // 连接正常结束但没等到 done 事件（如中途断流）：补一个收尾态，不悬挂「处理中…」
+      patchLast((turn) => (turn.status === "streaming" ? { ...turn, status: "done" } : turn));
     } catch (err) {
-      patchLast((turn) => ({
-        ...turn,
-        status: "error",
-        errorMessage: err instanceof Error ? err.message : String(err),
-      }));
+      const message = err instanceof Error ? err.message : String(err);
+      patchLast((turn) => ({ ...turn, status: "error", errorMessage: message }));
     } finally {
       setSending(false);
     }
@@ -147,6 +197,7 @@ export default function ServicePage() {
           id: nextTurnId++,
           role: "assistant",
           text: "",
+          steps: [],
           status: "error",
           errorMessage: `切换会话失败：${message}`,
         },
@@ -242,8 +293,9 @@ export default function ServicePage() {
   );
 }
 
-/** 单条气泡：用户右；助手左（路由徽标 + reason + 回复 + 可选工单卡片 / 错误态）；
- *  system 为压缩摘要轮，渲染为居中弱化条（与聊天页 MessageBubble 同款样式）。 */
+/** 单条气泡：用户右；助手左（思考过程面板 + 路由徽标 + reason + 回复 + 可选工单卡片 / 错误态）；
+ *  system 为压缩摘要轮，渲染为居中弱化条（与聊天页 MessageBubble 同款样式）。
+ *  流式期间徽标/步骤/正文渐进渲染——route 事件一到徽标先亮，不等回复收尾。 */
 function TurnBubble({ turn }: { turn: ServiceTurn }) {
   if (turn.role === "system") {
     return (
@@ -268,30 +320,32 @@ function TurnBubble({ turn }: { turn: ServiceTurn }) {
   return (
     <div className="flex justify-start">
       <div className="w-full max-w-[92%] rounded-2xl rounded-bl-sm border border-gray-200 bg-white px-4 py-3 text-sm shadow-sm">
-        {turn.status === "pending" && <p className="animate-pulse text-gray-400">处理中…</p>}
-        {turn.status === "error" && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            ⚠ {turn.errorMessage}
+        <StepPanel steps={turn.steps} streaming={turn.status === "streaming"} />
+        {turn.route !== undefined && (
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span
+              className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${ROUTE_META[turn.route].className}`}
+            >
+              {ROUTE_META[turn.route].label}
+            </span>
+            {turn.reason !== undefined && (
+              <span className="text-xs text-gray-400">{turn.reason}</span>
+            )}
           </div>
         )}
-        {turn.status === "done" && (
-          <>
-            {turn.route !== undefined && (
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <span
-                  className={`rounded-full border px-2.5 py-0.5 text-xs font-medium ${ROUTE_META[turn.route].className}`}
-                >
-                  {ROUTE_META[turn.route].label}
-                </span>
-                {turn.reason !== undefined && (
-                  <span className="text-xs text-gray-400">{turn.reason}</span>
-                )}
-              </div>
+        {turn.status === "error" ? (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <p className="font-medium">⚠ {turn.errorMessage}</p>
+            {turn.errorHint !== undefined && (
+              <p className="mt-1 text-xs text-red-600">{turn.errorHint}</p>
             )}
-            <p className="whitespace-pre-wrap leading-relaxed text-gray-800">{turn.text}</p>
-            {turn.handoff !== undefined && <HandoffCard pack={turn.handoff} />}
-          </>
+          </div>
+        ) : turn.text !== "" ? (
+          <p className="whitespace-pre-wrap leading-relaxed text-gray-800">{turn.text}</p>
+        ) : (
+          <p className="animate-pulse text-gray-400">处理中…</p>
         )}
+        {turn.handoff !== undefined && <HandoffCard pack={turn.handoff} />}
       </div>
     </div>
   );
