@@ -1,13 +1,19 @@
 // chat/dto.ts —— POST /api/chat 与 POST /api/chat/approve 的请求体契约。DTO 必须是 class：
 // interface 编译后会被擦掉，ValidationPipe + class-transformer 在运行时拿不到类型信息（week03 Day 4）。
 // @ApiProperty 供 Swagger（/api/docs）生成 Schema：中文描述与校验规则一一对应。
+// 红队加固轮 H3：message 加 8000 字符上限（MaxLength → 400），修 E8 的消息长度无界。
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from "class-validator";
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, MaxLength } from "class-validator";
+import { MESSAGE_MAX_CHARS } from "../common/message-limits.js";
 
 export class CreateChatDto {
-  @ApiProperty({ description: "用户消息（非流式对话的完整输入）", example: "订单 A-1024 到哪了" })
+  @ApiProperty({
+    description: `用户消息（非流式对话的完整输入，上限 ${MESSAGE_MAX_CHARS} 字符）`,
+    example: "订单 A-1024 到哪了",
+  })
   @IsString({ message: "message 必须是字符串" })
   @IsNotEmpty({ message: "message 不能为空" })
+  @MaxLength(MESSAGE_MAX_CHARS, { message: `message 长度不能超过 ${MESSAGE_MAX_CHARS} 字符（输入长度闸，见 SECURITY.md E8）` })
   message!: string;
 
   /** 复用会话则传；缺省服务端新开一个 sessionId 并在响应里返回 */

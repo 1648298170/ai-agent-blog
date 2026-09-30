@@ -26,6 +26,7 @@
 // 传 SSE+HTTP 审批，闸门两边都不认识。
 import { trace } from "../trace.js";
 import type { AgentTool } from "../types.js";
+import { auditLog } from "./audit.js";
 import { maskPii } from "./pii-mask.js";
 import { inspectTextInput, isToolAllowed } from "./validate.js";
 
@@ -81,6 +82,8 @@ function maskToolOutput(output: unknown): unknown {
 /** 拒绝结果的构造与轨迹：三种拒绝共用（🛡 图标与轨迹系统的 ✗ 执行失败区分开） */
 function deny(name: string, reason: string): ToolGateDenial {
   trace("🛡", `护栏拦截 → ${name} 不执行：${reason}`);
+  // 审计（红队加固轮 H10）：闸门拒绝即安全事件，落 JSONL 留痕——fire-and-forget，不影响拒绝路径
+  auditLog("gate.denied", { tool: name, reason });
   return { denied: true, reason: `工具 ${name} 被护栏拦截：${reason}` };
 }
 
@@ -123,6 +126,9 @@ export function wrapToolWithGate(tool: AgentTool, options: ToolGateOptions): Age
         } catch {
           approved = false;
         }
+        // 审计（红队加固轮 H10）：人工裁决结果无论同意/拒绝都留痕——与后续可能的
+        // gate.denied 是两个维度（谁裁决了 vs 最终发生了什么），并存不算重复记账
+        auditLog("gate.confirm", { tool: name, approved });
         if (approved !== true) {
           return deny(name, "人工确认未通过（未应答或明确拒绝均视为不同意）。");
         }

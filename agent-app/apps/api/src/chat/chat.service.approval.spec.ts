@@ -207,7 +207,15 @@ describe("ChatService 工具审批（week18 Day 6）", () => {
     expect(options.tools.getOrderStatus).toBe(demoTools.getOrderStatus);
   });
 
-  it("非流式 chat() 不包壳（没有 SSE 通道，包壳只会白等超时）", async () => {
+  it("H5（红队加固轮）：非流式 chat() 在审批名单非空时直接拒收（E6 备注的「无闸裸奔」收口）", async () => {
+    vi.mocked(runToolLoop).mockResolvedValue({ text: "ok", messages: [], steps: 1 });
+
+    await expect(service.chat({ message: "帮我建工单" })).rejects.toThrow("该端点不支持工具审批");
+    expect(runToolLoop).not.toHaveBeenCalled(); // 不再是「不包壳地裸奔执行」，而是明确拒收
+  });
+
+  it("非流式 chat() 名单置空 → 不包壳：runToolLoop 收到的就是原工具表（toBe 同一引用）", async () => {
+    process.env.AGENT_CONFIRM_TOOLS = "";
     const demoTools = createDemoTools();
     vi.mocked(runToolLoop).mockResolvedValue({ text: "ok", messages: [], steps: 1 });
 

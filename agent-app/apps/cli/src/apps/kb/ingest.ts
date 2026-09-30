@@ -58,10 +58,19 @@ export async function main(args: string[] = []): Promise<void> {
   const fileName = basename(filePath);
   let result: IngestResult;
   try {
-    // 主干链路（切块 → 向量化 → 快照落盘）：embedding 失败抛带配置指引的中文 Error
+    // 主干链路（切块 → 向量化 → 快照落盘）：embedding 失败抛带配置指引的中文 Error；
+    // 入库闸拒绝（红队加固轮 H1）抛「已拒收」错误——两类错误的呈现口径不同，见下方分支
     result = await ingestSource(fileName, text);
   } catch (err) {
-    printEmbeddingHint(err instanceof Error ? err.message : String(err));
+    const detail = err instanceof Error ? err.message : String(err);
+    if (detail.includes("已拒收")) {
+      // 入库闸拒绝是安全策略结果，不是配置错误：直接呈现拒收原因，
+      // 不套 embedding 配置提示（与 chat CLI 的 H4 保险丝话术同一条纪律：
+      // 错误呈现不得误导用户去查 .env）
+      console.error(`入库失败：${detail}`);
+    } else {
+      printEmbeddingHint(detail);
+    }
     process.exitCode = 1;
     return;
   }

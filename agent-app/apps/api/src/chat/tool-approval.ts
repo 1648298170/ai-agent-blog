@@ -4,8 +4,11 @@
 // 等用户 POST /api/chat/approve 裁决（允许 → 放行原 execute；拒绝 → 返回结构化拒绝值，
 // 模型看得见、能礼貌收尾）。超时未裁决自动拒绝。
 // （引擎侧可复用的审批闸门是另一个工作流，这里刻意不依赖、不 import。）
+// 红队加固轮 H10：裁决结果（允许/拒绝/超时）落审计日志——此前只在 SSE 与 stderr 里飘过，
+// 事后无法回答「什么时候批了什么」。auditLog 从 @agent-app/engine 根桶走（fire-and-forget）。
 import { randomUUID } from "node:crypto";
 import type { ChatStreamEvent } from "@agent-app/shared";
+import { auditLog } from "@agent-app/engine";
 import { loadEnv } from "@agent-app/engine/config";
 import type { ToolCallOptions, ToolSet } from "ai";
 
@@ -70,6 +73,8 @@ export class ToolApprovalRegistry {
     return new Promise<boolean>((resolve) => {
       const timer = setTimeout(() => {
         this.pending.delete(approvalId); // 过期条目清理：迟到的裁决不再命中
+        // H10 审计：超时自动拒绝也是裁决结果的一种（fail-closed 的证据链）
+        auditLog("approval.timeout", { approvalId, sessionId: info.sessionId, toolName: info.toolName });
         resolve(false); // 自动拒绝
       }, timeoutMs);
       this.pending.set(approvalId, {
@@ -99,6 +104,12 @@ export class ToolApprovalRegistry {
     if (entry === undefined || entry.sessionId !== decision.sessionId) return false;
     this.pending.delete(decision.approvalId);
     clearTimeout(entry.timer);
+    // H10 审计：用户裁决结果落痕（允许/拒绝是两条不同的事件名，检索时直接 grep）
+    auditLog(decision.approved ? "approval.granted" : "approval.denied", {
+      approvalId: decision.approvalId,
+      sessionId: decision.sessionId,
+      toolName: entry.toolName,
+    });
     entry.resolve(decision.approved);
     return true;
   }

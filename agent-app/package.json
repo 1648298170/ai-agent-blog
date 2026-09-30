@@ -17,6 +17,7 @@
     "mcp:server": "tsx apps/cli/src/apps/mcp-server/cli.ts",
     "test:service": "tsx apps/cli/src/apps/service/__tests__.ts",
     "test:api": "turbo run test --filter=@agent-app/api",
+    "test:chat": "tsx apps/cli/src/apps/chat/__tests__.ts",
     "test:engine": "pnpm --filter @agent-app/engine test",
     "test:infra": "node scripts/run-infra-tests.mjs",
     "test:mcp-dogfood": "node scripts/mcp-dogfood.mjs",

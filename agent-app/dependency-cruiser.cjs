@@ -14,6 +14,12 @@
 //   - evals/runner.ts、evals/scorers/trajectory.ts、service/workers.ts 合法 import 了
 //     kernel 的 agent-loop.ts（评测与工人都要跑 runToolLoop）——因此「禁止 import agent-loop」
 //     规则只约束 rag/tools/memory/guardrails/mcp 五个层，不放行 evals 与 service。
+//   - rag/ingest.ts（红队加固轮 H1，修 E3 知识库投毒）合法 import 了
+//     guardrails/validate.ts（inspectTextInput 纯函数）与 guardrails/audit.ts（JSONL
+//     纯追加日志）——入库闸是 SECURITY.md 加固清单 R1.1 指定的修复位置；两个目标模块
+//     均零状态、不反向依赖 rag，不会产生传递性循环。因此「rag 禁止向上依赖」规则
+//     对 guardrails 的这两个纯函数模块放行（to.pathNot 豁免），rag 依赖 L2 其余模块
+//     与整个 L3 仍然全部禁止。
 //
 // 运行：pnpm lint:deps（退出码 0 = 通过，1 = 有违规）
 
@@ -40,11 +46,13 @@ module.exports = {
     {
       // 为什么：rag 是最底层特性（L1）。它一旦反向依赖上层，所有依赖 rag 的层
       // 都会被拖进传递性循环，检索零件也就再也无法单独复用/单独测试。
+      // 豁免（红队加固轮 H1）：rag/ingest.ts → guardrails/validate.ts + audit.ts
+      // （入库闸指定位置，见文件头部豁免清单）——两个纯函数模块放行，其余 L2/L3 仍禁止。
       name: "引擎-rag禁止向上依赖",
       severity: "error",
-      comment: "rag 是 L1 最底层：禁止依赖 L2（tools/memory/guardrails）与 L3（service/mcp/evals）。",
+      comment: "rag 是 L1 最底层：禁止依赖 L2（tools/memory/guardrails）与 L3（service/mcp/evals）；唯一豁免是 ingest.ts 的入库闸依赖 guardrails 的 validate/audit 两个纯函数模块。",
       from: { path: RAG },
-      to: { path: [L2, L3] },
+      to: { path: [L2, L3], pathNot: "^packages/engine/src/guardrails/(validate|audit)\\.ts$" },
     },
     {
       // 为什么：L2（工具/记忆/护栏）是可独立复用的零件层；依赖 L3 产品层

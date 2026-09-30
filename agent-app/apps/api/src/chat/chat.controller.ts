@@ -1,12 +1,16 @@
 // chat.controller.ts —— /api/chat：非流式 + SSE 流式两个入口
 // SSE 用 @Res() 接管原生响应（week20 Day 2 同款）：三个响应头 + flushHeaders 让浏览器
 // 立刻进入接收状态，事件逐帧写出；@Res() 路由绕过拦截器，res.end() 必须亲手收尾。
-import { Body, Controller, Get, NotFoundException, Param, Post, Query, Res } from "@nestjs/common";
+// 红队加固轮：H3 流式端点消息长度 400（SSE 头之前判——头一旦 flush就只能走 error 事件，
+// 给不出 4xx 状态码）；H5 非流式端点的审批不支持错误映射 400（跟随既有 HttpException
+// 过滤器放行路径，见 all-exceptions.filter）。
+import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Query, Res } from "@nestjs/common";
 import { ApiBadRequestResponse, ApiExcludeEndpoint, ApiNotFoundResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import type { ApproveChatResponse, SessionHistoryResponse, SessionSummary } from "@agent-app/shared";
 import { buildConfigHint } from "../common/all-exceptions.filter.js";
-import { ChatService } from "./chat.service.js";
+import { describeMessageTooLong, MESSAGE_MAX_CHARS } from "../common/message-limits.js";
+import { ChatService, NON_STREAM_APPROVAL_UNSUPPORTED } from "./chat.service.js";
 import { ApproveChatDto, CreateChatDto } from "./dto.js";
 
 @ApiTags("chat")
@@ -16,9 +20,18 @@ export class ChatController {
 
   /** 非流式：跑完工具循环一次性返回 */
   @Post()
-  @ApiBadRequestResponse({ description: "请求体校验失败（缺 message / 类型不符 / 未知字段被剥）" })
+  @ApiBadRequestResponse({ description: "请求体校验失败（缺 message / 类型不符 / 超过 8000 字符上限 / 未知字段被剥）；或该端点不支持工具审批（AGENT_CONFIRM_TOOLS 名单非空）" })
   async chat(@Body() dto: CreateChatDto): Promise<{ sessionId: string; reply: string }> {
-    return this.chatService.chat({ message: dto.message, sessionId: dto.sessionId });
+    try {
+      return await this.chatService.chat({ message: dto.message, sessionId: dto.sessionId });
+    } catch (err) {
+      // H5：服务层的「不支持审批」是客户端用法错误（应改用流式端点），映射 400——
+      // 跟随既有的 HttpException 过滤器放行路径，其余错误原样上抛走 500 + hint 链路
+      if (err instanceof Error && err.message === NON_STREAM_APPROVAL_UNSUPPORTED) {
+        throw new BadRequestException(err.message);
+      }
+      throw err;
+    }
   }
 
   /** 历史会话列表（会话记录功能）：按最后活跃降序，每项含轮数与更新时间。
@@ -79,6 +92,14 @@ export class ChatController {
     @Query("sessionId") sessionId: string | undefined,
     @Res() res: Response,
   ): Promise<void> {
+    // H3 长度闸（红队加固轮，修 E8）：必须在 SSE 头之前判——头一旦 flush，连接就只能以
+    // 200 + error 事件收场，给不出 4xx 状态码。这里手写 JSON 错误体与全局过滤器的
+    // { statusCode, message } 形状对齐（@Res() 路由不走过滤器，形状自己负责）。
+    if (message !== undefined && message.length > MESSAGE_MAX_CHARS) {
+      res.status(400).json({ statusCode: 400, message: describeMessageTooLong(message.length) });
+      return;
+    }
+
     res.setHeader("Content-Type", "text/event-stream; charset=utf-8");
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("X-Accel-Buffering", "no"); // 告诉反向代理别替我攒

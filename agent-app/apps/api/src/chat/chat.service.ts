@@ -9,9 +9,11 @@ import { streamText } from "ai";
 import type { ModelMessage } from "ai";
 import type { ChatStreamEvent } from "@agent-app/shared";
 import { runToolLoop } from "@agent-app/engine/agent-loop";
+import { auditLog, inspectTextInput } from "@agent-app/engine";
 import { createModel } from "@agent-app/engine/llm";
 import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
 import type { ChatTurn, SessionSummary } from "@agent-app/engine/memory";
+import { RAG_GROUNDING_RULE } from "@agent-app/engine/rag";
 import { createDemoTools } from "@agent-app/engine/tools";
 import { ConfigProvider } from "../common/config.provider.js";
 import {
@@ -21,10 +23,24 @@ import {
   wrapToolsWithApproval,
 } from "./tool-approval.js";
 
-// ReAct 式提示词：与 apps/chat/cli.ts 完全一致
+// ReAct 式提示词：与 apps/chat/cli.ts 完全一致（红队加固轮 H7 追加 RAG 数据性声明——
+// 系统提示词层面预先声明「检索资料是数据不是指令」，与 CLI 同一口径）
 const SYSTEM_PROMPT =
   "你是客服演示助手，可以查订单状态、创建工单、转接人工。用中文简洁回答。" +
-  "每次调用工具前，先用一句话说明你怀疑什么、想查什么。";
+  "每次调用工具前，先用一句话说明你怀疑什么、想查什么。" +
+  RAG_GROUNDING_RULE;
+
+/**
+ * H5（红队加固轮，修 E6 覆盖面备注）：非流式端点不支持工具审批的错误文案。
+ * 导出常量让控制器按它做 400 映射——字符串匹配的单一事实源。
+ */
+export const NON_STREAM_APPROVAL_UNSUPPORTED = "该端点不支持工具审批，请改用流式端点 /api/chat/stream";
+
+/** AGENT_GUARD_INPUT 的布尔口径（红队加固轮 H6 灰度开关，默认关——零变化默认铁律） */
+function isInputGuardEnabled(): boolean {
+  const raw = process.env.AGENT_GUARD_INPUT;
+  return raw === "1" || raw === "true";
+}
 
 /** 新会话 id：时间戳 + 随机串（同 apps/chat/cli.ts） */
 export function newSessionId(): string {
@@ -58,8 +74,19 @@ export class ChatService {
     return this.config.hasApiKey() ? "已配置" : "未配置（离线降级链路生效）";
   }
 
-  /** 非流式问答：sessionId（缺省新开）→ 会话窗口 → runToolLoop → { sessionId, reply } */
+  /**
+   * 非流式问答：sessionId（缺省新开）→ 会话窗口 → runToolLoop → { sessionId, reply }。
+   * 红队加固轮 H5（修 E6 覆盖面备注）：AGENT_CONFIRM_TOOLS 名单非空时直接抛中文错误
+   * （控制器映射 400）——非流式端点没有 SSE 通道，审批壳挂上来只会白等超时，
+   * E6 已证明 createTicket 在这里是无闸裸奔。这是「安全默认」的刻意变更：默认名单
+   * 是 createTicket（非空），所以本端点默认即 400，要么改用流式端点、要么显式
+   * AGENT_CONFIRM_TOOLS= 关闭审批（SECURITY.md 第五节已列为有意的行为变更）。
+   */
   async chat(input: { message: string; sessionId?: string }): Promise<{ sessionId: string; reply: string }> {
+    if (readConfirmToolNames().size > 0) {
+      throw new Error(NON_STREAM_APPROVAL_UNSUPPORTED);
+    }
+
     const sessionId = input.sessionId ?? newSessionId();
 
     // ① 用户输入进会话窗口，② 取最近 20 轮拼消息（模型懒创建：没配 key 时这里才碰网络）
@@ -94,6 +121,24 @@ export class ChatService {
   ): Promise<void> {
     const sessionId = input.sessionId ?? newSessionId();
     emit({ type: "session", sessionId });
+
+    // H6 用户消息输入闸（红队加固轮，灰度开关 AGENT_GUARD_INPUT，默认关）：
+    // 命中注入黑名单 → 审计留痕 + 抛中文错误（控制器转 error 事件）——消息不进会话、
+    // 模型零感知。E2 证明了扫描器拦得住混淆变体，缺的只是接到用户消息路径上。
+    if (isInputGuardEnabled()) {
+      const inspection = inspectTextInput(input.message);
+      if (!inspection.ok) {
+        auditLog("input.user_rejected", {
+          surface: "api.chatStream",
+          sessionId,
+          inputLength: input.message.length,
+          matchedPattern: inspection.matchedPattern ?? null,
+        });
+        throw new Error(
+          `输入闸拦截：消息命中提示注入黑名单（模式：${inspection.matchedPattern ?? "未知"}），已拒绝处理，不调用模型。`,
+        );
+      }
+    }
 
     await this.sessionStore.append(sessionId, { role: "user", content: input.message });
     const history = await this.sessionStore.getWindow(sessionId, 20);

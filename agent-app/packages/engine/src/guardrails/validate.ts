@@ -57,6 +57,10 @@ export const INJECTION_PATTERNS: RegExp[] = [
   /(?:打印|输出|显示|展示|泄露|透露|复述|公开)[^。！？.!?]{0,12}(?:你的)?(?:系统提示|系统指令)/,
   // 英文：print/show/reveal… (your/the) system prompt
   /(?:print|show|reveal|leak|dump|repeat|display|output)\s+(?:your\s+|the\s+)?system\s+prompt/,
+  // 伪装系统指令标记：文本里出现「[系统指令]」「【系统提示】」式成对括号标签（红队加固轮
+  // 新增，E3 知识库投毒载荷的明示特征——正常业务文本不会把「系统指令」当小节标题）。
+  // 只认成对括号包住的标签本体：讨论提示词概念的普通句子（「什么是系统提示词工程？」）不误伤。
+  /(?:\[|【)\s*(?:系统指令|系统提示)\s*(?:\]|】)/,
 ];
 
 /** 输入闸判定结果：ok=false 时 matchedPattern 给出命中的模式源码（定位是哪一条拦的） */

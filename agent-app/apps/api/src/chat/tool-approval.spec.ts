@@ -2,9 +2,13 @@
 // 覆盖：env 名单解析（默认值 / 逗号分隔 / 置空）、approval 事件字段、拒绝 → 结构化拒绝值、
 // 允许 → 原工具透传、超时自动拒绝（50ms 真实短超时）、过期后迟到裁决 → false、
 // sessionId 不匹配 → false、非名单工具原对象直传（不包壳）。
+// 红队加固轮 H10：三类裁决结果（允许/拒绝/超时）落审计日志的 JSONL 断言。
 // 前置说明：默认值用例依赖 agent-app/.env 里没有 AGENT_CONFIRM_*（当前如此）——
 // 进程环境变量优先于 .env，其余用例全部显式设 env，不受 .env 影响。
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { ChatStreamEvent } from "@agent-app/shared";
 import { createDemoTools } from "@agent-app/engine/tools";
 import {
@@ -185,5 +189,116 @@ describe("ToolApprovalRegistry + wrapToolsWithApproval（审批包壳）", () =>
     const { wrapped } = setup(new Set(["noSuchTool"]));
     expect(wrapped.createTicket).toBe(tools.createTicket);
     expect(wrapped.getOrderStatus).toBe(tools.getOrderStatus);
+  });
+});
+
+// ══ 红队加固轮 H10：审批裁决落审计日志 ═══════════════════════════════════════
+describe("审批审计（approval.granted / approval.denied / approval.timeout）", () => {
+  const tools = createDemoTools();
+  const INPUT = { subject: "退款", description: "订单 A-1024 未送达" };
+  const tempDirs: string[] = [];
+  let auditPath: string;
+  let originalAuditLog: string | undefined;
+
+  /** 读当前审计文件里的全部 JSONL 条目 */
+  function readAudit(): Array<Record<string, unknown>> {
+    try {
+      return readFileSync(auditPath, "utf8")
+        .split("\n")
+        .filter((line) => line.trim() !== "")
+        .map((line) => JSON.parse(line));
+    } catch {
+      return []; // 文件还没写出来：视为空
+    }
+  }
+
+  beforeEach(() => {
+    // 审计路径指到本套件专属临时文件（覆盖 vitest.config 的默认临时路径）
+    const dir = mkdtempSync(join(tmpdir(), "agent-app-approval-audit-"));
+    tempDirs.push(dir);
+    auditPath = join(dir, "audit.log");
+    originalAuditLog = process.env.AGENT_AUDIT_LOG;
+    process.env.AGENT_AUDIT_LOG = auditPath;
+  });
+
+  afterEach(() => {
+    if (originalAuditLog === undefined) delete process.env.AGENT_AUDIT_LOG;
+    else process.env.AGENT_AUDIT_LOG = originalAuditLog;
+  });
+
+  afterAll(() => {
+    for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("用户允许 → approval.granted 一行（approvalId/sessionId/toolName 对齐）", async () => {
+    const registry = new ToolApprovalRegistry();
+    const events: ChatStreamEvent[] = [];
+    const wrapped = wrapToolsWithApproval(tools, new Set(["createTicket"]), {
+      sessionId: "s_audit",
+      registry,
+      emit: (event) => events.push(event),
+      timeoutMs: 5000,
+    });
+    const execute = wrapped.createTicket.execute;
+    if (execute === undefined) throw new Error("unreachable：包壳工具必有 execute");
+
+    const pending = execute(INPUT, { toolCallId: "call_audit_1", messages: [] });
+    const approval = events[0];
+    if (approval.type !== "approval") throw new Error("unreachable");
+    registry.resolveApproval({ sessionId: "s_audit", approvalId: approval.approvalId, approved: true });
+    await pending;
+
+    const granted = readAudit().filter((entry) => entry.event === "approval.granted");
+    expect(granted.length).toBe(1);
+    expect(granted[0].approvalId).toBe(approval.approvalId);
+    expect(granted[0].sessionId).toBe("s_audit");
+    expect(granted[0].toolName).toBe("createTicket");
+  });
+
+  it("用户拒绝 → approval.denied 一行", async () => {
+    const registry = new ToolApprovalRegistry();
+    const events: ChatStreamEvent[] = [];
+    const wrapped = wrapToolsWithApproval(tools, new Set(["createTicket"]), {
+      sessionId: "s_audit",
+      registry,
+      emit: (event) => events.push(event),
+      timeoutMs: 5000,
+    });
+    const execute = wrapped.createTicket.execute;
+    if (execute === undefined) throw new Error("unreachable");
+    const pending = execute(INPUT, { toolCallId: "call_audit_2", messages: [] });
+    const approval = events[0];
+    if (approval.type !== "approval") throw new Error("unreachable");
+    registry.resolveApproval({ sessionId: "s_audit", approvalId: approval.approvalId, approved: false });
+    await expect(pending).resolves.toEqual({ denied: true, reason: "用户拒绝执行该工具" });
+
+    const denied = readAudit().filter((entry) => entry.event === "approval.denied");
+    expect(denied.length).toBe(1);
+    expect(denied[0].toolName).toBe("createTicket");
+  });
+
+  it("超时未裁决 → approval.timeout 一行（不产生 granted/denied——超时是独立裁决源）", async () => {
+    const registry = new ToolApprovalRegistry();
+    const events: ChatStreamEvent[] = [];
+    const wrapped = wrapToolsWithApproval(tools, new Set(["createTicket"]), {
+      sessionId: "s_audit",
+      registry,
+      emit: (event) => events.push(event),
+      timeoutMs: 50,
+    });
+    const execute = wrapped.createTicket.execute;
+    if (execute === undefined) throw new Error("unreachable");
+
+    await expect(execute(INPUT, { toolCallId: "call_audit_3", messages: [] })).resolves.toEqual({
+      denied: true,
+      reason: "用户拒绝执行该工具",
+    });
+
+    const entries = readAudit();
+    const timeouts = entries.filter((entry) => entry.event === "approval.timeout");
+    expect(timeouts.length).toBe(1);
+    expect(timeouts[0].toolName).toBe("createTicket");
+    // 超时路径不经 resolveApproval，不该有 granted/denied 记账
+    expect(entries.filter((entry) => entry.event === "approval.granted" || entry.event === "approval.denied")).toHaveLength(0);
   });
 });

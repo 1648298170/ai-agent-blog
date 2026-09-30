@@ -5,6 +5,8 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { extname } from "node:path";
+import { auditLog } from "../guardrails/audit.js";
+import { inspectTextInput } from "../guardrails/validate.js";
 import { chunkText } from "./chunker.js";
 import { embed } from "./embedder.js";
 import { createRagStoreFromEnv } from "./store.factory.js";
@@ -61,6 +63,31 @@ export async function ingestSource(fileName: string, text: string): Promise<Inge
   const title = fileName.replace(/\.[^.]+$/, "");
 
   const pieces = chunkText(trimmed);
+
+  // 入库闸（红队加固轮 H1，修 E3 头条——知识库投毒的入口防线）：每块过输入闸，
+  // 命中即整篇拒收。这是「安全默认」的刻意变更（不再有开关）：投毒内容一旦入库，
+  // 检索面（kb prompt 拼装 / searchKnowledgeBase 工具回灌 / MCP 检索外溢）全是下游，
+  // 在入口拦一次比在每个出口拦 N 次便宜也可靠。整篇拒收而非剥离坏块：切块有重叠，
+  // 载荷可能横跨多块，剥离后残块仍可能携带半句注入话术。扫描放在 embed 之前——
+  // 被拒收的文档不应该再花一次向量化调用。
+  // 依赖说明：这里是 rag(L1) → guardrails(L2) 的两条被豁免边之一（纯函数 validate.ts
+  // 与纯追加 audit.ts），已在 dependency-cruiser.cjs 登记，见该文件头部的豁免清单。
+  for (let i = 0; i < pieces.length; i++) {
+    const inspection = inspectTextInput(pieces[i]);
+    if (!inspection.ok) {
+      auditLog("ingest.rejected", {
+        fileName,
+        docId,
+        chunkIndex: i,
+        matchedPattern: inspection.matchedPattern ?? null,
+      });
+      throw new Error(
+        `入库拒收：《${title}》第 ${i + 1} 块命中疑似提示注入（模式：${inspection.matchedPattern ?? "未知"}）——` +
+          "提示：含疑似提示注入内容，已拒收——见 guardrails。整篇文档未入库，请清理文档后重试。",
+      );
+    }
+  }
+
   const vectors = await embed(pieces); // 入库与检索必须同一个 embedding 模型，坐标空间才一致
 
   // 换库的接缝升级为 env 工厂（RAG_STORE=memory|json|pgvector，默认 json）：

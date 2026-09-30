@@ -7,8 +7,9 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { AllExceptionsFilter } from "../common/all-exceptions.filter.js";
+import { MESSAGE_MAX_CHARS } from "../common/message-limits.js";
 import { ChatController } from "./chat.controller.js";
-import { ChatService } from "./chat.service.js";
+import { NON_STREAM_APPROVAL_UNSUPPORTED, ChatService } from "./chat.service.js";
 
 /** ChatService 的最小替身：控制器只调 chat / chatStream / listSessions / getSessionHistory */
 const chatServiceMock = {
@@ -119,5 +120,43 @@ describe("ChatController（/api/chat）", () => {
       turns: [{ role: "user", content: "你好" }],
     });
     expect(chatServiceMock.getSessionHistory).toHaveBeenCalledExactlyOnceWith("s_aaa");
+  });
+
+  // ══ 红队加固轮（H3 长度闸 / H5 非流式审批映射）════════════════════════════
+
+  it("H3：POST /api/chat 消息超过 8000 字符 → 400 + 中文超长提示（DTO MaxLength 拦截）", async () => {
+    const res = await request(app.getHttpServer())
+      .post("/api/chat")
+      .send({ message: "啊".repeat(MESSAGE_MAX_CHARS + 1) });
+
+    expect(res.status).toBe(400);
+    expect(res.body.statusCode).toBe(400);
+    expect(JSON.stringify(res.body.message)).toContain(String(MESSAGE_MAX_CHARS));
+    // 校验失败不应触达业务服务
+    expect(chatServiceMock.chat).not.toHaveBeenCalled();
+  });
+
+  it("H3：GET /api/chat/stream 消息超过 8000 字符 → 400 JSON（SSE 头之前拦截，非 error 事件）", async () => {
+    // 用 ASCII 超长而不是中文：GET 查询参数过大会先撞 Node 的 HTTP 头上限（约 16KB，
+    // 一个中文字 URL 编码后 9 字节）——连接层直接断（ECONNRESET，事实上也 fail-closed），
+    // 路由内的 400 只对「超过 8000 但 URL 还装得下」的区间可达。ASCII 8001 字节稳落在该区间。
+    const long = encodeURIComponent("a".repeat(MESSAGE_MAX_CHARS + 1));
+    const res = await request(app.getHttpServer()).get(`/api/chat/stream?message=${long}`);
+
+    expect(res.status).toBe(400);
+    expect(res.body.statusCode).toBe(400);
+    expect(res.body.message).toContain("消息过长");
+    expect(chatServiceMock.chatStream).not.toHaveBeenCalled();
+  });
+
+  it("H5：服务层抛「该端点不支持工具审批」→ 控制器映射 400（中文 message，走 HttpException 放行路径）", async () => {
+    chatServiceMock.chat.mockRejectedValue(new Error(NON_STREAM_APPROVAL_UNSUPPORTED));
+
+    const res = await request(app.getHttpServer()).post("/api/chat").send({ message: "你好" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.statusCode).toBe(400);
+    expect(res.body.message).toContain("该端点不支持工具审批");
+    expect(res.body.message).toContain("/api/chat/stream");
   });
 });
