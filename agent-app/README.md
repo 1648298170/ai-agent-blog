@@ -255,7 +255,7 @@ pnpm stack:down   # 只撤 api + web，pg/redis 原地不动（数据卷照旧�
 ```powershell
 # 前置：BFF 起在 3000
 pnpm api                                # 或分步：pnpm build 后 node apps/api/dist/main.js
-pnpm --filter @agent-app/web dev        # 前端开发服务器 http://localhost:3001
+pnpm --filter @agent-app/web dev        # 前端开发服务器 http://localhost:3009（端口由 apps/web/.env 的 PORT 驱动）
 ```
 
 环境变量 `NEXT_PUBLIC_API_BASE`（默认 `http://localhost:3000`）：BFF 地址，Next 构建期内联；部署时改地址只需带着它重新 `pnpm --filter @agent-app/web build`。

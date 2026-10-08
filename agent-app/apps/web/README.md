@@ -7,7 +7,7 @@ week20 形态：**Next.js 前端消费自研 BFF API**（`apps/api`），类型�
 
 ```powershell
 # 前置：BFF 起在 3000（agent-app 根：pnpm build 后 node apps/api/dist/main.js）
-pnpm --filter @agent-app/web dev     # 开发服务器 http://localhost:3001
+pnpm --filter @agent-app/web dev     # 开发服务器 http://localhost:3009（端口由 apps/web/.env 的 PORT 驱动）
 # 或根 README 的组合方式：pnpm api（3000）+ 另一个终端 pnpm --filter @agent-app/web dev
 ```
 

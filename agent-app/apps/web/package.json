@@ -4,9 +4,9 @@
   "private": true,
   "description": "week20 Next.js 前端：消费自研 BFF API（SSE 流式对话 / 知识库管理 / 智能客服），类型契约来自 @agent-app/shared",
   "scripts": {
-    "dev": "next dev -p 3001",
+    "dev": "node scripts/dev.mjs",
     "build": "next build",
-    "start": "next start -p 3001",
+    "start": "next start",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
