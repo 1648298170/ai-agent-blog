@@ -20,6 +20,9 @@ import { approveChat, fetchSessionHistory, streamChat } from "../lib/api";
 /** localStorage key：聊天会话跨刷新保持（与 service 页同一模式） */
 const SESSION_STORAGE_KEY = "agent:chat:sessionId";
 
+/** localStorage key：ops 运营后台访问令牌（用户自己的钥匙，只存在本浏览器） */
+const OPS_TOKEN_STORAGE_KEY = "ops-token";
+
 /** 自增 id：会话内消息的唯一 key（「新会话」不回卷，避免 React key 复用） */
 let nextMessageId = 1;
 
@@ -34,29 +37,39 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // ops 令牌输入面板（外部数据源）：开合 + 输入框草稿 + 已配置状态
+  const [tokenOpen, setTokenOpen] = useState(false);
+  const [tokenInput, setTokenInput] = useState("");
+  const [hasOpsToken, setHasOpsToken] = useState(false);
   const listRef = useRef<HTMLDivElement>(null);
 
   // 挂载时恢复上次会话：读 localStorage → 拉全量历史 → 渲染气泡
   // （localStorage 只在客户端存在，放 effect 避免 hydration 不一致；失败静默，留给新对话）
   useEffect(() => {
     const saved = window.localStorage.getItem(SESSION_STORAGE_KEY);
-    if (saved === null || saved === "") return;
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetchSessionHistory(saved);
-        if (cancelled) return;
-        setSessionId(res.sessionId);
-        setMessages(res.turns.map(turnToMessage));
-      } catch {
-        // API 未起 / 会话已过期：保持全新界面，下一条消息由 BFF 新开会话
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    if (saved !== null && saved !== "") {
+      let cancelled = false;
+      void (async () => {
+        try {
+          const res = await fetchSessionHistory(saved);
+          if (cancelled) return;
+          setSessionId(res.sessionId);
+          setMessages(res.turns.map(turnToMessage));
+        } catch {
+          // API 未起 / 会话已过期：保持全新界面，下一条消息由 BFF 新开会话
+        }
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }
+    // ops 令牌状态恢复：已保存的令牌回填输入框（可编辑），状态点亮「已配置」
+    const savedToken = window.localStorage.getItem(OPS_TOKEN_STORAGE_KEY);
+    if (savedToken !== null && savedToken !== "") {
+      setTokenInput(savedToken);
+      setHasOpsToken(true);
+    }
   }, []);
-
   // 新消息 / 流式追加时保持滚到底部
   useEffect(() => {
     const el = listRef.current;
@@ -171,7 +184,11 @@ export default function ChatPage() {
       { id: nextMessageId++, role: "assistant", content: "", steps: [], status: "streaming" },
     ]);
     try {
-      await streamChat({ message: text, sessionId: sessionId ?? undefined }, handleEvent);
+      // 外部数据源令牌：每次发送从 localStorage 现读（面板里改完不用刷新页面状态机），
+      // 没存过/已清空则不带 X-Ops-Token 头——BFF 侧不给外部工具，零行为变化
+      const token = window.localStorage.getItem(OPS_TOKEN_STORAGE_KEY);
+      const headers = token !== null && token.trim() !== "" ? { "X-Ops-Token": token } : undefined;
+      await streamChat({ message: text, sessionId: sessionId ?? undefined }, handleEvent, { headers });
       // 连接正常结束但没等到 done 事件（如中途断流）：补一个收尾态，不悬挂「思考中…」
       patchLast((msg) => (msg.status === "streaming" ? { ...msg, status: "done" } : msg));
     } catch (err) {
@@ -189,7 +206,27 @@ export default function ChatPage() {
     setSessionId(null);
     setInput("");
     setHistoryOpen(false);
+    setTokenOpen(false);
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
+  }
+
+  /** 保存 ops 令牌：写 localStorage + 点亮「已配置」+ 收起面板（空输入视同清除） */
+  function handleSaveToken(): void {
+    const trimmed = tokenInput.trim();
+    if (trimmed === "") {
+      handleClearToken();
+      return;
+    }
+    window.localStorage.setItem(OPS_TOKEN_STORAGE_KEY, trimmed);
+    setHasOpsToken(true);
+    setTokenOpen(false);
+  }
+
+  /** 清除 ops 令牌：删 localStorage + 回到「未配置」（下次发送不再带头） */
+  function handleClearToken(): void {
+    window.localStorage.removeItem(OPS_TOKEN_STORAGE_KEY);
+    setTokenInput("");
+    setHasOpsToken(false);
   }
 
   /** 切换到某个历史会话：拉全量历史渲染 + 记住该会话 + 收起面板 */
@@ -227,9 +264,37 @@ export default function ChatPage() {
             {sessionId === null ? "未开始会话" : `会话：${sessionId}`}
           </span>
           <div className="flex shrink-0 items-center gap-2">
+            {/* 🔑 ops 令牌入口：状态点（绿=已配置 / 灰=未配置）+ 弹出面板填令牌 */}
             <button
               type="button"
-              onClick={() => setHistoryOpen((open) => !open)}
+              onClick={() => {
+                setTokenOpen((open) => !open);
+                setHistoryOpen(false); // 两个弹出面板互斥，避免叠在一处
+              }}
+              disabled={streaming}
+              title={hasOpsToken ? "ops 数据源令牌：已配置（点开可修改）" : "ops 数据源令牌：未配置（点开填入）"}
+              className={
+                tokenOpen
+                  ? "flex min-h-10 items-center gap-1.5 rounded-lg border border-blue-300 bg-blue-50 px-3 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+                  : "flex min-h-10 items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+              }
+            >
+              🔑 ops
+              <span
+                aria-hidden
+                className={
+                  hasOpsToken
+                    ? "inline-block h-2 w-2 rounded-full bg-emerald-500"
+                    : "inline-block h-2 w-2 rounded-full bg-gray-300"
+                }
+              />
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setHistoryOpen((open) => !open);
+                setTokenOpen(false); // 两个弹出面板互斥，避免叠在一处
+              }}
               disabled={streaming}
               className={
                 historyOpen
@@ -249,6 +314,55 @@ export default function ChatPage() {
             </button>
           </div>
         </div>
+        {tokenOpen && (
+          <div className="absolute inset-x-0 top-full z-20 mt-1 w-full rounded-xl border border-gray-200 bg-white p-4 shadow-lg sm:left-auto sm:right-0 sm:w-96">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">填入 ops 访问令牌</span>
+              <span
+                className={
+                  hasOpsToken
+                    ? "rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[11px] font-medium text-emerald-700"
+                    : "rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-[11px] font-medium text-gray-500"
+                }
+              >
+                {hasOpsToken ? "已配置" : "未配置"}
+              </span>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <input
+                type="password"
+                value={tokenInput}
+                onChange={(e) => setTokenInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleSaveToken();
+                }}
+                placeholder="粘贴运营后台的访问令牌"
+                autoComplete="off"
+                className="min-h-10 flex-1 rounded-lg border border-gray-300 bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+              />
+              <button
+                type="button"
+                onClick={handleSaveToken}
+                className="min-h-10 shrink-0 rounded-lg bg-blue-600 px-3.5 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+              >
+                保存
+              </button>
+              {hasOpsToken && (
+                <button
+                  type="button"
+                  onClick={handleClearToken}
+                  className="min-h-10 shrink-0 rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-500 transition-colors hover:bg-gray-100"
+                >
+                  清除
+                </button>
+              )}
+            </div>
+            <p className="mt-2 text-xs leading-5 text-gray-400">
+              令牌只保存在本浏览器（localStorage），每次发送对话时经 X-Ops-Token 头转交后端；
+              未填写时问商家数据，助手会提示先来这里填令牌。
+            </p>
+          </div>
+        )}
         {historyOpen && (
           <SessionHistoryPanel
             currentSessionId={sessionId}

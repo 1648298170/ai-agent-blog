@@ -116,16 +116,19 @@ export function fetchServiceSessionHistory(sessionId: string): Promise<SessionHi
  * EventSource 不便携带 sessionId 查询参数，也拿不到非 200 响应的错误体；
  * 手解析按空行（\n\n）切帧、取 data: 行 JSON，与 apps/api 控制器的
  * write(`data: ${json}\n\n`) 逐帧对应；事件类型即 @agent-app/shared 的 ChatStreamEvent。
+ * options.headers（可选）：附加请求头——外部数据源令牌（X-Ops-Token）经此逐请求携带，
+ * 不传时行为与旧签名完全一致（additive）。
  */
 export async function streamChat(
   input: { message: string; sessionId?: string },
   onEvent: (event: ChatStreamEvent) => void,
+  options?: { headers?: Record<string, string> },
 ): Promise<void> {
   const params = new URLSearchParams({ message: input.message });
   if (input.sessionId) params.set("sessionId", input.sessionId);
 
   const res = await fetch(`${API_BASE}/api/chat/stream?${params.toString()}`, {
-    headers: { Accept: "text/event-stream" },
+    headers: { Accept: "text/event-stream", ...options?.headers },
   });
   if (!res.ok) throw new Error(await readErrorMessage(res));
   if (res.body === null) throw new Error("响应没有可读流（当前环境不支持流式读取）");
