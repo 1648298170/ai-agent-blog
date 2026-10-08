@@ -230,3 +230,99 @@ describe("runToolLoop 的步间文本（Thought 管道）", () => {
     expect(events[0]?.text).toBeUndefined(); // function-calling 模型的常态：无伴随文本
   });
 });
+
+describe("runToolLoop 的入参校验（zod refine 在手写循环内生效）", () => {
+  /** 带时间窗口 refine 的月份工具（镜像 ops 的 dateTimeField 设计：对象入参 + 字段级校验） */
+  function monthTools() {
+    return {
+      order_statistics: tool({
+        description: "查询某月订单统计",
+        inputSchema: z.object({
+          dateTime: z
+            .string()
+            .regex(/^\d{4}-\d{2}$/, "月份格式必须是 yyyy-MM")
+            .refine(inMonthWindow, {
+              message: "月份超出合理范围——用户只说月份未说年份时，按当前年份重试",
+            })
+            .describe("统计月份 yyyy-MM"),
+        }),
+        execute: async ({ dateTime }) => ({ month: dateTime, orderNum: 7 }),
+      }),
+    };
+  }
+
+  const inMonthWindow = (dateTime: string): boolean => {
+    const m = /^(\d{4})-(\d{2})$/.exec(dateTime);
+    if (m === null) return false;
+    const t = new Date(Number(m[1]), Number(m[2]) - 1, 1);
+    const now = new Date();
+    return (
+      t >= new Date(now.getFullYear(), now.getMonth() - 24, 1) &&
+      t <= new Date(now.getFullYear(), now.getMonth() + 2, 1)
+    );
+  };
+
+  /** 工具调用轮：指定月份的 order_statistics 调用 */
+  function statCall(dateTime: string): ScriptedResponse {
+    return {
+      content: [
+        {
+          type: "tool-call" as const,
+          toolCallId: `val-spec-${Math.random().toString(36).slice(2, 8)}`,
+          toolName: "order_statistics",
+          input: JSON.stringify({ dateTime }),
+        },
+      ],
+      finishReason: "tool-calls",
+      usage: ZERO_USAGE,
+      warnings: [],
+    };
+  }
+
+  it("越界年份（2022-09）→ 校验失败 errorOutput 回灌，不执行工具", async () => {
+    let call = 0;
+    const model = new MockLanguageModelV2({
+      doGenerate: async () => {
+        call += 1;
+        return call === 1 ? statCall("2022-09") : textResponse("最终回答。");
+      },
+    });
+    const steps: ToolLoopStepEvent[] = [];
+
+    await runToolLoop({
+      model,
+      messages: [{ role: "user", content: "查去年9月的订单" }],
+      tools: monthTools(),
+      maxSteps: 3,
+      onStep: (event) => steps.push(event),
+    });
+
+    expect(steps.length).toBe(1);
+    expect(steps[0]?.output).toMatchObject({ error: expect.stringContaining("入参未通过校验") });
+  });
+
+  it("模型自我修正：越界被拒后按提示改用窗口内年份 → 工具真实执行", async () => {
+    let call = 0;
+    const model = new MockLanguageModelV2({
+      doGenerate: async () => {
+        call += 1;
+        // 第一轮幻觉 2022-09（被 refine 拒）→ 第二轮「按当前年份重试」改用 2026-09 → 第三轮收尾
+        return call === 1 ? statCall("2022-09") : call === 2 ? statCall("2026-09") : textResponse("已查到。");
+      },
+    });
+    const steps: ToolLoopStepEvent[] = [];
+
+    const result = await runToolLoop({
+      model,
+      messages: [{ role: "user", content: "查今年9月的订单" }],
+      tools: monthTools(),
+      maxSteps: 4,
+      onStep: (event) => steps.push(event),
+    });
+
+    expect(steps.length).toBe(2);
+    expect(steps[0]?.output).toMatchObject({ error: expect.stringContaining("入参未通过校验") }); // 越界被拒
+    expect(steps[1]?.output).toMatchObject({ month: "2026-09", orderNum: 7 }); // 修正后真实执行
+    expect(result.text).toContain("已查到");
+  });
+});

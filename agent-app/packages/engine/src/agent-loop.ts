@@ -14,6 +14,7 @@
 //   教程示例里的裸对象在这版类型收紧了：正常结果用 { type: "json" }，失败用 { type: "error-json" }。
 import { generateText, tool as defineTool } from "ai";
 import type { LanguageModel, ModelMessage, ToolSet } from "ai";
+import { z } from "zod";
 import { preview, trace } from "./trace.js";
 
 /** 手写循环的入参：model / messages / tools / maxSteps，maxSteps 对应 SDK 版的 stopWhen: isStepCount(n) */
@@ -127,24 +128,48 @@ export async function runToolLoop(options: RunToolLoopOptions): Promise<ToolLoop
 
     for (const call of result.toolCalls) {
       const tool = tools[call.toolName];
-      let output;
+      // 显式联合类型 + 兜底初值：新增入参校验分支后，嵌套 try/catch + failed 旗标的
+      // 控制流让 TS 的定赋值分析推不出「全路径已赋值」（TS2454）——兜底分支理论不可达
+      //（下面每个路径都会覆盖 output），但它让类型系统满意且防御未来的漏网路径。
+      let output: ReturnType<typeof jsonOutput> | ReturnType<typeof errorOutput> = errorOutput({
+        error: `工具 ${call.toolName} 内部错误：输出未生成（理论不可达的兜底分支）`,
+      });
       let failed = false;
-      if (tool?.execute) {
-        try {
-          // ② 调度：execute 就是普通函数；call.input 已由 SDK 按 schema 解析好
-          output = jsonOutput(await tool.execute(call.input, {
-            toolCallId: call.toolCallId,
-            messages,
-          }));
-        } catch (err) {
-          failed = true;
-          output = errorOutput({
-            error: `工具 ${call.toolName} 执行失败：${err instanceof Error ? err.message : String(err)}`,
-          });
-        }
-      } else {
+      if (tool === undefined || tool.execute === undefined) {
         failed = true;
         output = errorOutput({ error: `未知工具或工具无实现：${call.toolName}` });
+      } else {
+        // ⓪ 入参校验：SDK 在自己执行工具时会按 schema 解析校验入参，手写循环同样要做——
+        // 否则 zod 的 refine（如月份时间窗口）在这条路径上不会运行。
+        // 校验失败的错误作为 tool-result 回灌给模型，模型可按提示修正参数重试。
+        // 实测案例（2026-09）：用户说「9月份」未说年份，模型幻觉 dateTime=2022-09——
+        // 月份窗口 refine 把它挡下，模型按提示改用当前年份重试。
+        // 校验只对 zod schema 生效；jsonSchema 包装（MCP 外部工具）的入参校验交给上游。
+        const schema = tool.inputSchema;
+        if (schema instanceof z.ZodType) {
+          const parsed = schema.safeParse(call.input);
+          if (!parsed.success) {
+            failed = true;
+            const issues = parsed.error.issues.map((issue) => issue.message).join("；");
+            output = errorOutput({
+              error: `工具 ${call.toolName} 的入参未通过校验：${issues}。请修正参数后重新调用。`,
+            });
+          }
+        }
+        if (!failed) {
+          try {
+            // ② 调度：execute 就是普通函数；call.input 已由 SDK 按 schema 解析好
+            output = jsonOutput(await tool.execute(call.input, {
+              toolCallId: call.toolCallId,
+              messages,
+            }));
+          } catch (err) {
+            failed = true;
+            output = errorOutput({
+              error: `工具 ${call.toolName} 执行失败：${err instanceof Error ? err.message : String(err)}`,
+            });
+          }
+        }
       }
 
       messages.push({
