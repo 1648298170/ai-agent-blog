@@ -36,6 +36,15 @@ const ENV_KEYS = [
   "PG_CONNECTION_STRING",
   "REDIS_URL",
   "EMBEDDING_DIM",
+  // 2026-09 外部数据源插件（datasource/providers/ops）：运营后台地址 / 令牌头名 / 令牌
+  // 方案 / 超时。进清单的理由与 EPISODIC_STORE 同款：不进清单时进程环境变量会被丢掉、
+  // 只有写 .env 文件才生效——冒烟与容器注入（docker compose environment）走的都是进程环境变量。
+  // OPS_TOKEN_SCHEME 是冒烟探明 SPA 真实拦截器发「裸 token」后留的后门：默认裸值，
+  // 设为 Bearer 可切 "Bearer <token>" 形态。
+  "OPS_BASE_URL",
+  "OPS_TOKEN_HEADER",
+  "OPS_TOKEN_SCHEME",
+  "OPS_TIMEOUT_MS",
 ] as const;
 
 /**
@@ -95,7 +104,13 @@ export function loadEnv(): Record<string, string> {
   const merged = { ...fileVars };
   for (const key of ENV_KEYS) {
     const v = process.env[key];
-    if (v !== undefined && v !== "") merged[key] = v;
+    // 2026-09 修正：显式设成空串的进程环境变量也要覆盖 .env 文件值（与 dotenv
+    // 语义一致——dotenv 从不改动已存在的环境变量，哪怕它是空串）。旧逻辑把空串
+    // 当「没设」，会让「stub 空 base 地址 → 数据源应关闭」这类显式置空失效，
+    // .env 里残留的旧值反 leaked 回来（isConfigured 单测在带 OPS_BASE_URL 的
+    // .env 机器上稳定复现）。消费方全部对空串做了归一（trim/默认值兜底），
+    // 显式空串覆盖不会改变任何运行行为，只是把「进程优先」承诺补齐。
+    if (v !== undefined) merged[key] = v;
   }
   return merged;
 }

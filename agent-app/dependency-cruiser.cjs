@@ -6,6 +6,9 @@
 //   L1  rag/          检索零件（最底层特性，谁都可以用）
 //   L2  tools/ memory/ guardrails/   工具与记忆（只准往下用 rag）
 //   L3  service/ mcp/ evals/         产品层（可用 L2 + L1）
+//   平行 datasource/  外部数据源插件（provider plugin pattern，2026-09）：
+//   只依赖 kernel 的 config.ts（loadEnv）+ types.ts（AgentTool），不进出任何
+//   特性层——新增第三方只加 providers/ 下一个文件，无需为本层新增任何规则。
 //
 // 约定：模块只能 import 【本层文件 + 更低层 + kernel + 外部包】；任何向上的边都是违规。
 // 注意：kernel 根桶文件 index.ts 是包的公共出口，re-export 特性层不算违规（见引擎-agent-loop 规则的豁免说明）。

@@ -82,6 +82,10 @@
       "types": "./dist/evals/index.d.ts",
       "default": "./dist/evals/index.js"
     },
+    "./datasource": {
+      "types": "./dist/datasource/index.d.ts",
+      "default": "./dist/datasource/index.js"
+    },
     "./mcp": {
       "types": "./dist/mcp/index.d.ts",
       "default": "./dist/mcp/index.js"
