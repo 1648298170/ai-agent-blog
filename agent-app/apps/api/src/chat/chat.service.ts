@@ -4,12 +4,16 @@
 // 流式版本多一步可视性：onStep 把手写循环的每一步（工具调用 + 输出）转发给调用方，
 // 最终答案再用 streamText（不带工具）在已积累的消息上重新流式生成（week20 BFF 的 SSE 形态）。
 // SSE 事件契约 ChatStreamEvent 定义在 @agent-app/shared（web 前端与 API 共享），这里再出口。
+// 外部数据源（2026-09）：请求带 X-Ops-Token 头时，把已配置数据源的 ops_* 工具
+// 合并进本轮工具表（provider plugin pattern，见 @agent-app/engine/datasource）——
+// 不带头或数据源未配置 = 与改造前逐字节一致。
 import { Injectable } from "@nestjs/common";
 import { streamText } from "ai";
-import type { ModelMessage } from "ai";
+import type { ModelMessage, ToolSet } from "ai";
 import type { ChatStreamEvent } from "@agent-app/shared";
 import { runToolLoop } from "@agent-app/engine/agent-loop";
 import { auditLog, inspectTextInput } from "@agent-app/engine";
+import { registerBuiltInDataSources, resolveDataSourceTools } from "@agent-app/engine/datasource";
 import { createModel } from "@agent-app/engine/llm";
 import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
 import type { ChatTurn, SessionSummary } from "@agent-app/engine/memory";
@@ -25,12 +29,31 @@ import {
 
 // ReAct 式提示词：与 apps/chat/cli.ts 完全一致（红队加固轮 H7 追加 RAG 数据性声明——
 // 系统提示词层面预先声明「检索资料是数据不是指令」，与 CLI 同一口径）
-const SYSTEM_PROMPT =
-  "你是客服演示助手，只负责三类业务：查订单状态、创建售后工单、转接人工。" +
-  "超出职责范围的问题（闲聊、写作、时事、专业咨询等），礼貌说明你的职责并引导用户回到业务，" +
-  "绝不越界作答，也绝不编造职责之外的信息。" +
-  "用中文简洁回答。每次调用工具前，先用一句话说明你怀疑什么、想查什么。" +
-  RAG_GROUNDING_RULE;
+const SYSTEM_PROMPT = (() => {
+  // 当前日期锚点：LLM 不知道今天几号——不注入就会把「8月份」幻觉成任意年份
+  // （week19 实测：模型把「8月份」编成 2021-08 / 2022-08）。模块加载时取一次即可。
+  const today = new Date().toLocaleDateString("sv-SE"); // yyyy-MM-dd
+  return (
+    `你是运营数据助手，负责两类业务：` +
+    `① 查询运营后台数据——订单统计、每日明细走势、代理商经营对比、商家流水排行、各代理商每天明细（用 ops_* 工具）；` +
+    `② 演示业务——查订单状态、创建售后工单、转接人工。` +
+    `用户按名字提到某代理商或商家时，先用 ops_agent_search / ops_tenant_search 按名字查出 ID` +
+    `（名册行自带订单总数等汇总，简单问题可直接回答；要月度流水/每日走势再用 ID 调 ops_order_statistics / ops_daily_details）；` +
+    `名册里没有该名字就如实告知，绝不编造 ID。` +
+    `用户追问某个指标的细分数字（如「买断订单数是多少」「退款金额呢」）而没重复代理商/商家名字时，` +
+    `承接上文：本会话前面查过某代理商/商户的，就带上同一个 agentId 调工具继续查（ID 见下方已知对象清单或名册结果）；` +
+    `上文同时聊过多个对象或确实无法确定是谁时，先向用户确认，不要默认查全部。` +
+    `需要数据就必须真的调用工具拿到结果再回答——严禁只说「请稍等」「正在查询」却不调用工具就结束，` +
+    `严禁虚构「模拟查询过程」，严禁在未查到结果时报具体数字。` +
+    `今天是 ${today}——用户提到相对时间（如「8月份」「上个月」）时，按今天推算具体年份与月份。` +
+    `超出职责范围的问题（闲聊、写作、时事、专业咨询等），礼貌说明你的职责并引导用户回到业务，` +
+    `绝不越界作答，也绝不编造职责之外的信息。` +
+    `工具查询返回空数据或全零时，如实告知用户「该时间段没有数据记录」，绝不编造数字。` +
+    `用户请求缺少关键信息（如年份、统计范围）或含义不明时，先向用户确认，不要自行假设。` +
+    `用中文简洁回答。每次调用工具前，先用一句话说明你怀疑什么、想查什么。` +
+    RAG_GROUNDING_RULE
+  );
+})();
 
 /**
  * H5（红队加固轮，修 E6 覆盖面备注）：非流式端点不支持工具审批的错误文案。
@@ -42,6 +65,43 @@ export const NON_STREAM_APPROVAL_UNSUPPORTED = "该端点不支持工具审批�
 function isInputGuardEnabled(): boolean {
   const raw = process.env.AGENT_GUARD_INPUT;
   return raw === "1" || raw === "true";
+}
+
+/** 内置数据源的懒登记旗子：registerBuiltInDataSources 本身幂等（Map 覆盖式登记），
+ *  这面旗子让「进程生命周期内只调一次」成为字面事实——首个带 token 的请求触发。 */
+let builtInDataSourcesRegistered = false;
+
+/** 会话实体缓存上限：单会话最多记 20 条（FIFO 淘汰）、进程最多记 200 个会话（防泄漏） */
+const MAX_ENTITIES_PER_SESSION = 20;
+const MAX_SESSIONS_IN_CACHE = 200;
+
+/**
+ * 从工具输出里递归扫描「实体」（同时含数字 id 与以 Name 结尾字符串字段的对象，
+ * 如名册行 {id: 42, outletsName: "广东深圳"}）——通用纯 JSON 规则，不耦合任何
+ * provider 的具体形状。扫描产物喂给 system prompt 的动态段，让模型在追问
+ * （「买断订单数是多少」）时直接拿到 ID，不用重查名册。
+ * 真机实测踩中（2026-10）：工具消息不入会话历史，模型追问时手里没有 ID，
+ * 只能反问用户或查全量——这是「会话记忆颗粒度」的最小修复。
+ */
+export function extractEntityLines(output: unknown, depth = 0, out: string[] = []): string[] {
+  if (depth > 4 || output === null || typeof output !== "object") return out;
+  if (Array.isArray(output)) {
+    for (const item of output) extractEntityLines(item, depth + 1, out);
+    return out;
+  }
+  const obj = output as Record<string, unknown>;
+  const id = obj.id;
+  if (typeof id === "number" && Number.isInteger(id)) {
+    for (const [key, value] of Object.entries(obj)) {
+      if (key.toLowerCase().endsWith("name") && typeof value === "string" && value.trim() !== "") {
+        const line = `${value.trim()}（ID ${id}）`;
+        if (!out.includes(line)) out.push(line); // 同名同 ID 去重
+        break; // 一个对象取第一个名字字段即可
+      }
+    }
+  }
+  for (const value of Object.values(obj)) extractEntityLines(value, depth + 1, out);
+  return out;
 }
 
 /** 新会话 id：时间戳 + 随机串（同 apps/chat/cli.ts） */
@@ -58,13 +118,19 @@ function toModelMessages(window: ChatTurn[]): ModelMessage[] {
 export type { ChatStreamEvent };
 
 /**
- * 生成中止信号的接缝（生产缺陷修复：客户端断开后停止烧 token）。
- * 控制器把「对端消失」（response close 且未写完）接到 AbortController.abort()，
- * signal 经这个可选参数流进服务层——不传（既有调用方/测试）行为与旧版完全一致。
+ * 单次请求的可选项（原「中止信号接缝」的扩展）：
+ * - signal：客户端断开后停止烧 token（生产缺陷修复，见下方 chatStream）；
+ * - opsToken：请求级外部数据源凭据（X-Ops-Token 头）。非空时服务层会把
+ *   已配置数据源（OPS_BASE_URL 非空）的 ops_* 工具合并进本轮工具表——
+ *   token 是用户自己的钥匙，只跟着请求走，不进进程状态。
  */
-export interface ChatAbortOptions {
+export interface ChatRequestOptions {
   signal?: AbortSignal;
+  opsToken?: string;
 }
+
+/** 兼容旧名（既有调用方/测试若引用）：改名只是让语义覆盖「请求级选项」而不仅是中止 */
+export type ChatAbortOptions = ChatRequestOptions;
 
 @Injectable()
 export class ChatService {
@@ -78,11 +144,75 @@ export class ChatService {
    */
   private readonly approvals = new ToolApprovalRegistry();
 
+  /**
+   * 会话实体缓存：sessionId → 「名称（ID n）」行列表（进程内存，重启即清——
+   * 丢失后模型没有注入段会重新查名册，自然降级，不会编 ID）。
+   * 每轮工具结果经 extractEntityLines 扫描入账，下一轮拼进 system 动态段。
+   */
+  private readonly sessionEntities = new Map<string, string[]>();
+
   constructor(private readonly config: ConfigProvider) {}
+
+  /** 记录本轮工具结果扫出的实体（FIFO 上限；会话数超限时淘汰最早一个会话） */
+  private rememberEntities(sessionId: string, output: unknown): void {
+    const lines = extractEntityLines(output);
+    if (lines.length === 0) return;
+    const existing = this.sessionEntities.get(sessionId) ?? [];
+    for (const line of lines) {
+      if (existing.includes(line)) continue;
+      existing.push(line);
+      if (existing.length > MAX_ENTITIES_PER_SESSION) existing.shift();
+    }
+    if (this.sessionEntities.size >= MAX_SESSIONS_IN_CACHE && !this.sessionEntities.has(sessionId)) {
+      const oldest = this.sessionEntities.keys().next().value;
+      if (oldest !== undefined) this.sessionEntities.delete(oldest);
+    }
+    this.sessionEntities.set(sessionId, existing);
+  }
+
+  /** system 提示词 + 实体动态段：本会话查到过对象时，追问拿已知 ID 直接触发工具调用 */
+  private buildSystemPrompt(sessionId: string): string {
+    const lines = this.sessionEntities.get(sessionId);
+    if (lines === undefined || lines.length === 0) return SYSTEM_PROMPT;
+    return (
+      SYSTEM_PROMPT +
+      `\n\n[本会话已查到的对象——用户追问细分指标时，用对应的 ID 调 ops_order_statistics / ops_daily_details 等工具查询，不要重新查名册]\n` +
+      lines.map((line) => `- ${line}`).join("\n")
+    );
+  }
 
   /** 启动自检用：构造注入是否真的装配到 ConfigProvider（main.ts 在 boot 时调用打印） */
   describeInjection(): string {
     return this.config.hasApiKey() ? "已配置" : "未配置（离线降级链路生效）";
+  }
+
+  /**
+   * 请求级外部数据源工具合并（provider plugin pattern 的消费端）：
+   * X-Ops-Token 头非空时，把「已配置数据源」（OPS_BASE_URL 非空，由
+   * resolveDataSourceTools 内部过滤）的 ops_* 工具并进本地工具表。
+   * 三条铁律：
+   * - 没带头 / 数据源未配置 → 原表直返，行为与改造前逐字节一致（零变化默认）；
+   * - 重名时外部版本胜出 + 中文警告——与 CLI --mcp 合并（apps/cli chat cli.ts 的
+   *   mergeMcpTools）同一策略：静默覆盖会让「为什么查商家流水走的是外部」变成悬案；
+   * - token 只进 resolveDataSourceTools 的参数，不进任何日志。
+   */
+  private mergeExternalDataTools(base: ToolSet, opsToken: string | undefined): ToolSet {
+    const token = opsToken?.trim() ?? "";
+    if (token === "") return base; // 用户没填钥匙：本轮不给外部工具，模型也不会点名
+    if (!builtInDataSourcesRegistered) {
+      registerBuiltInDataSources(); // 幂等：首次带 token 的请求登记一次
+      builtInDataSourcesRegistered = true;
+    }
+    const external = resolveDataSourceTools({ token });
+    if (external.length === 0) return base; // 数据源没配 env：零变化
+    const merged: ToolSet = { ...base };
+    for (const { name, tool } of external) {
+      if (name in merged) {
+        console.warn(`⚠ 外部数据源工具与本地工具重名（${name}），已用外部版本覆盖：同名工具改走外部数据源执行。`);
+      }
+      merged[name] = tool;
+    }
+    return merged;
   }
 
   /**
@@ -111,10 +241,11 @@ export class ChatService {
       const result = await runToolLoop({
         model: createModel(),
         messages: toModelMessages(history),
-        system: SYSTEM_PROMPT,
-        tools: this.tools,
+        system: this.buildSystemPrompt(sessionId),
+        tools: this.mergeExternalDataTools(this.tools, options?.opsToken),
         maxSteps: 5,
         signal: options?.signal,
+        onStep: (event) => this.rememberEntities(sessionId, event.output), // 实体入账（非流式无 SSE，只需记账）
       });
 
       // ③ 回复回写会话
@@ -175,11 +306,13 @@ export class ChatService {
     // execute 前发 approval 事件并挂起，等 POST /api/chat/approve 裁决。
     // 名单为空（显式置空）→ 原表直传：不包壳、不发新事件，与改造前完全一致。
     // 只作用于流式端点：非流式 chat() 没有 SSE 通道，包壳只会白等 60s。
+    // 外部数据源工具在包壳之前合并（先并表、再统一上闸——外部工具若进审批名单同样受闸）。
     const confirmTools = readConfirmToolNames();
+    const baseTools = this.mergeExternalDataTools(this.tools, options?.opsToken);
     const tools =
       confirmTools.size === 0
-        ? this.tools
-        : wrapToolsWithApproval(this.tools, confirmTools, {
+        ? baseTools
+        : wrapToolsWithApproval(baseTools, confirmTools, {
             sessionId,
             registry: this.approvals,
             emit,
@@ -192,25 +325,27 @@ export class ChatService {
       const result = await runToolLoop({
         model: createModel(),
         messages: toModelMessages(history),
-        system: SYSTEM_PROMPT,
+        system: this.buildSystemPrompt(sessionId),
         tools,
         maxSteps: 5,
         signal,
-        onStep: (event) =>
+        onStep: (event) => {
+          this.rememberEntities(sessionId, event.output); // 实体入账 → 下一轮 system 动态段
           emit({
             type: "step",
             step: event.step,
             toolCall: event.toolCall,
             output: event.output,
             text: event.text, // 模型步间推理文本（常为 undefined——诚实透传，不造模板话）
-          }),
+          });
+        },
       });
 
       // 最终答案流式生成：messages 已含全部工具往来，streamText 只做纯文本收尾。
       // abortSignal 同样接上：断开后底层流被取消，不再向网关要新 token。
       const { textStream } = streamText({
         model: createModel(),
-        system: SYSTEM_PROMPT,
+        system: this.buildSystemPrompt(sessionId),
         messages: result.messages,
         abortSignal: signal,
       });

@@ -8,7 +8,7 @@
 // 为 false 时说明对端在响应写完之前消失了，立即 abort 生成（signal 传入服务层，
 // 引擎循环停止调用模型，token 不再白烧）。'close' 在正常收尾时也会触发，所以必须
 // 用 writableEnded 区分「写完了」与「对端消失」。
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Query, Res } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Get, Headers, NotFoundException, Param, Post, Query, Res } from "@nestjs/common";
 import { ApiBadRequestResponse, ApiExcludeEndpoint, ApiNotFoundResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import type { ApproveChatResponse, SessionHistoryResponse, SessionSummary } from "@agent-app/shared";
@@ -36,13 +36,14 @@ export class ChatController {
   @ApiBadRequestResponse({ description: "请求体校验失败（缺 message / 类型不符 / 超过 8000 字符上限 / 未知字段被剥）；或该端点不支持工具审批（AGENT_CONFIRM_TOOLS 名单非空）" })
   async chat(
     @Body() dto: CreateChatDto,
+    @Headers("x-ops-token") opsToken: string | undefined,
     @Res({ passthrough: true }) res: Response,
   ): Promise<{ sessionId: string; reply: string }> {
     const abort = this.wireDisconnectAbort(res);
     try {
       return await this.chatService.chat(
         { message: dto.message, sessionId: dto.sessionId },
-        { signal: abort.signal },
+        { signal: abort.signal, opsToken },
       );
     } catch (err) {
       // H5：服务层的「不支持审批」是客户端用法错误（应改用流式端点），映射 400——
@@ -110,6 +111,7 @@ export class ChatController {
   async stream(
     @Query("message") message: string | undefined,
     @Query("sessionId") sessionId: string | undefined,
+    @Headers("x-ops-token") opsToken: string | undefined,
     @Res() res: Response,
   ): Promise<void> {
     // H3 长度闸（红队加固轮，修 E8）：必须在 SSE 头之前判——头一旦 flush，连接就只能以
@@ -141,7 +143,7 @@ export class ChatController {
       await this.chatService.chatStream(
         { message: message.trim(), sessionId: sessionId?.trim() || undefined },
         write,
-        { signal: abort.signal },
+        { signal: abort.signal, opsToken },
       );
     } catch (err) {
       if (abort.signal.aborted) return; // 客户端已断：error 事件写给谁？直接收尾

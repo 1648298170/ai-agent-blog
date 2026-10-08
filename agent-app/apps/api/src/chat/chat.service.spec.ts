@@ -10,7 +10,7 @@ import { runToolLoop } from "@agent-app/engine/agent-loop";
 import { createModel } from "@agent-app/engine/llm";
 import { ConfigProvider } from "../common/config.provider.js";
 import type { ChatStreamEvent } from "./chat.service.js";
-import { NON_STREAM_APPROVAL_UNSUPPORTED, ChatService } from "./chat.service.js";
+import { NON_STREAM_APPROVAL_UNSUPPORTED, ChatService, extractEntityLines } from "./chat.service.js";
 
 // vi.mock 会被提升到文件顶部，工厂里引用的 mock 必须用 vi.hoisted 同步提升
 const { streamTextMock } = vi.hoisted(() => ({ streamTextMock: vi.fn() }));
@@ -68,7 +68,7 @@ describe("ChatService", () => {
     // 模型来自引擎工厂、系统提示词与最大步数与 CLI 同款
     const options = vi.mocked(runToolLoop).mock.calls[0][0];
     expect(options.model).toEqual({ fake: "model" });
-    expect(options.system).toContain("客服演示助手");
+    expect(options.system).toContain("运营数据助手");
     expect(options.maxSteps).toBe(5);
     // 首轮消息就是这条用户输入
     expect(options.messages).toEqual([{ role: "user", content: "订单 A-1024 到哪了" }]);
@@ -299,5 +299,52 @@ describe("ChatService", () => {
     await service.chat({ message: "你好" });
 
     expect(vi.mocked(runToolLoop).mock.calls[0][0].signal).toBeUndefined();
+  });
+
+  it("追问继承集成：同会话第二轮的 system 带实体动态段；不同会话不受污染", async () => {
+    vi.mocked(runToolLoop).mockResolvedValue({ text: "已查询", messages: [], steps: 1 });
+
+    // 第一轮：onStep 模拟名册结果流过 → 实体入账
+    vi.mocked(runToolLoop).mockImplementationOnce(async (options) => {
+      (options as { onStep?: (e: { output: unknown }) => void }).onStep?.({
+        output: { records: [{ id: 42, outletsName: "广东深圳" }] },
+      });
+      return { text: "已查询", messages: [], steps: 1 };
+    });
+    await service.chat({ message: "查询广东深圳这个代理商2026年9月的订单数据", sessionId: "s_entity" });
+
+    // 第二轮：system 应带「已查到的对象」动态段
+    vi.mocked(runToolLoop).mockResolvedValue({ text: "买断 15 单", messages: [], steps: 1 });
+    await service.chat({ message: "买断订单数是多少", sessionId: "s_entity" });
+
+    const system = vi.mocked(runToolLoop).mock.calls[1][0].system as string;
+    expect(system).toContain("本会话已查到的对象");
+    expect(system).toContain("广东深圳（ID 42）");
+
+    // 不同会话不受污染
+    vi.mocked(runToolLoop).mockResolvedValue({ text: "好的", messages: [], steps: 1 });
+    await service.chat({ message: "你好", sessionId: "s_other" });
+    expect(vi.mocked(runToolLoop).mock.calls[2][0].system).not.toContain("广东深圳");
+  });
+});
+
+describe("extractEntityLines：工具输出 → 实体行（追问继承的数据源）", () => {
+  it("名册形状：records 里的 {id, *Name} 行被扫出，去重、跳过给模型的提示字段", () => {
+    const output = {
+      records: [
+        { id: 42, outletsName: "广东深圳", orderNum: 999 },
+        { id: 43, outletsName: "广东深圳分公司", orderNum: 300 },
+        { id: 42, outletsName: "广东深圳" }, // 重复：同名同 ID 去重
+      ],
+      total: 2,
+      提示: "给模型的指令字段不产生实体",
+    };
+    expect(extractEntityLines(output)).toEqual(["广东深圳（ID 42）", "广东深圳分公司（ID 43）"]);
+  });
+
+  it("非实体形状：单对象统计（无 id+Name 对）、null、缺名称的都扫不出", () => {
+    expect(extractEntityLines({ orderFlowAmount: 1200, orderNum: 30 })).toEqual([]); // 无 id
+    expect(extractEntityLines(null)).toEqual([]);
+    expect(extractEntityLines({ records: [{ id: 42 }] })).toEqual([]); // 有 id 无名称
   });
 });
