@@ -1,4 +1,4 @@
-﻿// chat.controller.spec.ts —— /api/chat 控制器单测：校验管道 + 异常过滤器 + 委派
+// chat.controller.spec.ts —— /api/chat 控制器单测：校验管道 + 异常过滤器 + 委派
 // 覆盖三件事（均不碰网络）：happy path（whitelist 剥未知字段）、缺 message → 400、
 // 服务抛错 → 过滤器输出 { statusCode, message, hint } 形状；另带 SSE 缺参的 error 事件契约。
 // ChatService 用 useValue 整体替换（控制器只关心它给的返回值/抛出的错误）。
@@ -13,7 +13,9 @@ import type { AddressInfo } from "node:net";
 import { AllExceptionsFilter } from "../common/all-exceptions.filter.js";
 import { MESSAGE_MAX_CHARS } from "../common/message-limits.js";
 import { ChatController } from "./chat.controller.js";
-import { NON_STREAM_APPROVAL_UNSUPPORTED, ChatService } from "./chat.service.js";
+import { ApprovalUnsupportedError, NON_STREAM_APPROVAL_UNSUPPORTED } from "./errors.js";
+import { ChatService } from "./chat.service.js";
+
 
 /** ChatService 的最小替身：控制器只调 chat / chatStream / listSessions / getSessionHistory */
 const chatServiceMock = {
@@ -181,7 +183,7 @@ describe("ChatController（/api/chat）", () => {
   });
 
   it("H5：服务层抛「该端点不支持工具审批」→ 控制器映射 400（中文 message，走 HttpException 放行路径）", async () => {
-    chatServiceMock.chat.mockRejectedValue(new Error(NON_STREAM_APPROVAL_UNSUPPORTED));
+    chatServiceMock.chat.mockRejectedValue(new ApprovalUnsupportedError());
 
     const res = await request(app.getHttpServer()).post("/api/chat").send({ message: "你好" });
 

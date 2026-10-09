@@ -23,7 +23,7 @@ import { createMcpClientBridge } from "@agent-app/engine/mcp";
 import type { McpClientBridge } from "@agent-app/engine/mcp";
 import { createRagStoreFromEnv, RAG_GROUNDING_RULE, setRagStore } from "@agent-app/engine/rag";
 import { enableTrace, preview } from "@agent-app/engine/trace";
-import { createDemoTools, IdempotencyRegistry, wrapToolsWithIdempotency } from "@agent-app/engine/tools";
+import { composeToolShells, createDemoTools, IdempotencyRegistry, wrapToolsWithIdempotency } from "@agent-app/engine/tools";
 import { searchKnowledgeBase } from "@agent-app/engine/tools";
 
 // ReAct 式提示词：让模型把「想查什么」显式化，排障日志才有内容（教程 agent-loop-ts.md）。
@@ -378,7 +378,7 @@ export async function main(args: string[] = []): Promise<void> {
         system: SYSTEM_PROMPT,
         // 工具执行幂等壳（scope=当前会话）：模型重试/重复提问不再重复建工单。
         // 请求级包装（/new 换会话后 scope 随之切换，旧会话的缓存天然隔离）。
-        tools: wrapToolsWithIdempotency(tools, idempotency, { scope: sessionId }),
+        tools: composeToolShells(tools, [(table) => wrapToolsWithIdempotency(table, idempotency, { scope: sessionId })]),
         maxSteps: 5,
       });
 

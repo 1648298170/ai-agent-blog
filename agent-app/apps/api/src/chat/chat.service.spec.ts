@@ -10,7 +10,8 @@ import { runToolLoop } from "@agent-app/engine/agent-loop";
 import { createModel } from "@agent-app/engine/llm";
 import { ConfigProvider } from "../common/config.provider.js";
 import type { ChatStreamEvent } from "./chat.service.js";
-import { NON_STREAM_APPROVAL_UNSUPPORTED, ChatService } from "./chat.service.js";
+import { ChatService } from "./chat.service.js";
+import { NON_STREAM_APPROVAL_UNSUPPORTED } from "./errors.js";
 
 // vi.mock 会被提升到文件顶部，工厂里引用的 mock 必须用 vi.hoisted 同步提升
 const { streamTextMock } = vi.hoisted(() => ({ streamTextMock: vi.fn() }));

@@ -4,3 +4,4 @@ export * from "./registry.js";
 export * from "./demo-tools.js";
 export * from "./kb-search.js";
 export * from "./idempotency.js";
+export * from "./compose.js";

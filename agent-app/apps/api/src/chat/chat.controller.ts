@@ -14,7 +14,8 @@ import type { Response } from "express";
 import type { ApproveChatResponse, SessionHistoryResponse, SessionSummary } from "@agent-app/shared";
 import { buildConfigHint } from "../common/all-exceptions.filter.js";
 import { describeMessageTooLong, MESSAGE_MAX_CHARS } from "../common/message-limits.js";
-import { ChatService, NON_STREAM_APPROVAL_UNSUPPORTED } from "./chat.service.js";
+import { ChatService } from "./chat.service.js";
+import { ApprovalUnsupportedError } from "./errors.js";
 import { ApproveChatDto, CreateChatDto } from "./dto.js";
 
 @ApiTags("chat")
@@ -47,7 +48,7 @@ export class ChatController {
     } catch (err) {
       // H5：服务层的「不支持审批」是客户端用法错误（应改用流式端点），映射 400——
       // 跟随既有的 HttpException 过滤器放行路径，其余错误原样上抛走 500 + hint 链路
-      if (err instanceof Error && err.message === NON_STREAM_APPROVAL_UNSUPPORTED) {
+      if (err instanceof ApprovalUnsupportedError) {
         throw new BadRequestException(err.message);
       }
       throw err;

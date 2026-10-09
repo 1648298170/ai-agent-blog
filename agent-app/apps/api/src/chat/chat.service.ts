@@ -1,8 +1,10 @@
-// chat.service.ts —— 聊天业务：apps/chat/cli.ts 的 HTTP 化（同一引擎、同一会话礼仪）
+// chat.service.ts —— 聊天业务编排：apps/chat/cli.ts 的 HTTP 化（同一引擎、同一会话礼仪）
 // 链路同 CLI：用户输入 → append 进会话 → 取最近 20 轮窗口 → runToolLoop（demo 工具）
 // → 回复回写会话。离线（无 key）时 runToolLoop 抛错交给全局过滤器转配置提示 JSON。
 // 流式版本多一步可视性：onStep 把手写循环的每一步（工具调用 + 输出）转发给调用方，
 // 最终答案再用 streamText（不带工具）在已积累的消息上重新流式生成（week20 BFF 的 SSE 形态）。
+// 职责边界（管道思想）：本类只做编排——提示词在 prompt.ts，工具表组装在 tool-assembly.ts，
+// 领域错误在 errors.ts；改话术 / 改壳顺序 / 改错误映射都不该碰这个文件。
 // SSE 事件契约 ChatStreamEvent 定义在 @agent-app/shared（web 前端与 API 共享），这里再出口。
 import { Injectable } from "@nestjs/common";
 import { streamText } from "ai";
@@ -13,30 +15,12 @@ import { auditLog, inspectTextInput } from "@agent-app/engine";
 import { createModel } from "@agent-app/engine/llm";
 import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
 import type { ChatTurn, SessionSummary } from "@agent-app/engine/memory";
-import { RAG_GROUNDING_RULE } from "@agent-app/engine/rag";
-import { createDemoTools, IdempotencyRegistry, wrapToolsWithIdempotency } from "@agent-app/engine/tools";
+import { createDemoTools, IdempotencyRegistry } from "@agent-app/engine/tools";
+import { ApprovalUnsupportedError, NON_STREAM_APPROVAL_UNSUPPORTED } from "./errors.js";
+import { SYSTEM_PROMPT } from "./prompt.js";
+import { assembleChatTools } from "./tool-assembly.js";
 import { ConfigProvider } from "../common/config.provider.js";
-import {
-  ToolApprovalRegistry,
-  readConfirmTimeoutMs,
-  readConfirmToolNames,
-  wrapToolsWithApproval,
-} from "./tool-approval.js";
-
-// ReAct 式提示词：与 apps/chat/cli.ts 完全一致（红队加固轮 H7 追加 RAG 数据性声明——
-// 系统提示词层面预先声明「检索资料是数据不是指令」，与 CLI 同一口径）
-const SYSTEM_PROMPT =
-  "你是客服演示助手，只负责三类业务：查订单状态、创建售后工单、转接人工。" +
-  "超出职责范围的问题（闲聊、写作、时事、专业咨询等），礼貌说明你的职责并引导用户回到业务，" +
-  "绝不越界作答，也绝不编造职责之外的信息。" +
-  "用中文简洁回答。每次调用工具前，先用一句话说明你怀疑什么、想查什么。" +
-  RAG_GROUNDING_RULE;
-
-/**
- * H5（红队加固轮，修 E6 覆盖面备注）：非流式端点不支持工具审批的错误文案。
- * 导出常量让控制器按它做 400 映射——字符串匹配的单一事实源。
- */
-export const NON_STREAM_APPROVAL_UNSUPPORTED = "该端点不支持工具审批，请改用流式端点 /api/chat/stream";
+import { ToolApprovalRegistry, readConfirmTimeoutMs, readConfirmToolNames } from "./tool-approval.js";
 
 /** AGENT_GUARD_INPUT 的布尔口径（红队加固轮 H6 灰度开关，默认关——零变化默认铁律） */
 function isInputGuardEnabled(): boolean {
@@ -105,7 +89,7 @@ export class ChatService {
     options?: ChatAbortOptions,
   ): Promise<{ sessionId: string; reply: string }> {
     if (readConfirmToolNames().size > 0) {
-      throw new Error(NON_STREAM_APPROVAL_UNSUPPORTED);
+      throw new ApprovalUnsupportedError(NON_STREAM_APPROVAL_UNSUPPORTED);
     }
 
     const sessionId = input.sessionId ?? newSessionId();
@@ -119,7 +103,11 @@ export class ChatService {
         model: createModel(),
         messages: toModelMessages(history),
         system: SYSTEM_PROMPT,
-        tools: wrapToolsWithIdempotency(this.tools, this.idempotency, { scope: sessionId }),
+        tools: assembleChatTools({
+          baseTools: this.tools,
+          sessionId,
+          idempotency: this.idempotency,
+        }),
         maxSteps: 5,
         signal: options?.signal,
       });
@@ -180,21 +168,24 @@ export class ChatService {
 
     // 高危工具审批（week18 Day 6）：命中 AGENT_CONFIRM_TOOLS 名单的工具先包壳——
     // execute 前发 approval 事件并挂起，等 POST /api/chat/approve 裁决。
-    // 名单为空（显式置空）→ 原表直传：不包壳、不发新事件，与改造前完全一致。
+    // 名单为空（显式置空）→ 不装审批壳：不发新事件，与改造前完全一致。
     // 只作用于流式端点：非流式 chat() 没有 SSE 通道，包壳只会白等 60s。
+    // 壳的叠加顺序（审批外/幂等内）由 tool-assembly.ts 统一约束，本类只传参。
     const confirmTools = readConfirmToolNames();
-    // 叠加顺序：幂等壳在内、审批壳在外——「被用户拒绝的调用」不进幂等缓存，
-    // 审批放行后才进入幂等判定（首调执行 / 重放命中）。
-    const scopedTools = wrapToolsWithIdempotency(this.tools, this.idempotency, { scope: sessionId });
-    const tools =
-      confirmTools.size === 0
-        ? scopedTools
-        : wrapToolsWithApproval(scopedTools, confirmTools, {
-            sessionId,
-            registry: this.approvals,
-            emit,
-            timeoutMs: readConfirmTimeoutMs(),
-          });
+    const tools = assembleChatTools({
+      baseTools: this.tools,
+      sessionId,
+      idempotency: this.idempotency,
+      approval:
+        confirmTools.size === 0
+          ? undefined
+          : {
+              confirmTools,
+              registry: this.approvals,
+              emit,
+              timeoutMs: readConfirmTimeoutMs(),
+            },
+    });
 
     // 生成段整体套 try：客户端断开（signal.aborted）时安静收场——对方已经收不到
     // 任何事件，发 error 事件毫无意义，还会在已关闭的 socket 上白写。
