@@ -1,21 +1,15 @@
 // app/page.tsx —— 智能对话页（首页）：SSE 事件驱动渲染 + 会话记录（跨刷新恢复 / 历史切换）。
-// 事件流（@agent-app/shared 的 ChatStreamEvent，与 api 实际线格式逐字段一致）：
-//   session → 记录 sessionId 并写入 localStorage（刷新后据此恢复）
-//   step    → 累积进该条回答的「思考过程」面板（Thought/Action/Observation）
-//   approval→ 高危工具待执行：渲染审批卡片（week18 Day 6），允许/拒绝经
-//             POST /api/chat/approve 裁决；流式期间连接保持打开、页面可交互
-//   token   → 逐段追加正文（注意：api 实际事件名是 token，不是 delta）
-//   done    → 收尾；error → 红色错误 + hint（如 LLM 未配置的中文提示）
-// 会话记录：挂载时读 localStorage 里保存的 sessionId → GET /api/chat/sessions/:id
-// 恢复历史气泡（压缩摘要轮渲染为居中弱化条）；顶部「历史会话」面板可列出并切换。
+//
+// 状态机形态：对话流是显式 reducer（lib/chat-state.ts 的 chatReducer），SSE 事件即
+// action——本组件只做「取状态 → dispatch → 副作用（localStorage / 滚动 / 请求）」，
+// 对话逻辑（事件如何演变状态）全部在纯函数里，可脱离组件测试。
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import type { ChatStreamEvent, SessionTurn } from "@agent-app/shared";
+import { useEffect, useReducer, useRef, useState } from "react";
 import MessageBubble from "../components/MessageBubble";
-import type { ApprovalRecord, ChatMessage } from "../components/MessageBubble";
 import SessionHistoryPanel from "../components/SessionHistoryPanel";
 import { approveChat, fetchSessionHistory, streamChat } from "../lib/api";
+import { chatReducer, initialChatState, turnToMessage } from "../lib/chat-state";
 
 /** localStorage key：聊天会话跨刷新保持（与 service 页同一模式） */
 const SESSION_STORAGE_KEY = "agent:chat:sessionId";
@@ -23,14 +17,9 @@ const SESSION_STORAGE_KEY = "agent:chat:sessionId";
 /** 自增 id：会话内消息的唯一 key（「新会话」不回卷，避免 React key 复用） */
 let nextMessageId = 1;
 
-/** 恢复的历史轮 → 气泡消息（system 为压缩摘要轮，MessageBubble 渲染为弱化条） */
-function turnToMessage(turn: SessionTurn): ChatMessage {
-  return { id: nextMessageId++, role: turn.role, content: turn.content, steps: [], status: "done" };
-}
-
 export default function ChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [state, dispatch] = useReducer(chatReducer, initialChatState);
+  const { messages, sessionId } = state;
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -46,8 +35,11 @@ export default function ChatPage() {
       try {
         const res = await fetchSessionHistory(saved);
         if (cancelled) return;
-        setSessionId(res.sessionId);
-        setMessages(res.turns.map(turnToMessage));
+        dispatch({
+          type: "restore",
+          sessionId: res.sessionId,
+          messages: res.turns.map((turn) => turnToMessage(turn, nextMessageId++)),
+        });
       } catch {
         // API 未起 / 会话已过期：保持全新界面，下一条消息由 BFF 新开会话
       }
@@ -56,107 +48,30 @@ export default function ChatPage() {
       cancelled = true;
     };
   }, []);
-
   // 新消息 / 流式追加时保持滚到底部
   useEffect(() => {
     const el = listRef.current;
     if (el !== null) el.scrollTop = el.scrollHeight;
   }, [messages]);
-
-  /** 就地更新最后一条（正在流式生成的那条助手消息） */
-  function patchLast(fn: (msg: ChatMessage) => ChatMessage): void {
-    setMessages((prev) => {
-      if (prev.length === 0) return prev;
-      const next = [...prev];
-      next[next.length - 1] = fn(next[next.length - 1]);
-      return next;
-    });
-  }
-
-  /** 就地更新某条审批记录（按 approvalId 定位；审批挂在流式中的最后一条消息上） */
-  function patchApproval(approvalId: string, fn: (record: ApprovalRecord) => ApprovalRecord): void {
-    setMessages((prev) =>
-      prev.map((msg) => {
-        const approvals = msg.approvals ?? [];
-        if (!approvals.some((record) => record.approvalId === approvalId)) return msg;
-        return {
-          ...msg,
-          approvals: approvals.map((record) =>
-            record.approvalId === approvalId ? fn(record) : record,
-          ),
-        };
-      }),
-    );
-  }
-
-  /** SSE 事件 → 状态机：session / step / approval / token / done / error 六分支 */
-  function handleEvent(event: ChatStreamEvent): void {
-    switch (event.type) {
-      case "session":
-        setSessionId(event.sessionId);
-        // 会话记录第一环：BFF 分配/确认 sessionId 时落 localStorage，刷新可恢复
-        window.localStorage.setItem(SESSION_STORAGE_KEY, event.sessionId);
-        break;
-      case "step":
-        patchLast((msg) => ({
-          ...msg,
-          steps: [
-            ...msg.steps,
-            {
-              step: event.step,
-              toolName: event.toolCall.toolName,
-              input: event.toolCall.input,
-              output: event.output,
-              text: event.text, // 模型步间推理文本（常为 undefined——StepPanel 诚实展示）
-            },
-          ],
-        }));
-        break;
-      case "approval":
-        // 高危工具待执行：卡片挂到正在流式生成的这条回答上（此刻流仍开着，按钮可点）
-        patchLast((msg) => ({
-          ...msg,
-          approvals: [
-            ...(msg.approvals ?? []),
-            {
-              approvalId: event.approvalId,
-              toolName: event.toolName,
-              input: event.input,
-              status: "pending",
-            },
-          ],
-        }));
-        break;
-      case "token":
-        patchLast((msg) => ({ ...msg, content: msg.content + event.text }));
-        break;
-      case "done":
-        patchLast((msg) => ({ ...msg, status: "done" }));
-        break;
-      case "error":
-        patchLast((msg) => ({
-          ...msg,
-          status: "error",
-          errorMessage: event.message,
-          errorHint: event.hint,
-        }));
-        break;
-    }
-  }
+  // sessionId 变化即落 localStorage（reducer 纯函数，副作用统一放组件层）
+  useEffect(() => {
+    if (sessionId !== null) window.localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+  }, [sessionId]);
 
   /** 用户裁决：POST /api/chat/approve → 卡片转终态；404（超时已自动拒绝等）→ 过期态 */
   async function handleApprove(approvalId: string, approved: boolean): Promise<void> {
     if (sessionId === null) return; // 理论上不会发生：approval 事件必然在 session 事件之后
     try {
       await approveChat({ sessionId, approvalId, approved });
-      patchApproval(approvalId, (record) => ({
-        ...record,
-        status: approved ? "approved" : "denied",
-      }));
+      dispatch({ type: "approval-resolved", approvalId, approved });
     } catch (err) {
       // 典型场景：60s 超时 BFF 已自动拒绝，审批条目过期 → 404 中文错误
-      const message = err instanceof Error ? err.message : String(err);
-      patchApproval(approvalId, (record) => ({ ...record, status: "expired", note: message }));
+      dispatch({
+        type: "approval-resolved",
+        approvalId,
+        approved: false,
+        note: err instanceof Error ? err.message : String(err),
+      });
     }
   }
 
@@ -165,18 +80,16 @@ export default function ChatPage() {
     if (text === "" || streaming) return;
     setInput("");
     setStreaming(true);
-    setMessages((prev) => [
-      ...prev,
-      { id: nextMessageId++, role: "user", content: text, steps: [], status: "done" },
-      { id: nextMessageId++, role: "assistant", content: "", steps: [], status: "streaming" },
-    ]);
+    dispatch({ type: "user-send", text, userId: nextMessageId++, assistantId: nextMessageId++ });
     try {
-      await streamChat({ message: text, sessionId: sessionId ?? undefined }, handleEvent);
+      await streamChat(
+        { message: text, sessionId: sessionId ?? undefined },
+        (event) => dispatch({ type: "sse", event }),
+      );
       // 连接正常结束但没等到 done 事件（如中途断流）：补一个收尾态，不悬挂「思考中…」
-      patchLast((msg) => (msg.status === "streaming" ? { ...msg, status: "done" } : msg));
+      dispatch({ type: "stream-finalize" });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      patchLast((msg) => ({ ...msg, status: "error", errorMessage: message }));
+      dispatch({ type: "stream-error", message: err instanceof Error ? err.message : String(err) });
     } finally {
       setStreaming(false);
     }
@@ -185,8 +98,7 @@ export default function ChatPage() {
   /** 新会话：清空界面 + 丢弃 sessionId 与本地存档（下一条消息由 BFF 分配新会话） */
   function handleNewSession(): void {
     if (streaming) return;
-    setMessages([]);
-    setSessionId(null);
+    dispatch({ type: "reset" });
     setInput("");
     setHistoryOpen(false);
     window.localStorage.removeItem(SESSION_STORAGE_KEY);
@@ -198,23 +110,19 @@ export default function ChatPage() {
     if (streaming || id === sessionId) return;
     try {
       const res = await fetchSessionHistory(id);
-      setSessionId(res.sessionId);
+      dispatch({
+        type: "restore",
+        sessionId: res.sessionId,
+        messages: res.turns.map((turn) => turnToMessage(turn, nextMessageId++)),
+      });
       window.localStorage.setItem(SESSION_STORAGE_KEY, res.sessionId);
-      setMessages(res.turns.map(turnToMessage));
     } catch (err) {
       // 切换失败（API 抖动等）：以错误气泡提示，界面不清空
-      const message = err instanceof Error ? err.message : String(err);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: nextMessageId++,
-          role: "assistant",
-          content: "",
-          steps: [],
-          status: "error",
-          errorMessage: `切换会话失败：${message}`,
-        },
-      ]);
+      dispatch({
+        type: "switch-fail",
+        id: nextMessageId++,
+        message: `切换会话失败：${err instanceof Error ? err.message : String(err)}`,
+      });
     }
   }
 
@@ -229,7 +137,9 @@ export default function ChatPage() {
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => setHistoryOpen((open) => !open)}
+              onClick={() => {
+                setHistoryOpen((open) => !open);
+              }}
               disabled={streaming}
               className={
                 historyOpen
