@@ -23,7 +23,7 @@ import { createMcpClientBridge } from "@agent-app/engine/mcp";
 import type { McpClientBridge } from "@agent-app/engine/mcp";
 import { createRagStoreFromEnv, RAG_GROUNDING_RULE, setRagStore } from "@agent-app/engine/rag";
 import { enableTrace, preview } from "@agent-app/engine/trace";
-import { createDemoTools } from "@agent-app/engine/tools";
+import { createDemoTools, IdempotencyRegistry, wrapToolsWithIdempotency } from "@agent-app/engine/tools";
 import { searchKnowledgeBase } from "@agent-app/engine/tools";
 
 // ReAct 式提示词：让模型把「想查什么」显式化，排障日志才有内容（教程 agent-loop-ts.md）。
@@ -275,6 +275,8 @@ export async function main(args: string[] = []): Promise<void> {
   setRagStore(createRagStoreFromEnv());
   // 工具表：三个演示工具 + 知识库检索（模型按问题自主决定调不调——Agentic RAG 的最小形态）
   const localTools = { ...createDemoTools(), searchKnowledgeBase };
+  // 工具执行幂等登记簿：进程内存、TTL 窗口内同参重放命中（详见 engine/tools/idempotency.ts 头注）
+  const idempotency = new IdempotencyRegistry();
 
   // --mcp：spawn 子进程 + initialize + listTools + 适配，全部就绪后才进 REPL——
   // 连接失败（命令写错、服务器起不来）在启动期暴露并给出修复指引，不带着半残的工具表聊天。
@@ -374,7 +376,9 @@ export async function main(args: string[] = []): Promise<void> {
         model: createModel(),
         messages: toModelMessages(history),
         system: SYSTEM_PROMPT,
-        tools,
+        // 工具执行幂等壳（scope=当前会话）：模型重试/重复提问不再重复建工单。
+        // 请求级包装（/new 换会话后 scope 随之切换，旧会话的缓存天然隔离）。
+        tools: wrapToolsWithIdempotency(tools, idempotency, { scope: sessionId }),
         maxSteps: 5,
       });
 

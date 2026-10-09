@@ -14,7 +14,7 @@ import { createModel } from "@agent-app/engine/llm";
 import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
 import type { ChatTurn, SessionSummary } from "@agent-app/engine/memory";
 import { RAG_GROUNDING_RULE } from "@agent-app/engine/rag";
-import { createDemoTools } from "@agent-app/engine/tools";
+import { createDemoTools, IdempotencyRegistry, wrapToolsWithIdempotency } from "@agent-app/engine/tools";
 import { ConfigProvider } from "../common/config.provider.js";
 import {
   ToolApprovalRegistry,
@@ -78,6 +78,13 @@ export class ChatService {
    */
   private readonly approvals = new ToolApprovalRegistry();
 
+  /**
+   * 工具执行幂等登记簿：同会话同工具同参数的重复调用在 TTL 窗口内只执行一次
+   * （模型重试 / 用户重复提问不会再建重复工单）。进程内存实现，取舍同审批簿。
+   * 默认对整个工具表生效——查询工具天然幂等，命中缓存只是省一次上游调用。
+   */
+  private readonly idempotency = new IdempotencyRegistry();
+
   constructor(private readonly config: ConfigProvider) {}
 
   /** 启动自检用：构造注入是否真的装配到 ConfigProvider（main.ts 在 boot 时调用打印） */
@@ -112,7 +119,7 @@ export class ChatService {
         model: createModel(),
         messages: toModelMessages(history),
         system: SYSTEM_PROMPT,
-        tools: this.tools,
+        tools: wrapToolsWithIdempotency(this.tools, this.idempotency, { scope: sessionId }),
         maxSteps: 5,
         signal: options?.signal,
       });
@@ -176,10 +183,13 @@ export class ChatService {
     // 名单为空（显式置空）→ 原表直传：不包壳、不发新事件，与改造前完全一致。
     // 只作用于流式端点：非流式 chat() 没有 SSE 通道，包壳只会白等 60s。
     const confirmTools = readConfirmToolNames();
+    // 叠加顺序：幂等壳在内、审批壳在外——「被用户拒绝的调用」不进幂等缓存，
+    // 审批放行后才进入幂等判定（首调执行 / 重放命中）。
+    const scopedTools = wrapToolsWithIdempotency(this.tools, this.idempotency, { scope: sessionId });
     const tools =
       confirmTools.size === 0
-        ? this.tools
-        : wrapToolsWithApproval(this.tools, confirmTools, {
+        ? scopedTools
+        : wrapToolsWithApproval(scopedTools, confirmTools, {
             sessionId,
             registry: this.approvals,
             emit,

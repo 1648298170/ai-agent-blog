@@ -148,11 +148,10 @@ describe("ChatService 工具审批（week18 Day 6）", () => {
     const events: ChatStreamEvent[] = [];
     await service.chatStream({ message: "订单到哪了" }, (event) => events.push(event));
 
-    // 工具表原对象直传：与 demo 工具表逐工具同一引用（零包壳 = 与改造前完全一致）
+    // 工具名集合与原表一致（幂等壳是合法壳层会换引用——这里断言的是「零审批包壳」：
+    // 名单置空时没有任何工具的调用会挂起等裁决，行为由下方事件流断言覆盖）
     const options = vi.mocked(runToolLoop).mock.calls[0][0];
-    expect(options.tools.createTicket).toBe(demoTools.createTicket);
-    expect(options.tools.getOrderStatus).toBe(demoTools.getOrderStatus);
-    expect(options.tools.escalateToHuman).toBe(demoTools.escalateToHuman);
+    expect(Object.keys(options.tools).sort()).toEqual(Object.keys(demoTools).sort());
     // 事件序列与改造前逐字节一致：没有 approval
     expect(events.map((e) => e.type)).toEqual(["session", "step", "token", "done"]);
   });
@@ -176,8 +175,8 @@ describe("ChatService 工具审批（week18 Day 6）", () => {
     await service.chatStream({ message: "订单到哪了" }, (event) => events.push(event));
 
     const options = vi.mocked(runToolLoop).mock.calls[0][0];
-    // 名单外：原对象直传（绝不包壳）
-    expect(options.tools.getOrderStatus).toBe(demoTools.getOrderStatus);
+    // 名单外「不包壳」的行为断言在本用例后半段：execute 立即返回、事件流无 approval
+    //（引用断言不再适用——工具表还叠加了幂等壳，名单外工具同样会换引用）
     // 名单内：包了壳（不同引用），但对模型可见的描述不变
     expect(options.tools.createTicket).not.toBe(demoTools.createTicket);
     expect(options.tools.createTicket.description).toBe(demoTools.createTicket.description);
@@ -204,7 +203,7 @@ describe("ChatService 工具审批（week18 Day 6）", () => {
 
     const options = vi.mocked(runToolLoop).mock.calls[0][0];
     expect(options.tools.createTicket).not.toBe(demoTools.createTicket); // 默认名单把它包了
-    expect(options.tools.getOrderStatus).toBe(demoTools.getOrderStatus);
+    expect(options.tools.getOrderStatus).toBeDefined(); // 名单外的工具仍在表中（行为断言见上一用例）
   });
 
   it("H5（红队加固轮）：非流式 chat() 在审批名单非空时直接拒收（E6 备注的「无闸裸奔」收口）", async () => {
@@ -214,7 +213,7 @@ describe("ChatService 工具审批（week18 Day 6）", () => {
     expect(runToolLoop).not.toHaveBeenCalled(); // 不再是「不包壳地裸奔执行」，而是明确拒收
   });
 
-  it("非流式 chat() 名单置空 → 不包壳：runToolLoop 收到的就是原工具表（toBe 同一引用）", async () => {
+  it("非流式 chat() 名单置空 → 不包审批壳：工具名集合与原表一致", async () => {
     process.env.AGENT_CONFIRM_TOOLS = "";
     const demoTools = createDemoTools();
     vi.mocked(runToolLoop).mockResolvedValue({ text: "ok", messages: [], steps: 1 });
@@ -222,7 +221,7 @@ describe("ChatService 工具审批（week18 Day 6）", () => {
     await service.chat({ message: "帮我建工单" });
 
     const options = vi.mocked(runToolLoop).mock.calls[0][0];
-    expect(options.tools.createTicket).toBe(demoTools.createTicket);
+    expect(Object.keys(options.tools).sort()).toEqual(Object.keys(demoTools).sort());
   });
 
   it("approve：sessionId 不匹配 → false（跨会话裁决不误唤醒）", async () => {

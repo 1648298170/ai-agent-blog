@@ -300,4 +300,28 @@ describe("ChatService", () => {
 
     expect(vi.mocked(runToolLoop).mock.calls[0][0].signal).toBeUndefined();
   });
+
+  it("幂等集成：同会话重复请求建同主题工单 → 真执行一次同一工单号；跨会话 → 新工单号", async () => {
+    // runToolLoop mock：真实调用工具表里的 createTicket（含幂等壳），工单号存进捕获数组
+    const ticketIds: unknown[] = [];
+    vi.mocked(runToolLoop).mockImplementation(async (options) => {
+      const execute = options.tools.createTicket?.execute;
+      if (execute === undefined) throw new Error("unreachable：createTicket 必有 execute");
+      const output = (await execute(
+        { subject: "查不到订单", description: "A-1024 三天未更新" },
+        { toolCallId: "call_idem", messages: [] },
+      )) as { ticketId: string };
+      ticketIds.push(output.ticketId);
+      return { text: `已建工单 ${output.ticketId}`, messages: [], steps: 1 };
+    });
+
+    // 同会话两次请求（模型重试 / 用户重复提问的重放场景）
+    await service.chat({ message: "帮我建个工单", sessionId: "s_idem" });
+    await service.chat({ message: "帮我建个工单", sessionId: "s_idem" });
+    expect(ticketIds[0]).toBe(ticketIds[1]); // 第二次拿到的是首次的工单号——没有重复建单
+
+    // 跨会话同参：不同业务，真执行新工单
+    await service.chat({ message: "帮我建个工单", sessionId: "s_idem_other" });
+    expect(ticketIds[2]).not.toBe(ticketIds[0]);
+  });
 });
