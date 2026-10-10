@@ -82,3 +82,9 @@ cli / api / web 三端只是给它换不同的「脸」（终端 REPL / HTTP 接
    - [ARCHITECTURE.md](../../../ARCHITECTURE.md)——架构图 + 六条踩坑实录
    - `docs/weekNN/` 教程（VitePress 博客，`npm run docs:dev` 起来看）
    - 各模块自己的 `README.md`（memory/rag/tools/guardrails/mcp/evals 都有）
+
+## 想动手扩展？两篇姊妹文档
+
+- [MATURITY.md](./MATURITY.md)——模块成熟度矩阵：哪些是 Demo 档、哪些单机可长期跑、上生产前还差什么（诚实边界汇总）
+- [EXTENDING.md](./EXTENDING.md)——扩展指南：自定义工具 / 加 Memory / RAG 实现 / 接新网关 / 自定义库日志，含契约测试挂法与 `pnpm verify` 验证
+- `examples/`（engine 包内）——最小可运行示例：[minimal-agent](../examples/minimal-agent.ts)（40 行跑通多步循环）与 [custom-tool](../examples/custom-tool.ts)（自定义工具三件套），`pnpm examples` 一键跑
