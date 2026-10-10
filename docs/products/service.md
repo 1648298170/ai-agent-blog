@@ -265,9 +265,9 @@ demo 看功能，运营看数字。客服系统只需要三个北极星指标：
 
 ## 延伸阅读
 
-- [第 13 周 Day 7](/week13/day7)：Supervisor 星型和硬路由的源头，转人工 Worker 是那张图的直接延伸
-- [第 15 周](/week15/)：知识库问答的搭建现场，差例反哺语料的落点
-- [第 16 周](/week16/)：评估飞轮方法论，bad case 周会的出处
+- [第 13 周 Day 7](/archive/weeks/week13/day7)：Supervisor 星型和硬路由的源头，转人工 Worker 是那张图的直接延伸
+- [第 15 周](/archive/weeks/week15/)：知识库问答的搭建现场，差例反哺语料的落点
+- [第 16 周](/archive/weeks/week16/)：评估飞轮方法论，bad case 周会的出处
 - [Anthropic：Building Effective Agents](https://www.anthropic.com/research/building-effective-agents)：把本篇的转人工设计和它讲的 guardrail 思想对照着看
 
 客服系统到这一篇收口：解决率、响应速度、成本三样有了抓手，转人工兜住下限，运营飞轮推着上限走。下一篇落地实战见。
