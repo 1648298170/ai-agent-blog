@@ -54,6 +54,8 @@ agent-app/                        # pnpm workspace 根（packages/* + apps/*）
 │   │       ├── llm.ts            # createOpenAI({apiKey, baseURL}) → 聊天/嵌入模型单例
 │   │       ├── trace.ts          # 轨迹开关：AGENT_TRACE=1 或 --trace，输出走 stderr
 │   │       ├── json-utils.ts     # extractJson：宽松解析模型回复里的 JSON（本文 8.3）
+│   │       ├── errors.ts / logger.ts   # 领域错误基类（instanceof 分支）/ 可注入库日志（默认 console）
+│   │       ├── examples/         # 最小可运行示例（pnpm examples）；docs/ 内含教学文档与成熟度矩阵
 │   │       ├── rag/
 │   │       │   ├── types.ts      # 契约：Chunk / RagStore（换 pgvector 的接缝）
 │   │       │   ├── chunker.ts    # 递归切块：段落→句子→硬切，500/80 滑窗重叠

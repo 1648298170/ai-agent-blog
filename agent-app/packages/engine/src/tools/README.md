@@ -28,13 +28,15 @@ LLM 的输出只能是文本。所谓"Agent 会做事"，是把"模型的文本�
 2. **演示与真实分层**：demo-tools 全 mock 数据（离线可跑、行为确定），kb-search 是第一个碰网的真工具——与全项目"离线优先"同构
 3. **工具表按应用裁剪**：同一批工具，chat 拿 4 个，客服工人各拿 1 个——职责之外的锤子不发，误伤面从工具表上就掐掉
 
-### 文件地图（5 个文件）
+### 文件地图（7 个文件）
 
 | 文件 | 职责 |
 | --- | --- |
 | `registry.ts` | 极简注册表 `ToolRegistry`：`register` 按名登记（同名覆盖、链式），`getAll()` 吐出 `generateText({ tools })` 要的形状，`names()` 供排障 |
 | `demo-tools.ts` | 三个纯数据演示工具：`getOrderStatus` / `createTicket` / `escalateToHuman`（+ `HandoffPack` 接口 + `createDemoTools()` 打包） |
 | `kb-search.ts` | `searchKnowledgeBase`：把 rag 的 `searchKnowledge` 包成工具，引用编号由后端分配 |
+| `idempotency.ts` | 工具执行幂等层：`IdempotencyRegistry`（scope+参数指纹去重，TTL 窗口）+ `wrapToolsWithIdempotency` 壳——写操作防重复执行 |
+| `compose.ts` | 工具壳组合器 `composeToolShells`：洋葱清单声明式叠加（审批外/幂等内的顺序即配置） |
 | `index.ts` | 桶导出（`@agent-app/engine/tools` 子路径的公共面） |
 | `README.md` | 本文 |
 

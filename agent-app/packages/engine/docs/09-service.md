@@ -147,7 +147,7 @@ export async function runWorker(name: WorkerName, input: WorkerInput): Promise<s
     system: WORKER_PROMPTS[name],     // 职责提示词：边界 + 拒答出口
     messages: buildMessages(input),   // 历史去尾截 20 轮 + 本轮拼末尾
     tools: WORKER_TOOLS[name],
-    maxSteps: 5,
+    maxSteps: DEFAULT_MAX_STEPS,      // 库级默认 5（agent-loop.ts 导出），magic number 不散落
   });
   return result.text;
 }

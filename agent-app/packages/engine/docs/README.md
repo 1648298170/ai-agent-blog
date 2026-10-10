@@ -70,7 +70,7 @@ cli / api / web 三端只是给它换不同的「脸」（终端 REPL / HTTP 接
 | 5 | [05-rag.md](./05-rag.md) | `pnpm kb:ingest .\samples\company-faq.md` → `pnpm kb` | `src/rag/` |
 | 6 | [06-guardrails.md](./06-guardrails.md) | 对话里说「转人工」看审批/硬规则 | `src/guardrails/` |
 | 7 | [07-mcp.md](./07-mcp.md) | `pnpm chat --mcp "cmd /c pnpm mcp:server"` | `src/mcp/` |
-| 8 | [08-evals.md](./08-evals.md) | `pnpm selftest` | `src/evals/` |
+| 8 | [08-evals.md](./08-evals.md) | `pnpm eval` | `src/evals/` |
 | 9 | [09-service.md](./09-service.md) | `pnpm service` | `src/service/` |
 
 ## 怎么用这套文档

@@ -51,6 +51,9 @@ pnpm typecheck
 | `pnpm infra:up` / `pnpm infra:down` | 真实持久化基座：pgvector(pg16) + redis(7) 容器起停 | [week14](../docs/week14/index.md)、[week17](../docs/week17/index.md) |
 | `pnpm test:infra` | 基础设施集成测试（RUN_INFRA_TESTS=1，需先 `infra:up`） | week14 / week17 实战 |
 | `pnpm typecheck` | `tsc --noEmit` 零错误检查 | — |
+| `pnpm verify` | 聚合自检一条命令：typecheck → engine/api 测试 → selftest → examples 类型检查 → 架构红线 | — |
+| `pnpm examples` | 跑两个最小可运行示例（最小 Agent / 自定义工具，需先 `pnpm build` + 配好 key） | [engine/docs/EXTENDING.md](packages/engine/docs/EXTENDING.md) |
+| `pnpm eval` | 跑评测考卷（76 例三档判分，无 key 自动跳过需网关的档位） | [week16/evals-ts.md](docs/week16/evals-ts.md) |
 
 ## 目录结构（pnpm workspace 单仓）
 
@@ -58,16 +61,19 @@ pnpm typecheck
 agent-app/
 ├── packages/
 │   ├── engine/                      # @agent-app/engine：框架无关引擎（tsc 构建出 dist + .d.ts）
-│   │   └── src/
-│   │       ├── config.ts            # 手动读 .env（不引 dotenv），导出类型化配置
-│   │       ├── llm.ts               # createOpenAI({ apiKey, baseURL }) → chat / embedding 模型
-│   │       ├── agent-loop.ts        # 手写 runToolLoop + ToolLoopAgent 类封装
-│   │       ├── types.ts             # AgentTool 类型（ai 的 tool() + zod）
-│   │       ├── trace.ts / json-utils.ts
-│   │       ├── rag/                 # RAG 零件：types / chunker / embedder / 内存库 / retrieve / persistence / ingest（入库核心）
-│   │       ├── memory/              # 三层记忆：session / preference / episodic（内存版）
-│   │       ├── tools/               # registry / demo-tools / kb-search
-│   │       └── service/             # 客服产品核心：supervisor / workers / handoff（CLI 与 API 共用）
+│   │   ├── src/
+│   │   │   ├── config.ts            # 手动读 .env（不引 dotenv），导出类型化配置
+│   │   │   ├── llm.ts               # createOpenAI({ apiKey, baseURL }) → chat / embedding 模型
+│   │   │   ├── agent-loop.ts        # 手写 runToolLoop + ToolLoopAgent 类封装
+│   │   │   ├── types.ts             # AgentTool 类型（ai 的 tool() + zod）
+│   │   │   ├── trace.ts / json-utils.ts / errors.ts / logger.ts
+│   │   │   ├── rag/                 # RAG 零件：types / chunker / embedder / 内存库 / retrieve / persistence / ingest（入库核心）
+│   │   │   ├── memory/              # 三层记忆：session / preference / episodic（内存版）
+│   │   │   ├── tools/               # registry / demo-tools / kb-search / idempotency（幂等）/ compose（壳组合器）
+│   │   │   ├── mcp/  guardrails/  evals/   # 标准插口 / 安全员 / 考试系统（各自带 README）
+│   │   │   └── service/             # 客服产品核心：supervisor / workers / handoff（CLI 与 API 共用）
+│   │   ├── examples/                # 最小可运行示例（minimal-agent / custom-tool），pnpm examples 一键跑
+│   │   └── docs/                    # 教学文档（总览 + 九站深讲 + 成熟度矩阵 + 扩展指南）
 │   └── shared/                      # @agent-app/shared：纯类型契约（SSE 事件 / 错误体 / 路由 / HandoffPack）
 ├── apps/
 │   ├── cli/                         # @agent-app/cli：tsx 直跑（chat / kb / service REPL + selftest）
