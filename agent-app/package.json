@@ -27,7 +27,11 @@
     "stack:down": "docker compose --profile app rm -sf api web",
     "stack:logs": "docker compose --profile app logs -f api web",
     "selftest": "tsx apps/cli/src/selftest.ts",
-    "api": "pnpm --filter @agent-app/engine build && pnpm --filter @agent-app/api build && node apps/api/dist/main.js"
+    "api": "pnpm --filter @agent-app/engine build && pnpm --filter @agent-app/api build && node apps/api/dist/main.js",
+    "examples:minimal": "tsx packages/engine/examples/minimal-agent.ts",
+    "examples:custom-tool": "tsx packages/engine/examples/custom-tool.ts",
+    "examples": "pnpm examples:minimal && pnpm examples:custom-tool",
+    "verify": "pnpm typecheck && pnpm test:engine && pnpm test:api && pnpm selftest && pnpm exec tsc --noEmit -p packages/engine/examples/tsconfig.json && pnpm lint:deps"
   },
   "engines": {
     "node": ">=18.18"
