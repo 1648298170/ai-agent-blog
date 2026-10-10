@@ -5,6 +5,7 @@
 // 接口与 RagStore 完全一致：retrieve.ts 一行 setRagStore 就能换上，检索代码零改动。
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import { getEngineLogger } from "../logger.js";
 import { createInMemoryRagStore } from "./store.memory.js";
 import type { Chunk, DocumentContent, DocumentSummary, RagFilter, RagStore, RetrievedChunk } from "./types.js";
 
@@ -47,8 +48,8 @@ export function createJsonRagStore(filePath: string = DEFAULT_STORE_PATH): RagSt
       const parsed = JSON.parse(readFileSync(filePath, "utf8")) as { chunks?: Chunk[] };
       list = Array.isArray(parsed.chunks) ? parsed.chunks : [];
     } catch (err) {
-      console.warn(`[kb-store] 快照文件解析失败，按空库启动（可删除该文件重建）：${filePath}`);
-      console.warn(`[kb-store] 原因：${err instanceof Error ? err.message : String(err)}`);
+      getEngineLogger().warn(`[kb-store] 快照文件解析失败，按空库启动（可删除该文件重建）：${filePath}`);
+      getEngineLogger().warn(`[kb-store] 原因：${err instanceof Error ? err.message : String(err)}`);
       return;
     }
 

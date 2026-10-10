@@ -10,7 +10,7 @@ import { Injectable } from "@nestjs/common";
 import { streamText } from "ai";
 import type { ModelMessage } from "ai";
 import type { ChatStreamEvent } from "@agent-app/shared";
-import { runToolLoop } from "@agent-app/engine/agent-loop";
+import { DEFAULT_MAX_STEPS, runToolLoop } from "@agent-app/engine/agent-loop";
 import { auditLog, inspectTextInput } from "@agent-app/engine";
 import { createModel } from "@agent-app/engine/llm";
 import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
@@ -108,7 +108,7 @@ export class ChatService {
           sessionId,
           idempotency: this.idempotency,
         }),
-        maxSteps: 5,
+        maxSteps: DEFAULT_MAX_STEPS,
         signal: options?.signal,
       });
 
@@ -195,7 +195,7 @@ export class ChatService {
         messages: toModelMessages(history),
         system: SYSTEM_PROMPT,
         tools,
-        maxSteps: 5,
+        maxSteps: DEFAULT_MAX_STEPS,
         signal,
         onStep: (event) =>
           emit({

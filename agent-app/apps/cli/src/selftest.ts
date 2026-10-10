@@ -5,7 +5,7 @@
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import { MockLanguageModelV2 } from "ai/test";
-import { runToolLoop, ToolLoopAgent } from "@agent-app/engine/agent-loop";
+import { DEFAULT_MAX_STEPS, runToolLoop, ToolLoopAgent } from "@agent-app/engine/agent-loop";
 import {
   chunkText,
   cosineSimilarity,
@@ -388,7 +388,7 @@ async function testToolLoop(): Promise<void> {
     model,
     messages: [{ role: "user", content: "订单 A-1024 到哪了？" }],
     tools: createDemoTools(),
-    maxSteps: 5,
+    maxSteps: DEFAULT_MAX_STEPS,
   });
 
   assert.equal(result.steps, 2, "两步：要工具 → 拿结果作答");
@@ -417,7 +417,7 @@ async function testToolLoop(): Promise<void> {
     model: makeLoopMock(),
     messages: [{ role: "user", content: "订单 A-1024 到哪了？" }],
     tools: registry.getAll(),
-    maxSteps: 5,
+    maxSteps: DEFAULT_MAX_STEPS,
   });
   assert.equal(viaRegistry.text, "订单已发货，明天 18 点前送达。");
 

@@ -29,6 +29,7 @@
 import { randomUUID } from "node:crypto";
 import { Redis } from "ioredis";
 import { loadEnv } from "../config.js";
+import { getEngineLogger } from "../logger.js";
 import { trace } from "../trace.js";
 import { COMPRESS_AFTER, compressIfNeeded, defaultSummarizer } from "./compression.js";
 import type { SessionStoreOptions, Summarizer } from "./compression.js";
@@ -240,7 +241,7 @@ export function createRedisSessionStore(options: RedisSessionStoreOptions = {}):
         turns.push(JSON.parse(item) as ChatTurn);
       } catch {
         // 与内存版「脏数据防线」同一思想：坏一行跳一行（warn 留痕，方便发现数据损坏）
-        console.warn(`[memory] 会话数据脏行已跳过：${item.slice(0, 80)}`);
+        getEngineLogger().warn(`[memory] 会话数据脏行已跳过：${item.slice(0, 80)}`);
       }
     }
     return turns;

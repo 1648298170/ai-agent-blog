@@ -20,7 +20,7 @@ const { streamTextMock, generateTextMock } = vi.hoisted(() => ({
   generateTextMock: vi.fn(),
 }));
 
-vi.mock("@agent-app/engine/agent-loop", () => ({ runToolLoop: vi.fn() }));
+vi.mock("@agent-app/engine/agent-loop", () => ({ DEFAULT_MAX_STEPS: 5, runToolLoop: vi.fn() }));
 vi.mock("@agent-app/engine/llm", () => ({
   createModel: vi.fn(() => ({ fake: "model" })),
   getModel: vi.fn(() => ({ fake: "model" })),

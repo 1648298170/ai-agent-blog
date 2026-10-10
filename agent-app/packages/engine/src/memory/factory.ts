@@ -13,6 +13,7 @@
 // 铁律：不配置（或值不认识）一律回内存默认——离线优先原则，
 // 没起 Docker 的机器上行为与改造前逐字节一致。
 import { loadEnv } from "../config.js";
+import { getEngineLogger } from "../logger.js";
 import { InMemorySessionStore } from "./session.memory.js";
 import { createRedisSessionStore } from "./session.redis.js";
 import { InMemoryPreferenceStore } from "./preference.memory.js";
@@ -40,7 +41,7 @@ export function createSessionStoreFromEnv(
   const value = (env.SESSION_STORE ?? DEFAULT_SESSION_STORE).trim().toLowerCase();
   if (value === "redis") return createRedisSessionStore();
   if (value !== DEFAULT_SESSION_STORE) {
-    console.warn(`[memory] 未认识的 SESSION_STORE=「${env.SESSION_STORE}」（可选 memory | redis），按默认 ${DEFAULT_SESSION_STORE} 处理`);
+    getEngineLogger().warn(`[memory] 未认识的 SESSION_STORE=「${env.SESSION_STORE}」（可选 memory | redis），按默认 ${DEFAULT_SESSION_STORE} 处理`);
   }
   return new InMemorySessionStore();
 }
@@ -52,7 +53,7 @@ export function createPreferenceStoreFromEnv(
   const value = (env.PREFERENCE_STORE ?? DEFAULT_PREFERENCE_STORE).trim().toLowerCase();
   if (value === "pg") return createPgPreferenceStore();
   if (value !== DEFAULT_PREFERENCE_STORE) {
-    console.warn(`[memory] 未认识的 PREFERENCE_STORE=「${env.PREFERENCE_STORE}」（可选 memory | pg），按默认 ${DEFAULT_PREFERENCE_STORE} 处理`);
+    getEngineLogger().warn(`[memory] 未认识的 PREFERENCE_STORE=「${env.PREFERENCE_STORE}」（可选 memory | pg），按默认 ${DEFAULT_PREFERENCE_STORE} 处理`);
   }
   return new InMemoryPreferenceStore();
 }
@@ -64,7 +65,7 @@ export function createEpisodicStoreFromEnv(
   const value = (env.EPISODIC_STORE ?? DEFAULT_EPISODIC_STORE).trim().toLowerCase();
   if (value === "pgvector") return createPgVectorEpisodicStore();
   if (value !== DEFAULT_EPISODIC_STORE) {
-    console.warn(`[memory] 未认识的 EPISODIC_STORE=「${env.EPISODIC_STORE}」（可选 memory | pgvector），按默认 ${DEFAULT_EPISODIC_STORE} 处理`);
+    getEngineLogger().warn(`[memory] 未认识的 EPISODIC_STORE=「${env.EPISODIC_STORE}」（可选 memory | pgvector），按默认 ${DEFAULT_EPISODIC_STORE} 处理`);
   }
   return new InMemoryEpisodicStore();
 }

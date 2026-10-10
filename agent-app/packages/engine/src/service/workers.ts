@@ -4,7 +4,7 @@
 // 工具表按职责裁剪：order 只发查订单的锤子，refund 只发建工单的锤子，
 // knowledge 只发知识库检索——职责之外的锤子不发给它，误伤面从工具表上就掐掉。
 import type { ModelMessage } from "ai";
-import { runToolLoop } from "../agent-loop.js";
+import { DEFAULT_MAX_STEPS, runToolLoop } from "../agent-loop.js";
 import type { ToolLoopStepEvent } from "../agent-loop.js";
 import type { AgentToolSet } from "../types.js";
 import { createModel } from "../llm.js";
@@ -61,7 +61,7 @@ export async function runWorker(name: WorkerName, input: WorkerInput): Promise<s
     system: WORKER_PROMPTS[name],
     messages: buildMessages(input),
     tools: WORKER_TOOLS[name],
-    maxSteps: 5,
+    maxSteps: DEFAULT_MAX_STEPS,
   });
   return result.text;
 }
@@ -97,7 +97,7 @@ export async function runWorkerStreaming(
     system: WORKER_PROMPTS[name],
     messages: buildMessages(input),
     tools: WORKER_TOOLS[name],
-    maxSteps: 5,
+    maxSteps: DEFAULT_MAX_STEPS,
     onStep: options?.onStep,
     signal: options?.signal,
   });

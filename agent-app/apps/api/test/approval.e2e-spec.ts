@@ -17,6 +17,7 @@ vi.mock("@agent-app/engine/llm", () => ({ createModel: vi.fn(() => ({ fake: "mod
 // runToolLoop 假实现：真实执行 ChatService 装配好的工具表（含审批壳），
 // 让 approval 事件 → 挂起 → 裁决回填这条 API 层链路在 e2e 里完整发生
 vi.mock("@agent-app/engine/agent-loop", () => ({
+  DEFAULT_MAX_STEPS: 5,
   runToolLoop: vi.fn(async (options: RunToolLoopOptions) => {
     const input = { subject: "退款", description: "订单 A-1024 一直未送达" };
     const execute = options.tools.createTicket.execute;

@@ -14,7 +14,11 @@
 //   教程示例里的裸对象在这版类型收紧了：正常结果用 { type: "json" }，失败用 { type: "error-json" }。
 import { generateText, tool as defineTool } from "ai";
 import type { LanguageModel, ModelMessage, ToolSet } from "ai";
+import { EngineError } from "./errors.js";
 import { preview, trace } from "./trace.js";
+
+/** 步数上限的库级默认值：调用方（api / cli / workers）统一引用，magic number 不散落 */
+export const DEFAULT_MAX_STEPS = 5;
 
 /** 手写循环的入参：model / messages / tools / maxSteps，maxSteps 对应 SDK 版的 stopWhen: isStepCount(n) */
 export interface RunToolLoopOptions {
@@ -44,8 +48,19 @@ export interface RunToolLoopOptions {
   signal?: AbortSignal;
 }
 
-/** 中止时抛出的错误消息（导出常量：调用方/测试按它识别「循环因 abort 而退出」） */
+/** 中止时抛出的错误消息（导出常量：文案单一事实源，错误类与旧文案比对共用它） */
 export const TOOL_LOOP_ABORTED = "工具循环已中止：调用方在完成前 abort 了 signal";
+
+/**
+ * 循环因 abort 中止时抛出的领域错误：调用方按 `instanceof ToolLoopAbortedError`
+ * 分支识别「因中止而退出」（旧写法是比对 message === TOOL_LOOP_ABORTED，文案一改
+ * 分支就静默失效——类型化后文案随便改）。常量保留供文案断言/日志复用。
+ */
+export class ToolLoopAbortedError extends EngineError {
+  constructor(message: string = TOOL_LOOP_ABORTED) {
+    super(message);
+  }
+}
 
 /** 循环结果：最终回复文本 + 维护到底的完整消息历史 + 实际步数 */
 export interface ToolLoopResult {
@@ -100,7 +115,7 @@ function errorOutput(value: unknown) {
  * 直接在本函数的对应行插入即可——这正是手写版存在的意义。
  */
 export async function runToolLoop(options: RunToolLoopOptions): Promise<ToolLoopResult> {
-  const { model, tools, system, maxSteps = 5, onStep, signal } = options;
+  const { model, tools, system, maxSteps = DEFAULT_MAX_STEPS, onStep, signal } = options;
   const schemaTools = toSchemaTools(tools);
   const messages: ModelMessage[] = [...options.messages]; // 复制一份，不动调用方的数组
 
@@ -109,7 +124,7 @@ export async function runToolLoop(options: RunToolLoopOptions): Promise<ToolLoop
     // 抛错而不是返回半截结果——与「请求进行中被 abort」时 generateText 的拒绝
     // 语义保持一致，调用方用同一条 catch 路径处理两种中止时机。
     if (signal?.aborted) {
-      throw new Error(TOOL_LOOP_ABORTED);
+      throw new ToolLoopAbortedError(TOOL_LOOP_ABORTED);
     }
     trace("▶", `思考 step ${step} → 调用模型（上下文 ${messages.length} 条消息，可用工具 ${Object.keys(tools).length} 个）`);
     const result = await generateText({ model, messages, tools: schemaTools, system, abortSignal: signal });

@@ -15,7 +15,7 @@ import { pathToFileURL } from "node:url";
 import type { ModelMessage, ToolSet } from "ai";
 import { auditLog, inspectTextInput, resolveToolAllowlist, wrapToolWithGate } from "@agent-app/engine";
 import type { ToolConfirmFn } from "@agent-app/engine";
-import { runToolLoop } from "@agent-app/engine/agent-loop";
+import { DEFAULT_MAX_STEPS, runToolLoop } from "@agent-app/engine/agent-loop";
 import { createModel } from "@agent-app/engine/llm";
 import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
 import type { ChatTurn } from "@agent-app/engine/memory";
@@ -379,7 +379,7 @@ export async function main(args: string[] = []): Promise<void> {
         // 工具执行幂等壳（scope=当前会话）：模型重试/重复提问不再重复建工单。
         // 请求级包装（/new 换会话后 scope 随之切换，旧会话的缓存天然隔离）。
         tools: composeToolShells(tools, [(table) => wrapToolsWithIdempotency(table, idempotency, { scope: sessionId })]),
-        maxSteps: 5,
+        maxSteps: DEFAULT_MAX_STEPS,
       });
 
       // ③ 打印回复并回写会话

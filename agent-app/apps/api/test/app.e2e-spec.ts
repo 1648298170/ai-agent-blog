@@ -25,6 +25,7 @@ vi.mock("ai", async (importOriginal) => {
   };
 });
 vi.mock("@agent-app/engine/agent-loop", () => ({
+  DEFAULT_MAX_STEPS: 5,
   runToolLoop: vi.fn(() => Promise.reject(new Error("测试环境禁止网络：runToolLoop 已屏蔽"))),
 }));
 

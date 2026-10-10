@@ -16,7 +16,7 @@ import { NON_STREAM_APPROVAL_UNSUPPORTED } from "./errors.js";
 // vi.mock 会被提升到文件顶部，工厂里引用的 mock 必须用 vi.hoisted 同步提升
 const { streamTextMock } = vi.hoisted(() => ({ streamTextMock: vi.fn() }));
 
-vi.mock("@agent-app/engine/agent-loop", () => ({ runToolLoop: vi.fn() }));
+vi.mock("@agent-app/engine/agent-loop", () => ({ DEFAULT_MAX_STEPS: 5, runToolLoop: vi.fn() }));
 vi.mock("@agent-app/engine/llm", () => ({ createModel: vi.fn(() => ({ fake: "model" })) }));
 // ai 包部分 mock：tool 等工具原语用真品（demo 工具表要在构造时真实生成），
 // 只把 streamText 换成可控假流——最终答案的逐 token 输出来源

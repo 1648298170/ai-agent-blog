@@ -10,6 +10,7 @@
 // 铁律：不配置（或值不认识）一律回 json 默认——离线优先原则，
 // 没起 Docker 的机器上行为与改造前逐字节一致，绝不因新功能破坏老默认。
 import { loadEnv } from "../config.js";
+import { getEngineLogger } from "../logger.js";
 import { createInMemoryRagStore } from "./store.memory.js";
 import { createJsonRagStore } from "./persistence.js";
 import { createPgVectorRagStore } from "./store.pgvector.js";
@@ -25,7 +26,7 @@ export const DEFAULT_RAG_STORE: RagStoreKind = "json";
 function normalizeKind(raw: string | undefined): RagStoreKind {
   const value = (raw ?? DEFAULT_RAG_STORE).trim().toLowerCase();
   if (value === "memory" || value === "json" || value === "pgvector") return value;
-  console.warn(`[rag-store] 未认识的 RAG_STORE=「${raw}」（可选 memory | json | pgvector），按默认 ${DEFAULT_RAG_STORE} 处理`);
+  getEngineLogger().warn(`[rag-store] 未认识的 RAG_STORE=「${raw}」（可选 memory | json | pgvector），按默认 ${DEFAULT_RAG_STORE} 处理`);
   return DEFAULT_RAG_STORE;
 }
 
