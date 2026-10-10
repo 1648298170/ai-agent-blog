@@ -34,7 +34,7 @@ const queryStock = tool({
 `SessionStore` 接口五个方法：`append / getWindow / clear / listSessions / getHistory`。
 
 1. 新建 `src/memory/session.sqlite.ts` 实现 `SessionStore`；
-2. `factory.ts` 的 switch 里加一个值（如 `SESSION_STORE=sqlite`）——**注意**：不认识的值会警告并回退内存（离线优先铁律），你加的值要进白名单；
+2. `factory.ts` 的 env 分支里加一个值（如 `SESSION_STORE=sqlite`）——**注意**：不认识的值会警告并回退内存（离线优先铁律），你加的值要进分支白名单；
 3. 契约测试挂上：`test/memory.contract.spec.ts` 里 `runSessionStoreContract("sqlite 实现", makeStore)`——行为一致性由契约背书，不用复制断言。
 
 参照实现：`session.memory.ts`（最简）/ `session.redis.ts`（带 TTL、分布式锁的完整版）。

@@ -9,7 +9,7 @@
 // - memory 实现：always 跑（零依赖）；
 // - redis 实现：RUN_INFRA_TESTS=1 且 Redis 可达时跑（沿用 infra spec 的门控与探测）。
 // 新增 SessionStore 实现时：再调一次 runSessionStoreContract 即可，断言零复制。
-import { afterAll, afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeEach, describe, expect, it } from "vitest";
 import type { ChatTurn, SessionStore } from "../src/memory/types.js";
 import { InMemorySessionStore } from "../src/memory/session.memory.js";
 

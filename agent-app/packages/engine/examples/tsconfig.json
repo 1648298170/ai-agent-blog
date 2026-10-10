@@ -1,7 +1,10 @@
 {
   "extends": "../../../tsconfig.base.json",
   "compilerOptions": {
-    "noEmit": true
+    "noEmit": true,
+    "paths": {
+      "@agent-app/engine/*": ["../packages/engine/src/*"]
+    }
   },
   "include": ["*.ts"]
 }
