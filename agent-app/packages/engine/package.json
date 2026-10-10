@@ -6,7 +6,7 @@
   "description": "框架无关的 Agent 引擎：手写工具循环 + RAG 零件 + 三层记忆 + 工具层 + 客服产品核心",
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json && tsc --noEmit -p examples/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest"
   },
