@@ -3,7 +3,7 @@
 > 本目录解决 Agent 的"记性"问题。与隔壁 `rag/` 同构：`types.ts` 是宪法，
 > 每层都有"内存版（默认）+ 真实存储版（Redis/PG）"两套实现，由
 > `SESSION_STORE` / `PREFERENCE_STORE` / `EPISODIC_STORE` 环境变量经 `factory.ts` 一行切换。
-> 配合教程 [week17 · 记忆架构 + 上下文工程](../../../../../docs/week17/index.md) 与 week11 补篇 [记忆 TS 版](../../../../../docs/week11/memory-ts.md)。
+> 配合教程 [week17 · 记忆架构 + 上下文工程](../../../../../docs/archive/weeks/week17/index.md) 与 week11 补篇 [记忆 TS 版](../../../../../docs/archive/weeks/week11/memory-ts.md)。
 
 ---
 

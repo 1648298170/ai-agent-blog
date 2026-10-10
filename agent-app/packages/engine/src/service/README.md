@@ -3,7 +3,7 @@
 > 本目录解决客服系统的"分诊"问题：一条用户消息进来，先由**确定性硬规则**把关，
 > 全不命中才交给 **LLM 三分类**，两者都接不住就**体面地转人工**——退路本身是产品的一部分。
 > 配合教程 [products · 客服系统](../../../../../docs/products/service.md)（Supervisor 星型 / 硬规则 / HandoffPack / 上线检查清单）
-> 与 week11 补篇 [Agent 循环 TS 深入](../../../../../docs/week11/agent-loop-ts.md)（工人手里的工具循环）。
+> 与 week11 补篇 [Agent 循环 TS 深入](../../../../../docs/archive/weeks/week11/agent-loop-ts.md)（工人手里的工具循环）。
 > 工程哲学一句话：**能枚举的事用代码，判不准的事问模型，接不住的事转人工**。
 
 ---
@@ -232,7 +232,7 @@ trace 里"硬规则命中（不问模型）"这一行，就是第 1 步学的优
 
 - **路由判定想亲眼看** → `pnpm service --trace`，盯 `🧭` 行：硬规则命中 / 模型分类 / 重试，三种都有
 - **JSON 解析那套为什么这么绕** → `json-utils.ts` 头注释（glm-4-flash 故事）；同一个"边界"思想在 `../rag/README.md` 第七节也出现
-- **工具循环忘了** → `workers.ts` 只是薄封装，循环本体在 `../agent-loop.ts` + 教程 week11 补篇 [Agent 循环 TS 深入](../../../../../docs/week11/agent-loop-ts.md)
+- **工具循环忘了** → `workers.ts` 只是薄封装，循环本体在 `../agent-loop.ts` + 教程 week11 补篇 [Agent 循环 TS 深入](../../../../../docs/archive/weeks/week11/agent-loop-ts.md)
 - **某文件读不懂** → 每个文件头部注释就是该文件的小地图，"为什么"都写在代码旁边
 
 ## 七、扩展路线

@@ -2,7 +2,7 @@
 
 > 这个目录是全项目数学密度最高的模块。本文先把**原理和数学**讲清楚，
 > 再对照"哪个文件实现了哪段数学"。原理懂了，代码只是翻译。
-> 想要保姆级展开，配合教程 [week14 · RAG Pipeline 入门](../../../../../docs/week14/index.md)（Day 1 概念 / Day 4 Embedding / Day 6 相似度检索）。
+> 想要保姆级展开，配合教程 [week14 · RAG Pipeline 入门](../../../../../docs/archive/weeks/week14/index.md)（Day 1 概念 / Day 4 Embedding / Day 6 相似度检索）。
 
 ---
 

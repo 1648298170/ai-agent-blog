@@ -5,8 +5,8 @@
 > 说调就调）。护栏的本质：**在工具执行边界上加检查点，而不是信任模型**——输入闸拦
 > 脏参数、输出闸拦敏感数据、闸门拦高危执行。与 `evals/`、`memory/` 同一套工程哲学：
 > 纯函数优先、零依赖零网络零 key（`pnpm test` 里护栏套件必跑、不设任何门控）。
-> 配合教程 [week18 · Day 5：MCP 安全护栏](../../../../../docs/week18/day5.md)
-> （输入输出校验 + PII 脱敏）；**人工审批是 [Day 6](../../../../../docs/week18/day6.md)，
+> 配合教程 [week18 · Day 5：MCP 安全护栏](../../../../../docs/archive/weeks/week18/day5.md)
+> （输入输出校验 + PII 脱敏）；**人工审批是 [Day 6](../../../../../docs/archive/weeks/week18/day6.md)，
 > 落在 `apps/api/src/chat/tool-approval.ts`**——同一抽象的姊妹实现，见第七节交叉引用。
 
 ---

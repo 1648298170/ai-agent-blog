@@ -6,7 +6,7 @@
 > 与 `rag/`、`memory/` 同一套工程哲学：**协议在边界上被消化，agent-loop 零感知**——
 > schema 单一真源（zod 只写一份）、离线优先（测试用 InMemoryTransport 走真实
 > JSON-RPC 往返，但零网络零 spawn）。
-> 配合教程 [week18 · MCP 协议 + 工具生态](../../../../../docs/week18/index.md)
+> 配合教程 [week18 · MCP 协议 + 工具生态](../../../../../docs/archive/weeks/week18/index.md)
 > （教程主线是 Python FastMCP / LangGraph，本项目为官方 TS SDK
 > `@modelcontextprotocol/sdk` 的同题材适配，命令行为可直接跑）。
 
@@ -198,7 +198,7 @@ server / client / adapter 三个文件的**边界**上；循环、评估、观�
 
 ## 六、随时可回的加油站
 
-- **协议原语（tools/resources）忘了** → week18 [Day 1 概念篇](../../../../../docs/week18/day1.md)；Day 2/3 是 Python FastMCP / LangGraph 对照版
+- **协议原语（tools/resources）忘了** → week18 [Day 1 概念篇](../../../../../docs/archive/weeks/week18/day1.md)；Day 2/3 是 Python FastMCP / LangGraph 对照版
 - **stdio / close 序列看不懂** → `client.ts` 文件头注释（从 SDK 1.31.0 源码核实的原话）
 - **测试怎么不 spawn 就测协议** → 两个 spec 的 beforeAll：InMemoryTransport.createLinkedPair + server 先 connect
 - **实现读不懂** → 每个文件头部注释 = 该文件的小地图，"为什么"都写在代码旁边

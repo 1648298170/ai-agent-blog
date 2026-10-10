@@ -40,20 +40,20 @@ pnpm typecheck
 
 | 命令 | 作用 | 对应教程 |
 | --- | --- | --- |
-| `pnpm chat` | readline 聊天 REPL：会话窗口 + 手写工具循环 + 演示工具 | [week11 主线补篇 · Agent 循环 TS 深入](../docs/week11/agent-loop-ts.md) |
-| `pnpm chat --selftest` / `pnpm selftest` | 无网络自检（切块 / 余弦检索 / 会话存储） | [week11 · RAG TS 全链路](../docs/week11/rag-ts.md)、[week11 · 记忆 TS 版](../docs/week11/memory-ts.md) |
+| `pnpm chat` | readline 聊天 REPL：会话窗口 + 手写工具循环 + 演示工具 | [week11 主线补篇 · Agent 循环 TS 深入](../docs/archive/weeks/week11/agent-loop-ts.md) |
+| `pnpm chat --selftest` / `pnpm selftest` | 无网络自检（切块 / 余弦检索 / 会话存储） | [week11 · RAG TS 全链路](../docs/archive/weeks/week11/rag-ts.md)、[week11 · 记忆 TS 版](../docs/archive/weeks/week11/memory-ts.md) |
 | `pnpm chat --mcp "cmd /c pnpm mcp:server"` | 聊天 REPL 接入外部 MCP 服务器（spawn stdio 子进程，工具表自动合并） | —（MCP 专题教程规划中） |
 | `pnpm cli chat` | 入口路由：聊天 | 同 `pnpm chat` |
-| `pnpm cli kb` / `pnpm kb` | 知识库问答 REPL：检索 top5 → 带引用回答 | [products · 知识库问答](../docs/products/kb.md)、[week11 · RAG TS](../docs/week11/rag-ts.md) |
-| `pnpm kb:ingest <文件>` | 知识库入库：切块 → 向量化 → 快照落盘（.txt / .md / .pdf） | [week11 · RAG TS](../docs/week11/rag-ts.md) |
+| `pnpm cli kb` / `pnpm kb` | 知识库问答 REPL：检索 top5 → 带引用回答 | [products · 知识库问答](../docs/products/kb.md)、[week11 · RAG TS](../docs/archive/weeks/week11/rag-ts.md) |
+| `pnpm kb:ingest <文件>` | 知识库入库：切块 → 向量化 → 快照落盘（.txt / .md / .pdf） | [week11 · RAG TS](../docs/archive/weeks/week11/rag-ts.md) |
 | `pnpm cli service` / `pnpm service` | 智能客服 REPL：硬规则 + 三分类路由 + 三工人 + 转人工 | [products · 客服系统](../docs/products/service.md) |
 | `pnpm test:service` | 客服硬规则离线自测（纯函数断言，无网络） | [products · 客服系统](../docs/products/service.md) |
-| `pnpm infra:up` / `pnpm infra:down` | 真实持久化基座：pgvector(pg16) + redis(7) 容器起停 | [week14](../docs/week14/index.md)、[week17](../docs/week17/index.md) |
+| `pnpm infra:up` / `pnpm infra:down` | 真实持久化基座：pgvector(pg16) + redis(7) 容器起停 | [week14](../docs/archive/weeks/week14/index.md)、[week17](../docs/archive/weeks/week17/index.md) |
 | `pnpm test:infra` | 基础设施集成测试（RUN_INFRA_TESTS=1，需先 `infra:up`） | week14 / week17 实战 |
 | `pnpm typecheck` | `tsc --noEmit` 零错误检查 | — |
 | `pnpm verify` | 聚合自检一条命令：typecheck → engine/api 测试 → selftest → examples 类型检查 → 架构红线 | — |
 | `pnpm examples` | 跑两个最小可运行示例（最小 Agent / 自定义工具，需先 `pnpm build` + 配好 key） | [engine/docs/EXTENDING.md](packages/engine/docs/EXTENDING.md) |
-| `pnpm eval` | 跑评测考卷（76 例三档判分，无 key 自动跳过需网关的档位） | [week16/evals-ts.md](docs/week16/evals-ts.md) |
+| `pnpm eval` | 跑评测考卷（76 例三档判分，无 key 自动跳过需网关的档位） | [week16/evals-ts.md](../docs/archive/weeks/week16/evals-ts.md) |
 
 ## 目录结构（pnpm workspace 单仓）
 
@@ -88,7 +88,7 @@ agent-app/
 
 ## 产品线一 · 知识库问答（kb）
 
-两步走：先入库，再提问。对应教程 [products/kb.md](../docs/products/kb.md)（零件组装）与 [week11 · RAG TS](../docs/week11/rag-ts.md)（链路实现）。
+两步走：先入库，再提问。对应教程 [products/kb.md](../docs/products/kb.md)（零件组装）与 [week11 · RAG TS](../docs/archive/weeks/week11/rag-ts.md)（链路实现）。
 
 ```powershell
 # 1. 入库：读文件 → 切块 → 向量化 → 落盘快照（支持 .txt / .md / .pdf）
@@ -278,7 +278,7 @@ pnpm --filter @agent-app/web dev        # 前端开发服务器（默认 3000；
 
 ## HTTP API（NestJS · 教程第 20 周 BFF 形态）
 
-引擎与产品逻辑不变，外面套一层 NestJS 服务壳（模块 / 控制器 / DTO 校验 / 全局异常过滤），对应教程 [week20](../docs/week20/index.md) 的 BFF 架构层：
+引擎与产品逻辑不变，外面套一层 NestJS 服务壳（模块 / 控制器 / DTO 校验 / 全局异常过滤），对应教程 [week20](../docs/archive/weeks/week20/index.md) 的 BFF 架构层：
 
 ```powershell
 pnpm api        # 等价：构建 @agent-app/engine + @agent-app/api 后 node apps/api/dist/main.js，默认端口 3000（PORT 可改）
