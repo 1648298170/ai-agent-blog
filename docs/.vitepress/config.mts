@@ -59,6 +59,15 @@ export default defineConfig({
 
     sidebar: [
       {
+        text: '开始',
+        collapsed: false,
+        items: [
+          { text: '前言 · 开始之前', link: '/preface' },
+          { text: '学习总纲 · 双轨路径', link: '/guide/' },
+          { text: '路线图 · 阶段与里程碑', link: '/roadmap' }
+        ]
+      },
+      {
         text: '🚀 主线 · 从 0 到生产',
         collapsed: false,
         items: [
@@ -101,15 +110,6 @@ export default defineConfig({
         items: [
           { text: '扩展指南：加工具/加实现/换网关', link: '/how-to/EXTENDING' },
           { text: '成熟度矩阵：离生产还差几步', link: '/how-to/MATURITY' }
-        ]
-      },
-      {
-        text: '开始',
-        collapsed: false,
-        items: [
-          { text: '前言 · 开始之前', link: '/preface' },
-          { text: '学习总纲 · 双轨路径', link: '/guide/' },
-          { text: '路线图 · 阶段与里程碑', link: '/roadmap' }
         ]
       },
       {
