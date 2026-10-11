@@ -5,6 +5,7 @@
 
 import type { ReactNode } from "react";
 import ApprovalCard from "./ApprovalCard";
+import DataCards from "./DataCards";
 import StepPanel from "./StepPanel";
 
 /** 思考过程面板的一步：step 事件原样落地（output 是 unknown，展示层负责摘要）。
@@ -77,6 +78,8 @@ export default function MessageBubble({
         {(message.approvals ?? []).map((record) => (
           <ApprovalCard key={record.approvalId} record={record} onDecide={onApprove} />
         ))}
+        {/* 列表形态的工具输出画成数据卡片（名册/Top10/每日明细/矩阵），用户直接看数，不靠模型转述 */}
+        <DataCards steps={message.steps} />
         <BubbleBody message={message} />
       </div>
     </div>

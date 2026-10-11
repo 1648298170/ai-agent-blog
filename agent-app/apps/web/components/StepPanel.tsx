@@ -2,13 +2,15 @@
 // 平滑展开/收起（grid-rows 0fr→1fr 过渡，高度变化不跳变）+ 新步骤渐入动画
 // + 内容限高内滚（长过程不再撑爆气泡）+ 流式时自动滚动到最新一步。
 // Thought / Action / Observation 三段式（week20 的 ReAct 可视形态）。
+// Action 与 Observation 展示全文（多行缩进 JSON，不截断）——面板本身限高内滚。
 "use client";
 
 import { useEffect, useRef, useState } from "react";
 import type { StepRecord } from "./MessageBubble";
 
-/** 未知输出 → 单行摘要（JSON 压平，超长截断；面板要的是「发生了什么」，不是全文）。
- *  审批卡片（ApprovalCard）复用同一摘要规则：工具入参预览与 Observation 观感一致。 */
+/** 未知输出 → 单行摘要（JSON 压平，超长截断）。
+ *  仅剩审批卡片（ApprovalCard）在用：卡片空间小，入参给个预览即可。
+ *  思考面板的 Action/Observation 要展示全文，走 prettyJson。 */
 export function summarize(value: unknown): string {
   let text: string;
   if (typeof value === "string") {
@@ -21,6 +23,17 @@ export function summarize(value: unknown): string {
     }
   }
   return text.length > 200 ? `${text.slice(0, 200)}…` : text;
+}
+
+/** 未知输出 → 全文文本：对象格式化为多行缩进 JSON（pre-wrap 逐行展示，不截断）。
+ *  用户要求 Observation 展示全——面板本身限高内滚（max-h-60），长内容滚动可见。 */
+export function prettyJson(value: unknown): string {
+  if (typeof value === "string") return value;
+  try {
+    return JSON.stringify(value, null, 2) ?? String(value);
+  } catch {
+    return String(value);
+  }
 }
 
 export default function StepPanel({
@@ -86,12 +99,16 @@ export default function StepPanel({
                   <code className="rounded bg-white px-1 py-0.5 font-mono text-[12px] text-gray-800">
                     {step.toolName}
                   </code>
-                  ({summarize(step.input)})
                 </p>
-                <p className="break-words">
-                  <span className="font-semibold text-emerald-600">Observation</span>{" "}
-                  {summarize(step.output)}
-                </p>
+                {/* 入参全文：多行缩进 JSON，pre-wrap 逐行展示（不截断） */}
+                <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-gray-700">
+                  {prettyJson(step.input)}
+                </pre>
+                <p className="font-semibold text-emerald-600">Observation</p>
+                {/* 观察结果全文：同上不截断——面板限高内滚，内容全部可见（滚动） */}
+                <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-gray-700">
+                  {prettyJson(step.output)}
+                </pre>
               </li>
             ))}
           </ol>
