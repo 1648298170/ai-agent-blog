@@ -83,7 +83,8 @@ export default defineConfig({
           { text: '09 · 产品线组装：客服系统', link: '/guide/09-product' },
           { text: '10 · Web 前端与 SSE 流式', link: '/guide/10-frontend' },
           { text: '11 · 生产化与成熟度', link: '/guide/11-production' },
-          { text: '12 · 学完之后：演进方向', link: '/guide/12-roadmap' }
+          { text: '12 · 学完之后：演进方向', link: '/guide/12-roadmap' },
+          { text: '13 · 面试实战：带着问题通关', link: '/guide/13-interview' }
         ]
       },
       {

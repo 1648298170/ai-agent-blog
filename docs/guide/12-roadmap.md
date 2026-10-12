@@ -125,7 +125,8 @@ Agent 这个领域还在高速变化，但你在 02 站握住的那台发动机�
 
 ## 延伸
 
-- [agent-app/BACKLOG.md（GitHub）](https://github.com/1648298170/ai-agent-blog/blob/main/agent-app/BACKLOG.md) —— 演进方向的真实挂账：每项带触发条件与设计稿
+- [agent-app/BACKLOG.md（GitHub）](https://github.com/1648298170/ai-agent-blog/blob/main/agent-app/BACKLOG.md)
+- 下一站：[13 · 面试实战：带着问题通关](/guide/13-interview) —— 用十七道高频面试题反向验收十二站 —— 演进方向的真实挂账：每项带触发条件与设计稿
 - [how-to · MATURITY](/how-to/MATURITY) —— 生产前置清单；[扩展指南](/how-to/EXTENDING) —— 加工具 / 加存储 / 换网关的最小步骤
 - 归档周教程：[week21 · 可观测与成本](/archive/weeks/week21/) · [week22 · 系统设计与简历](/archive/weeks/week22/) · [week23 · 面试冲刺](/archive/weeks/week23/)
 - 下一站：**毕业** —— 主线到此收束；新故事从你往 `examples/` 里加的那个工具开始
