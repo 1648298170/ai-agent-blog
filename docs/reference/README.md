@@ -16,6 +16,7 @@
 | [07](./07-mcp.md) | mcp | 标准插口：server / client / adapter |
 | [08](./08-evals.md) | evals | 评估框架：三档判分 / 基线对比 |
 | [09](./09-service.md) | service | 客服产品线：路由 / 工人 / 转人工 |
+| [10](./10-orchestrator.md) | orchestrator | 编排器：任务拆分 / 编排模式 / 失败策略 / 预算控制 |
 
 ## 源码位置
 

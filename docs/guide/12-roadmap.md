@@ -38,8 +38,9 @@
 P1 升格叙事（零代码）  service/README 增补「你就是多 Agent：Supervisor 模式」
                       ——路由 Agent + 三个专家工人 + HandoffPack 交接，
                       你在 09 站已经写过它，只是没这么叫
-P2 teams/ 流水线       planner（规划）→ executor（逐步执行）→ critic（验收打回）
-                      共享黑板做单一事实源；全程 trace，🧩🔧🔍 区分角色
+P2 编排器（✅ 已实现）  orchestrator/ 模块：显式状态机 + TaskSpec 验收标准
+                      + 失败四分支策略 + 预算控制 + 事件流 + 可插拔三角色
+                      详见 [参考库 · 编排器](/reference/10-orchestrator)
 P3 A2A 落地            Agent Card 对外发布（GET /.well-known/agent-card.json），
                       起两个实例互相委托「查订单」，把协议跑成狗粮
 ```

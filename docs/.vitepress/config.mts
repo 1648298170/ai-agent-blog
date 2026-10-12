@@ -100,6 +100,7 @@ export default defineConfig({
           { text: 'MCP 集成', link: '/reference/07-mcp' },
           { text: '评估框架', link: '/reference/08-evals' },
           { text: '客服产品线', link: '/reference/09-service' },
+          { text: '编排器：多 Agent 骨架', link: '/reference/10-orchestrator' },
           { text: '产品 · 知识库问答', link: '/products/kb' },
           { text: '产品 · 智能客服', link: '/products/service' },
           { text: '产品 · 文档智能', link: '/products/docintel' }
