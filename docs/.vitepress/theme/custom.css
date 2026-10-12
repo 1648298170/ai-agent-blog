@@ -1,65 +1,67 @@
 /* ==========================================================================
    Jerry's Workshop · 设计系统
-   概念：暖纸手账 × 终端工坊 —— 一本 23 周的「训练日志」
-   语言：等宽编号（W01–W23 / §01 / $）+ 焦糖棕 / 蜂蜜金 / 奶油纸
+   概念：豆沙绿手账 × 终端工坊 —— 一本 23 周的「训练日志」
+   语言：等宽编号（W01–W23 / §01 / $）+ 苔绿 / 竹青 / 豆沙纸
+   护眼调校：豆沙绿画布 + 墨绿灰正文（对比 ~10:1，弃纯黑纯白），
+             块级背景统一降饱和融入画布，暗色夜绿提亮降眩光
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
    1. 设计令牌 · 亮色
    -------------------------------------------------------------------------- */
 :root {
-  /* —— 品牌色（Jerry：焦糖棕 + 蜜橘金）—— */
-  --vp-c-brand: #96643f;
-  --vp-c-brand-1: #96643f;
-  --vp-c-brand-2: #7f5233;
-  --vp-c-brand-3: #6b4329;
-  --vp-c-brand-light: #b08256;
-  --vp-c-brand-lighter: #c9a87e;
-  --vp-c-brand-dark: #7f5233;
-  --vp-c-brand-darker: #6b4329;
-  --vp-c-brand-soft: rgba(181, 130, 86, 0.13);
-  --vp-code-bg: #f6f7f8;
+  /* —— 品牌色（Jerry：苔绿 + 竹青，护眼绿系）—— */
+  --vp-c-brand: #3f6e4e;
+  --vp-c-brand-1: #3f6e4e;
+  --vp-c-brand-2: #365f44;
+  --vp-c-brand-3: #2d5039;
+  --vp-c-brand-light: #5d8f6e;
+  --vp-c-brand-lighter: #82ac91;
+  --vp-c-brand-dark: #365f44;
+  --vp-c-brand-darker: #2d5039;
+  --vp-c-brand-soft: rgba(74, 124, 89, 0.1);
+  --vp-code-bg: #e4ecdd;
 
-  /* —— 画布（纯白）—— */
-  --vp-c-bg: #ffffff;
-  --vp-c-bg-alt: #f7f7f8;
-  --vp-c-bg-soft: #f4f4f5;
-  --vp-c-bg-elv: #ffffff;
+  /* —— 画布（豆沙绿护眼纸）—— */
+  --vp-c-bg: #eef3ea;
+  --vp-c-bg-alt: #e6eee0;
+  --vp-c-bg-soft: #dfe9d7;
+  --vp-c-bg-elv: #f7faf3;
 
-  /* —— 文字（纯黑正文 + 中性灰辅助）—— */
-  --vp-c-text-1: #000000;
-  --vp-c-text-2: #000000;
-  --vp-c-text-3: #666666;
+  /* —— 文字（墨绿灰正文，对比 ~10:1；辅助层次递减）—— */
+  --vp-c-text-1: #2f3b2f;
+  --vp-c-text-2: #4d5c4d;
+  --vp-c-text-3: #6f7f6f;
 
   /* —— 线 —— */
-  --vp-c-divider: rgba(154, 100, 38, 0.18);
-  --vp-c-gutter: rgba(154, 100, 38, 0.12);
-  --vp-c-border: rgba(154, 100, 38, 0.26);
+  --vp-c-divider: rgba(74, 124, 89, 0.16);
+  --vp-c-gutter: rgba(74, 124, 89, 0.12);
+  --vp-c-border: rgba(74, 124, 89, 0.22);
 
   /* —— Jerry 扩展令牌 —— */
-  --jerry-ink: #000000;
-  --jerry-amber: #c99f74;
-  --jerry-honey: #d4ab7e;
-  --jerry-caramel: #96643f;
-  --jerry-cocoa: #7f5233;
-  --jerry-success: #6b8f57;
-  --jerry-wash: rgba(181, 130, 86, 0.055);
-  --jerry-grid: rgba(154, 100, 38, 0.06);
-  --jerry-ring: rgba(180, 83, 9, 0.2);
+  --jerry-ink: #26332a;
+  --jerry-amber: #7ba987;
+  --jerry-honey: #8fbf9d;
+  --jerry-caramel: #3f6e4e;
+  --jerry-cocoa: #365f44;
+  --jerry-success: #5f8f4e;
+  --jerry-wash: rgba(74, 124, 89, 0.05);
+  --jerry-grid: rgba(74, 124, 89, 0.07);
+  --jerry-ring: rgba(63, 110, 78, 0.22);
   --jerry-noise-o: 0.045;
-  --jerry-shadow-s: 0 1px 2px rgba(72, 44, 12, 0.06);
-  --jerry-shadow-m: 0 2px 6px rgba(72, 44, 12, 0.05),
-    0 14px 34px rgba(72, 44, 12, 0.09);
-  --jerry-shadow-l: 0 4px 14px rgba(72, 44, 12, 0.1),
-    0 28px 64px rgba(120, 53, 15, 0.18);
+  --jerry-shadow-s: 0 1px 2px rgba(42, 62, 48, 0.06);
+  --jerry-shadow-m: 0 2px 6px rgba(42, 62, 48, 0.05),
+    0 14px 34px rgba(42, 62, 48, 0.09);
+  --jerry-shadow-l: 0 4px 14px rgba(42, 62, 48, 0.1),
+    0 28px 64px rgba(35, 60, 45, 0.18);
   --jerry-r-s: 8px;
   --jerry-r-m: 12px;
   --jerry-r-l: 18px;
 
   /* —— 导航 / 侧边栏（毛玻璃）—— */
-  --vp-nav-bg-color: rgba(255, 255, 255, 0.82);
-  --vp-nav-screen-bg-color: rgba(255, 255, 255, 0.96);
-  --vp-sidebar-bg-color: rgba(255, 255, 255, 0.55);
+  --vp-nav-bg-color: rgba(247, 250, 243, 0.82);
+  --vp-nav-screen-bg-color: rgba(247, 250, 243, 0.96);
+  --vp-sidebar-bg-color: rgba(247, 250, 243, 0.55);
 
   /* —— 字体（不引 webfont：西文 Inter 栈 + 中文 PingFang/雅黑/Noto）—— */
   --vp-font-family-base:
@@ -72,37 +74,37 @@
 }
 
 /* --------------------------------------------------------------------------
-   1b. 设计令牌 · 暗色（暖夜棕，不是灰黑）
+   1b. 设计令牌 · 暗色（夜绿，不是灰黑）
    -------------------------------------------------------------------------- */
 .dark {
-  --vp-c-brand: #c99f74;
-  --vp-c-brand-1: #c99f74;
-  --vp-c-brand-2: #b08256;
-  --vp-c-brand-3: #dcc09b;
-  --vp-c-brand-light: #b08256;
-  --vp-c-brand-lighter: #96643f;
-  --vp-c-brand-dark: #dcc09b;
-  --vp-c-brand-darker: #ecdcc2;
-  --vp-c-brand-soft: rgba(201, 159, 116, 0.16);
+  --vp-c-brand: #8fbf9d;
+  --vp-c-brand-1: #8fbf9d;
+  --vp-c-brand-2: #79aa88;
+  --vp-c-brand-3: #a5cfae;
+  --vp-c-brand-light: #79aa88;
+  --vp-c-brand-lighter: #6f9f7f;
+  --vp-c-brand-dark: #a5cfae;
+  --vp-c-brand-darker: #c4e0c8;
+  --vp-c-brand-soft: rgba(143, 191, 157, 0.14);
 
-  --vp-c-bg: #1a130b;
-  --vp-c-bg-alt: #201810;
-  --vp-c-bg-soft: #261d13;
-  --vp-c-bg-elv: #241b11;
+  --vp-c-bg: #1b231c;
+  --vp-c-bg-alt: #202a21;
+  --vp-c-bg-soft: #273227;
+  --vp-c-bg-elv: #232e23;
 
-  --vp-c-text-1: #f3ebdc;
-  --vp-c-text-2: #c8bba7;
-  --vp-c-text-3: #998b74;
+  --vp-c-text-1: #dde8da;
+  --vp-c-text-2: #a9b9a7;
+  --vp-c-text-3: #7f917e;
 
-  --vp-c-divider: rgba(201, 159, 116, 0.17);
-  --vp-c-gutter: rgba(201, 159, 116, 0.1);
-  --vp-c-border: rgba(201, 159, 116, 0.26);
+  --vp-c-divider: rgba(143, 191, 157, 0.16);
+  --vp-c-gutter: rgba(143, 191, 157, 0.09);
+  --vp-c-border: rgba(143, 191, 157, 0.22);
 
-  --jerry-ink: #f6efe1;
-  --jerry-success: #a3bd8f;
-  --jerry-wash: rgba(201, 159, 116, 0.05);
-  --jerry-grid: rgba(201, 159, 116, 0.055);
-  --jerry-ring: rgba(201, 159, 116, 0.24);
+  --jerry-ink: #e3edde;
+  --jerry-success: #8fb87e;
+  --jerry-wash: rgba(143, 191, 157, 0.05);
+  --jerry-grid: rgba(143, 191, 157, 0.055);
+  --jerry-ring: rgba(143, 191, 157, 0.24);
   --jerry-noise-o: 0.06;
   --jerry-shadow-s: 0 1px 2px rgba(0, 0, 0, 0.3);
   --jerry-shadow-m: 0 2px 6px rgba(0, 0, 0, 0.25),
@@ -110,9 +112,9 @@
   --jerry-shadow-l: 0 4px 14px rgba(0, 0, 0, 0.35),
     0 28px 64px rgba(0, 0, 0, 0.5);
 
-  --vp-nav-bg-color: rgba(23, 17, 10, 0.82);
-  --vp-nav-screen-bg-color: rgba(23, 17, 10, 0.96);
-  --vp-sidebar-bg-color: rgba(23, 17, 10, 0.55);
+  --vp-nav-bg-color: rgba(21, 28, 22, 0.82);
+  --vp-nav-screen-bg-color: rgba(21, 28, 22, 0.96);
+  --vp-sidebar-bg-color: rgba(21, 28, 22, 0.55);
 }
 
 /* --------------------------------------------------------------------------
@@ -309,8 +311,8 @@ body::after {
     ),
     radial-gradient(
       closest-side,
-      rgba(201, 159, 116, 0.2) 0%,
-      rgba(201, 159, 116, 0.05) 55%,
+      rgba(143, 191, 157, 0.18) 0%,
+      rgba(143, 191, 157, 0.05) 55%,
       transparent 74%
     );
   border-radius: 50%;
@@ -328,7 +330,7 @@ body::after {
   background: conic-gradient(
     from 0deg,
     transparent 0deg 282deg,
-    rgba(201, 159, 116, 0.34) 340deg,
+    rgba(143, 191, 157, 0.32) 340deg,
     transparent 360deg
   );
   -webkit-mask-image: radial-gradient(
@@ -388,7 +390,7 @@ body::after {
   height: 7px;
   flex: none;
   transform: rotate(45deg);
-  background: linear-gradient(135deg, #96643f, #c99f74);
+  background: linear-gradient(135deg, #3f6e4e, #8fbf9d);
 }
 
 .jhi-title {
@@ -401,7 +403,7 @@ body::after {
 }
 
 .jhi-grad {
-  background: linear-gradient(115deg, #7f5233 8%, #b08256 46%, #c99f74 92%);
+  background: linear-gradient(115deg, #2d5039 8%, #5d8f6e 46%, #8fbf9d 92%);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -409,7 +411,7 @@ body::after {
 }
 
 .dark .jhi-grad {
-  background: linear-gradient(115deg, #c99f74 10%, #dcc09b 55%, #ecdcc2 95%);
+  background: linear-gradient(115deg, #8fbf9d 10%, #a5cfae 55%, #c4e0c8 95%);
   -webkit-background-clip: text;
   background-clip: text;
 }
@@ -451,27 +453,27 @@ body::after {
 }
 
 .jbtn-primary {
-  color: #fff8ec;
-  background: linear-gradient(135deg, #96643f, #7f5233);
+  color: #f4faf4;
+  background: linear-gradient(135deg, #3f6e4e, #365f44);
   box-shadow:
-    0 1px 0 rgba(255, 235, 200, 0.25) inset,
+    0 1px 0 rgba(230, 250, 235, 0.25) inset,
     var(--jerry-shadow-m);
 }
 
 .jbtn-primary:hover {
   transform: translateY(-2px);
   box-shadow:
-    0 1px 0 rgba(255, 235, 200, 0.3) inset,
-    0 8px 22px rgba(146, 64, 14, 0.4);
+    0 1px 0 rgba(230, 250, 235, 0.3) inset,
+    0 8px 22px rgba(45, 80, 57, 0.4);
 }
 
 .dark .jbtn-primary {
-  color: #221507;
-  background: linear-gradient(135deg, #d4ab7e, #c99f74);
+  color: #14261a;
+  background: linear-gradient(135deg, #a3cfad, #8fbf9d);
 }
 
 .dark .jbtn-primary:hover {
-  box-shadow: 0 8px 22px rgba(201, 159, 116, 0.35);
+  box-shadow: 0 8px 22px rgba(143, 191, 157, 0.35);
 }
 
 .jbtn-ghost {
@@ -551,13 +553,13 @@ body::after {
 }
 
 .jt-term {
-  border: 1px solid rgba(201, 159, 116, 0.24);
+  border: 1px solid rgba(143, 191, 157, 0.22);
   border-radius: 16px;
-  background: #1d150e;
+  background: #17211a;
   overflow: hidden;
   box-shadow:
-    0 1px 0 rgba(255, 230, 190, 0.09) inset,
-    0 34px 70px -22px rgba(120, 53, 15, 0.55);
+    0 1px 0 rgba(230, 250, 235, 0.08) inset,
+    0 34px 70px -22px rgba(18, 42, 28, 0.55);
 }
 
 .jt-bar {
@@ -566,8 +568,8 @@ body::after {
   gap: 12px;
   height: 40px;
   padding: 0 14px;
-  background: #271d13;
-  border-bottom: 1px solid rgba(201, 159, 116, 0.15);
+  background: #1e2a21;
+  border-bottom: 1px solid rgba(143, 191, 157, 0.14);
 }
 
 .jt-dots {
@@ -582,11 +584,11 @@ body::after {
 }
 
 .jt-dots i:nth-child(1) {
-  background: #cd8a76;
+  background: #c98a8a;
 }
 
 .jt-dots i:nth-child(2) {
-  background: #c99f74;
+  background: #c9b174;
 }
 
 .jt-dots i:nth-child(3) {
@@ -602,7 +604,7 @@ body::after {
   text-align: center;
   font-family: var(--vp-font-family-mono);
   font-size: 12px;
-  color: #b3a28c;
+  color: #9db3a0;
 }
 
 .jt-shell {
@@ -610,9 +612,9 @@ body::after {
   font-family: var(--vp-font-family-mono);
   font-size: 10.5px;
   padding: 2px 7px;
-  border: 1px solid rgba(201, 159, 116, 0.25);
+  border: 1px solid rgba(143, 191, 157, 0.24);
   border-radius: 6px;
-  color: #8d7c66;
+  color: #7d9080;
 }
 
 .jt-body {
@@ -627,7 +629,7 @@ body::after {
   align-items: flex-start;
   gap: 8px;
   padding: 1.5px 0;
-  color: #ded1bd;
+  color: #d3dfce;
   word-break: break-all;
   visibility: hidden;
 }
@@ -660,41 +662,41 @@ body::after {
   border-radius: 5px;
 }
 
-/* —— 行配色（暖终端）—— */
+/* —— 行配色（绿屏终端）—— */
 .jt-t-cmd .jt-tag {
   padding: 0;
-  color: #d4ab7e;
+  color: #a3cfad;
   font-size: 13px;
   font-weight: 700;
 }
 
 .jt-t-cmd .jt-tx {
-  color: #f3e9d8;
+  color: #e9f2e4;
   font-weight: 500;
 }
 
 .jt-t-sys {
-  color: #8d7c66;
+  color: #7d9080;
   font-size: 12px;
 }
 
 .jt-t-sys .jt-tag {
-  background: #2c2117;
-  color: #8d7c66;
+  background: #243128;
+  color: #7d9080;
 }
 
 .jt-t-you .jt-tag {
-  background: rgba(240, 235, 220, 0.13);
-  color: #efe6d4;
+  background: rgba(235, 245, 235, 0.13);
+  color: #e7efe2;
 }
 
 .jt-t-plan .jt-tag {
-  background: rgba(201, 159, 116, 0.17);
-  color: #c99f74;
+  background: rgba(143, 191, 157, 0.16);
+  color: #a3cfad;
 }
 
 .jt-t-plan .jt-tx {
-  color: #d8c5a5;
+  color: #b7cdb3;
 }
 
 .jt-t-tool .jt-tag {
@@ -716,12 +718,12 @@ body::after {
 }
 
 .jt-t-agent .jt-tag {
-  background: rgba(201, 159, 116, 0.22);
-  color: #dcc09b;
+  background: rgba(143, 191, 157, 0.2);
+  color: #b7d8bd;
 }
 
 .jt-t-agent .jt-tx {
-  color: #dcc09b;
+  color: #b7d8bd;
   font-weight: 700;
 }
 
@@ -749,7 +751,7 @@ body::after {
   width: 7px;
   height: 14px;
   margin-left: 2px;
-  background: #d4ab7e;
+  background: #a3cfad;
   vertical-align: -2px;
   animation: jerry-blink 1.05s steps(2, start) infinite;
 }
@@ -766,11 +768,11 @@ body::after {
   justify-content: space-between;
   gap: 12px;
   padding: 8px 14px;
-  background: #221a12;
-  border-top: 1px solid rgba(201, 159, 116, 0.15);
+  background: #1a241c;
+  border-top: 1px solid rgba(143, 191, 157, 0.14);
   font-family: var(--vp-font-family-mono);
   font-size: 11px;
-  color: #8d7c66;
+  color: #7d9080;
 }
 
 .jt-status-left {
@@ -783,7 +785,7 @@ body::after {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #c99f74;
+  background: #8fbf9d;
   animation: jerry-led 1.4s ease infinite;
 }
 
@@ -963,7 +965,7 @@ body::after {
 .jp-item:hover {
   background: linear-gradient(
     to right,
-    rgba(181, 130, 86, 0.05),
+    rgba(74, 124, 89, 0.05),
     transparent 70%
   );
 }
@@ -973,12 +975,12 @@ body::after {
   font-size: 40px;
   font-weight: 700;
   line-height: 1;
-  color: rgba(180, 83, 9, 0.24);
+  color: rgba(63, 110, 78, 0.28);
   transition: color 0.25s ease;
 }
 
 .dark .jp-no {
-  color: rgba(201, 159, 116, 0.28);
+  color: rgba(143, 191, 157, 0.3);
 }
 
 .jp-item:hover .jp-no {
@@ -1056,10 +1058,10 @@ body::after {
 }
 
 .jst-cell.done {
-  background: linear-gradient(135deg, #b08256, #96643f);
-  border-color: #7f5233;
-  box-shadow: 0 3px 10px rgba(180, 83, 9, 0.4);
-  color: #fff6e6;
+  background: linear-gradient(135deg, #5d8f6e, #3f6e4e);
+  border-color: #365f44;
+  box-shadow: 0 3px 10px rgba(63, 110, 78, 0.4);
+  color: #f2faf3;
   font-size: 12px;
   font-weight: 700;
 }
@@ -1070,11 +1072,11 @@ body::after {
 
 .jst-cell.mile {
   background: transparent;
-  border: 1.5px dashed rgba(180, 83, 9, 0.45);
+  border: 1.5px dashed rgba(63, 110, 78, 0.5);
 }
 
 .dark .jst-cell.mile {
-  border-color: rgba(201, 159, 116, 0.5);
+  border-color: rgba(143, 191, 157, 0.5);
 }
 
 .jst-meta {
@@ -1112,15 +1114,15 @@ body::after {
 }
 
 .jst-legend .l-done {
-  background: linear-gradient(135deg, #b08256, #96643f);
+  background: linear-gradient(135deg, #5d8f6e, #3f6e4e);
 }
 
 .jst-legend .l-mile {
-  border: 1.5px dashed rgba(180, 83, 9, 0.45);
+  border: 1.5px dashed rgba(63, 110, 78, 0.5);
 }
 
 .dark .jst-legend .l-mile {
-  border-color: rgba(201, 159, 116, 0.5);
+  border-color: rgba(143, 191, 157, 0.5);
 }
 
 .jst-legend .l-todo {
@@ -1161,13 +1163,13 @@ body::after {
 .jst-stage.live {
   border: 1.5px solid var(--vp-c-brand);
   box-shadow:
-    0 4px 18px rgba(180, 83, 9, 0.14),
+    0 4px 18px rgba(63, 110, 78, 0.14),
     var(--jerry-shadow-m);
 }
 
 .dark .jst-stage.live {
   box-shadow:
-    0 4px 18px rgba(201, 159, 116, 0.12),
+    0 4px 18px rgba(143, 191, 157, 0.12),
     var(--jerry-shadow-m);
 }
 
@@ -1179,7 +1181,7 @@ body::after {
   right: 16px;
   height: 3px;
   border-radius: 0 0 3px 3px;
-  background: linear-gradient(to right, #96643f, #c99f74);
+  background: linear-gradient(to right, #3f6e4e, #8fbf9d);
 }
 
 .jst-top {
@@ -1316,12 +1318,12 @@ body::after {
   gap: 28px;
   background: linear-gradient(
     115deg,
-    #6b4329 0%,
-    #96643f 38%,
-    #b98a5c 72%,
-    #c99f74 100%
+    #2d5039 0%,
+    #3f6e4e 38%,
+    #5d8f6e 72%,
+    #8fbf9d 100%
   );
-  box-shadow: 0 26px 60px -18px rgba(146, 64, 14, 0.55);
+  box-shadow: 0 26px 60px -18px rgba(35, 70, 48, 0.5);
 }
 
 /* 细网格叠纹 */
@@ -1330,8 +1332,8 @@ body::after {
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(to right, rgba(255, 240, 214, 0.09) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 240, 214, 0.09) 1px, transparent 1px);
+    linear-gradient(to right, rgba(240, 250, 242, 0.09) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(240, 250, 242, 0.09) 1px, transparent 1px);
   background-size: 30px 30px;
   -webkit-mask-image: radial-gradient(
     120% 130% at 100% 0%,
@@ -1351,7 +1353,7 @@ body::after {
   font-family: var(--vp-font-family-mono);
   font-size: 12px;
   letter-spacing: 0.14em;
-  color: rgba(255, 238, 208, 0.78);
+  color: rgba(238, 248, 240, 0.8);
 }
 
 .jc-title {
@@ -1359,14 +1361,14 @@ body::after {
   font-size: clamp(22px, 2.8vw, 30px);
   font-weight: 800;
   letter-spacing: -0.01em;
-  color: #fff8ec;
+  color: #f4faf4;
 }
 
 .jc-sub {
   margin: 0;
   font-size: 14px;
   line-height: 1.8;
-  color: rgba(255, 240, 218, 0.85);
+  color: rgba(240, 248, 241, 0.88);
 }
 
 .jc-right {
@@ -1381,9 +1383,9 @@ body::after {
   gap: 12px;
   padding: 14px 22px;
   border-radius: 13px;
-  background: #2b1a08;
-  border: 1px solid rgba(255, 220, 170, 0.28);
-  box-shadow: 0 10px 26px -8px rgba(43, 26, 8, 0.6);
+  background: #16241a;
+  border: 1px solid rgba(220, 245, 228, 0.28);
+  box-shadow: 0 10px 26px -8px rgba(15, 30, 20, 0.6);
   text-decoration: none;
   transition:
     transform 0.22s ease,
@@ -1392,23 +1394,23 @@ body::after {
 
 .jc-btn:hover {
   transform: translateY(-2px);
-  box-shadow: 0 14px 32px -8px rgba(43, 26, 8, 0.7);
+  box-shadow: 0 14px 32px -8px rgba(15, 30, 20, 0.7);
 }
 
 .jc-btn-cmd {
   font-family: var(--vp-font-family-mono);
   font-size: 14px;
   font-weight: 600;
-  color: #e6d2b0;
+  color: #cfe4d2;
 }
 
 .jc-btn-cmd::before {
   content: '$ ';
-  color: rgba(246, 217, 168, 0.55);
+  color: rgba(212, 240, 220, 0.6);
 }
 
 .jc-btn-arr {
-  color: #e6d2b0;
+  color: #cfe4d2;
   font-size: 15px;
 }
 
@@ -1416,7 +1418,7 @@ body::after {
   margin: 10px 2px 0;
   font-family: var(--vp-font-family-mono);
   font-size: 11.5px;
-  color: rgba(255, 238, 208, 0.72);
+  color: rgba(235, 248, 238, 0.75);
 }
 
 @media (max-width: 768px) {
@@ -1510,7 +1512,7 @@ body::after {
   height: 15px;
   margin-right: 9px;
   border-radius: 2px;
-  background: linear-gradient(to bottom, #b08256, #c99f74);
+  background: linear-gradient(to bottom, #5d8f6e, #8fbf9d);
   vertical-align: -1px;
 }
 
@@ -1541,7 +1543,7 @@ body::after {
   border-radius: 0 12px 12px 0;
   background: linear-gradient(
     to right,
-    rgba(181, 130, 86, 0.07),
+    rgba(74, 124, 89, 0.06),
     transparent 72%
   );
   color: var(--vp-c-text-2);
@@ -1613,8 +1615,8 @@ body::after {
 }
 
 .dark .vp-doc div[class*='language-'] {
-  background: #211a12;
-  border-color: rgba(201, 159, 116, 0.14);
+  background: #1f2a20;
+  border-color: rgba(143, 191, 157, 0.13);
 }
 
 .vp-doc .line-numbers-mode .line-numbers {
@@ -1629,7 +1631,7 @@ body::after {
 }
 
 .vp-doc .has-highlight-lines .line-highlight {
-  background-color: rgba(181, 130, 86, 0.12);
+  background-color: rgba(74, 124, 89, 0.1);
 }
 
 .vp-doc :not(pre) > code {
@@ -1672,43 +1674,43 @@ body::after {
 }
 
 .vp-custom-block.tip {
-  background: rgba(101, 146, 88, 0.09);
-  border-color: rgba(101, 146, 88, 0.22);
-  border-left-color: #7d9770;
+  background: rgba(74, 124, 89, 0.07);
+  border-color: rgba(74, 124, 89, 0.18);
+  border-left-color: #5d8f6e;
 }
 
 .dark .vp-custom-block.tip {
-  background: rgba(126, 172, 110, 0.1);
-  border-color: rgba(126, 172, 110, 0.24);
-  border-left-color: #a3bd8f;
+  background: rgba(143, 191, 157, 0.09);
+  border-color: rgba(143, 191, 157, 0.2);
+  border-left-color: #a3cfad;
 }
 
 .vp-custom-block.warning {
-  background: rgba(181, 130, 86, 0.09);
-  border-color: rgba(181, 130, 86, 0.24);
-  border-left-color: #b08256;
+  background: rgba(191, 155, 74, 0.08);
+  border-color: rgba(191, 155, 74, 0.2);
+  border-left-color: #b39a55;
 }
 
 .dark .vp-custom-block.warning {
-  background: rgba(201, 159, 116, 0.1);
-  border-color: rgba(201, 159, 116, 0.26);
+  background: rgba(201, 178, 120, 0.1);
+  border-color: rgba(201, 178, 120, 0.24);
 }
 
 .vp-custom-block.danger {
-  background: rgba(190, 73, 52, 0.08);
-  border-color: rgba(190, 73, 52, 0.22);
+  background: rgba(190, 73, 52, 0.06);
+  border-color: rgba(190, 73, 52, 0.18);
   border-left-color: #b26a52;
 }
 
 .dark .vp-custom-block.danger {
-  background: rgba(224, 112, 90, 0.1);
-  border-color: rgba(224, 112, 90, 0.24);
+  background: rgba(224, 112, 90, 0.09);
+  border-color: rgba(224, 112, 90, 0.2);
   border-left-color: #cd8a76;
 }
 
 .vp-custom-block.info {
-  background: rgba(96, 125, 139, 0.08);
-  border-color: rgba(96, 125, 139, 0.22);
+  background: rgba(96, 125, 139, 0.06);
+  border-color: rgba(96, 125, 139, 0.18);
   border-left-color: #607d8b;
 }
 
@@ -1749,21 +1751,21 @@ body::after {
    17. 细节：::selection / 滚动条 / 焦点
    -------------------------------------------------------------------------- */
 ::selection {
-  background: rgba(201, 159, 116, 0.38);
+  background: rgba(143, 191, 157, 0.42);
   color: inherit;
 }
 
 .dark ::selection {
-  background: rgba(201, 159, 116, 0.32);
+  background: rgba(143, 191, 157, 0.3);
 }
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(180, 83, 9, 0.32) transparent;
+  scrollbar-color: rgba(63, 110, 78, 0.32) transparent;
 }
 
 .dark * {
-  scrollbar-color: rgba(201, 159, 116, 0.3) transparent;
+  scrollbar-color: rgba(143, 191, 157, 0.3) transparent;
 }
 
 ::-webkit-scrollbar {
@@ -1772,24 +1774,24 @@ body::after {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(180, 83, 9, 0.28);
+  background: rgba(63, 110, 78, 0.28);
   border-radius: 6px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(180, 83, 9, 0.45);
+  background: rgba(63, 110, 78, 0.45);
   background-clip: content-box;
 }
 
 .dark ::-webkit-scrollbar-thumb {
-  background: rgba(201, 159, 116, 0.26);
+  background: rgba(143, 191, 157, 0.26);
   background-clip: content-box;
 }
 
 .dark ::-webkit-scrollbar-thumb:hover {
-  background: rgba(201, 159, 116, 0.44);
+  background: rgba(143, 191, 157, 0.44);
   background-clip: content-box;
 }
 
