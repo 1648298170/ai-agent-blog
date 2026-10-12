@@ -62,11 +62,13 @@ export class ToolLoopAbortedError extends EngineError {
   }
 }
 
-/** 循环结果：最终回复文本 + 维护到底的完整消息历史 + 实际步数 */
+/** 循环结果：最终回复文本 + 维护到底的完整消息历史 + 实际步数 + token 消耗（预算记账） */
 export interface ToolLoopResult {
   text: string;
   messages: ModelMessage[];
   steps: number;
+  /** 全部轮次的总 token 消耗（编排器预算记账用；部分网关不回传时为 undefined） */
+  usage?: { totalTokens: number };
 }
 
 /**
@@ -131,7 +133,12 @@ export async function runToolLoop(options: RunToolLoopOptions): Promise<ToolLoop
 
     if (result.toolCalls.length === 0) {
       trace("◆", `完成 → 模型给出最终回答（${result.text.length} 字，共 ${step} 步）`);
-      return { text: result.text, messages, steps: step }; // 模型开口了，出口
+      return {
+        text: result.text,
+        messages,
+        steps: step,
+        usage: result.usage ? { totalTokens: result.usage.totalTokens ?? 0 } : undefined,
+      }; // 模型开口了，出口
     }
 
     messages.push(...result.response.messages); // ① 入账：模型的调用意图

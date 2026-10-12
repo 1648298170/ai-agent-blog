@@ -78,6 +78,10 @@
       "types": "./dist/memory/factory.d.ts",
       "default": "./dist/memory/factory.js"
     },
+    "./orchestrator": {
+      "types": "./dist/orchestrator/index.d.ts",
+      "default": "./dist/orchestrator/index.js"
+    },
     "./tools": {
       "types": "./dist/tools/index.d.ts",
       "default": "./dist/tools/index.js"
