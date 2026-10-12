@@ -54,6 +54,29 @@ type TaskState =
 | **Executor** | `execute(task, ctx) → TaskOutput` | `LoopExecutor`（runToolLoop 封装） | 确定性纯函数 |
 | **Critic** | `review(task, acceptance, output)` | `AcceptanceCritic`（LLM rubric 判定） | 布尔函数（确定性通过/拒绝） |
 
+| **Critic** | `review(task, acceptance, output)` | `AcceptanceCritic`（LLM rubric 判定） | 布尔函数（确定性通过/拒绝） |
+
+### 层 2.5 · 任务拆分方法论
+
+**什么时候拆**——四个「超过」信号（全部满足才拆，任何一个不满足就留在单 Agent）：
+
+| 信号 | 症状 |
+|---|---|
+| 工具表超载 | 单 Agent 塞 20+ 工具，选错率飙升 |
+| 上下文需要隔离 | 不同子任务的 system prompt 互相打架 |
+| 职责冲突 | 同一 prompt 同时要求「严谨查询」和「灵活创作」，行为不稳定 |
+| 并行机会 | 子任务互不依赖，拆开能并行提速 |
+
+**怎么拆**——三种切法，按优先级：
+
+| 切法 | 依据 | 例子 |
+|---|---|---|
+| **按业务域** | 订单/售后/知识是天然边界 | 客服三工人（09 站） |
+| **按认知角色** | 规划/执行/批判是不同的思考方式 | planner→executor→critic 流水线 |
+| **按数据/权限** | 不同 Agent 持不同密钥、访问不同数据 | 爆炸半径隔离（生产最硬的理由） |
+
+**何时不拆**——**能 Workflow 别 Agent，能单 Agent 别多 Agent**。拆分是代价高昂的重构（跨 Agent 传状态、失败传播、调试复杂度全部翻倍），四个信号全满足才动手。
+
 ### 层 3 · 失败策略（`policies.ts`）
 
 四分支，**部署形态决定选哪支**：
