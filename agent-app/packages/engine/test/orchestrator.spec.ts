@@ -107,11 +107,11 @@ describe("Orchestrator：失败策略四分支", () => {
     });
 
     expect(result.state).toBe("done"); // 降级不终止编排
-    // 降级产出的 text 为空串（真实产出缺失），但条目存在——后续子任务可从 upstream 看到缺失标注
-    expect(result.outputs).toHaveLength(2); // t1 降级（空产出）+ t2 也跑了
-    // t1 的产出为空串（降级 = 无真实产出），不是「降级跳过」的文字
-    const degraded = result.outputs.find((o) => o.taskId === "t1");
-    expect(degraded?.text).toBe("");
+    // 降级产出带非空占位文本（不再是空串——调用方可据此判断哪些子任务降级了）
+    expect(result.outputs).toHaveLength(2);
+    for (const output of result.outputs) {
+      expect(output.text).toContain("降级跳过"); // 每个降级子任务都带可读占位文本
+    }
   });
 
   it("degrade 分支：失败降级跳过（不重试）", async () => {
