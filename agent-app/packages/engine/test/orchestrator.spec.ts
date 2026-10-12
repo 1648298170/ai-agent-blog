@@ -3,7 +3,8 @@
 //（接口相同的确定性实现），MemoryStateStore 用真品（纯内存无副作用）。
 import { describe, expect, it, vi } from "vitest";
 import type { TaskOutput, TaskSpec } from "../src/orchestrator/types.js";
-import { Budget, BudgetExceededError } from "../src/orchestrator/types.js";
+import { Budget } from "../src/orchestrator/types.js";
+import { BudgetExceededError } from "../src/orchestrator/errors.js";
 import {
   IllegalTransitionError,
   RetriableError,
@@ -173,14 +174,12 @@ describe("Orchestrator：预算控制", () => {
 
     // 由于 executor 超支后抛 BudgetExceededError，编排器应原样上抛
     // （预算是控制信号不是监控指标）
-    const result = await orch.run({
+    await expect(orch.run({
       id: "orch-budget",
       goal: "测试预算",
       tasks: [stubSpec, stubSpec2],
       maxTokens: 10,
-    });
-    // 如果没抛说明预算检查通过了（执行器没有超支场景），但不应崩溃
-    expect(result).toBeDefined();
+    })).rejects.toThrow(BudgetExceededError);
   });
 });
 
