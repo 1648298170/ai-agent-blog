@@ -21,15 +21,16 @@ export type TaskState =
   | "escalated" // 终态：升级人工（Agent 信心不足或策略要求人拍板）
   | "compensated"; // 终态：已回滚（写操作的补偿执行完毕）
 
-/** 合法迁移表：状态机守护的唯一依据（迁移不在表内 = 编程错误，直接抛） */
+/** 合法迁移表：状态机守护的唯一依据（迁移不在表内 = 编程错误，直接抛）
+ *  done → executing 允许「追加新子任务后继续」（同 id 重入的断点续跑场景） */
 export const TASK_TRANSITIONS: Record<TaskState, TaskState[]> = {
-  pending: ["planning", "executing", "failed", "escalated"], // 静态任务单可跳过 planning
+  pending: ["planning", "executing", "failed", "escalated"],
   planning: ["executing", "failed", "escalated"],
   executing: ["reviewing", "failed", "escalated", "compensated"],
-  reviewing: ["done", "executing", "failed", "escalated"], // 打回 = 回 executing
-  done: [],
-  failed: [],
-  escalated: [],
+  reviewing: ["done", "executing", "failed", "escalated"],
+  done: ["executing"], // 断点续跑：追加新子任务后继续
+  failed: ["executing"], // 重试整次编排
+  escalated: [], // 终态：人工裁决后由外部重开新编排
   compensated: [],
 };
 
