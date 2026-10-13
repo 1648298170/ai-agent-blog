@@ -4,14 +4,14 @@
 // 原型环境 retry×1 就够，生产环境要指数退避 + 抖动 + 预算降级。
 // 策略接口生产级、默认实现够用，替换 = 换一个对象（依赖注入）。
 //
-// Effect 化说明：重试的「执行」从手写 withRetry 循环改为编排器内的
-// Effect.gen 循环 + Effect.sleep（虚拟时钟友好——TestClock 可零等待测退避）。
+// Effect 化说明：重试的「执行」在编排器的 Effect.gen 循环里——退避走 Effect.sleep
+//（虚拟时钟友好），可重试判定按下方口径接入（RetriableError 恒重试 + isRetriable 兜底）。
 // 本文件只保留策略的「数据」部分：退避序列计算与失败分支声明。
 //
-// 可重试判定的口径（与 errors.ts 的分类对齐）：
-// - RetriableError → 可重试；
-// - 其余错误 → 读 message 里的 HTTP 状态特征兜底（429/5xx/timeout），其余视为不可重试；
-// - AcceptanceFailedError / BudgetExceededError / IllegalTransitionError → 不可重试。
+// 可重试判定的口径（与 errors.ts 的分类对齐，编排器 retry 分支按此执行）：
+// - RetriableError → 恒定可重试（显式分类优先）；
+// - 其余错误 → 交给 isRetriable 判定（默认实现读 message 里的 429/5xx/timeout 特征）；
+// - AcceptanceFailedError / BudgetExceededError / IllegalTransitionError → 不可重试（不匹配特征自然落入）。
 
 /** 重试策略：指数退避 + 抖动 + 上限（防重试风暴的经典三件套） */
 export interface RetryPolicy {

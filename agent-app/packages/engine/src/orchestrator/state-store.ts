@@ -6,15 +6,19 @@
 //
 // Effect 化说明：StateStore 接口保持 Promise（持久化适配器生态是 Promise 的），
 // 编排器内部经 Effect.tryPromise 桥接——接缝层换范式，实现层不强迫迁移。
-import type { TaskState } from "./types.js";
+import type { TaskSpec, TaskState } from "./types.js";
 import { TASK_TRANSITIONS } from "./types.js";
 import { IllegalTransitionError } from "./errors.js";
 
-/** 一次编排作业的持久化快照（状态 + 已完成产出 + 汇总） */
+/** 一次编排作业的持久化快照（状态 + 任务单 + 已完成产出 + 汇总） */
 export interface OrchestrationSnapshot {
   readonly id: string;
   readonly goal: string;
   state: TaskState;
+  /** 任务单快照：动态规划（planner 拆单）后持久化——断点续跑重入时跳过重新规划，
+   *  保证 taskId 稳定（否则重入重新拆单，已完成产出对不上新任务单）。
+   *  存入前须剥掉 TaskSpec.tools（ToolSet 含函数，structuredClone 不支持）。 */
+  tasks?: readonly Omit<TaskSpec, "tools">[];
   /** 已完成子任务的产出（id → 产出摘要），按完成顺序追加 */
   readonly outputs: { taskId: string; text: string }[];
   /** 汇总产出（全部子任务完成后由编排器写入） */

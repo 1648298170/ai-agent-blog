@@ -80,12 +80,14 @@ export class LoopExecutor {
     const upstream = [...ctx.upstream.entries()].map(([id, text]) => `【${id}】${text}`).join("\n");
     const prompt =
       `${task.goal}` + (upstream ? `\n\n前置子任务的产出（供参考，不要重复执行）：\n${upstream}` : "");
+    // 最小权限：子任务声明了 tools 覆盖就用覆盖表（只发该给的工具），否则用构造时默认表
+    const tools = task.tools ?? this.tools;
 
     const result = await runToolLoop({
       model: getModel(),
       messages: [{ role: "user", content: prompt }],
       system: this.systemPrompt,
-      tools: this.tools,
+      tools,
       maxSteps: this.maxSteps,
       signal: ctx.signal,
     });

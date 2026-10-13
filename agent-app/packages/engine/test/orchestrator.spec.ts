@@ -9,16 +9,16 @@
 import { describe, expect, it } from "vitest";
 import { Effect, Duration, Fiber } from "effect";
 import { TestClock } from "effect/testing";
-import type { TaskOutput, TaskSpec } from "../src/orchestrator/types.js";
+import type { Acceptance, TaskOutput, TaskSpec } from "../src/orchestrator/types.js";
 import { Budget } from "../src/orchestrator/types.js";
-import { BudgetExceededError, IllegalTransitionError } from "../src/orchestrator/errors.js";
+import { BudgetExceededError, IllegalTransitionError, AcceptanceFailedError } from "../src/orchestrator/errors.js";
 import { Orchestrator } from "../src/orchestrator/orchestrator.js";
 import { MemoryStateStore, transition } from "../src/orchestrator/state-store.js";
 import type { Executor, Planner } from "../src/orchestrator/roles.js";
 
 /** 确定性桩：产出固定文本 */
-const stubOutput = (taskId: string, text: string): TaskOutput => ({
-  taskId, text, tokensUsed: 100, durationMs: 1, steps: 1,
+const stubOutput = (taskId: string, text: string, tokensUsed = 100): TaskOutput => ({
+  taskId, text, tokensUsed, durationMs: 1, steps: 1,
 });
 
 const stubSpec: TaskSpec = { id: "t1", title: "子任务 1", goal: "做一件事" };
@@ -276,5 +276,241 @@ describe("Orchestrator（Effect 版）：虚拟时钟（TestClock）", () => {
       expect(exit.value.outputs[0]?.text).toContain("第三次成功");
     }
     expect(calls).toBe(3); // 前两次失败 + 第三次成功，重试链路完整
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// 以下为「验收闭环 + 失败终态 + 事件流 + per-task 预算」补强测试（复查修复配套）
+// 桩 critic 模拟 AcceptanceCritic 的判定行为（不调 LLM）：
+//   manual → 抛（需人工）；contains → 关键词不命中抛（不达标）；其余放行
+// ─────────────────────────────────────────────────────────────────────
+const judgingCritic = {
+  review: async (task: TaskSpec, acceptance: Acceptance, output: TaskOutput): Promise<void> => {
+    if (acceptance.type === "manual") {
+      throw new AcceptanceFailedError({ message: `「${task.title}」需人工验收`, detail: "acceptance.type=manual" });
+    }
+    if (acceptance.type === "contains" && !acceptance.anyOf.some((k: string) => output.text.includes(k))) {
+      throw new AcceptanceFailedError({
+        message: `「${task.title}」产出未包含任何预期关键词（${acceptance.anyOf.join(" / ")}）`,
+        detail: output.text.slice(0, 200),
+      });
+    }
+  },
+};
+
+describe("Orchestrator（Effect 版）：验收闭环（critic 接线）", () => {
+  it("contains 验收通过 → 正常 done", async () => {
+    const orch = makeOrchestrator({ planner: stubPlanner, executor: stubExecutor, critic: judgingCritic });
+    const result = await orch.runAsync({
+      id: "orch-acc-pass", goal: "", tasks: [stubSpec],
+      acceptance: { type: "contains", anyOf: ["完成"] }, // stubExecutor 产出含「完成」
+    });
+    expect(result.state).toBe("done");
+  });
+
+  it("contains 验收不通过 → 打回重做 → 耗尽降级（验收失败走失败策略）", async () => {
+    let calls = 0;
+    const orch = makeOrchestrator({
+      planner: stubPlanner,
+      executor: { execute: async (task) => { calls += 1; return stubOutput(task.id, "普通产出"); } },
+      critic: judgingCritic,
+      retryPolicy: { maxAttempts: 2, baseDelayMs: 0, maxDelayMs: 0, isRetriable: () => true },
+      failurePolicy: { onFail: "retry" },
+    });
+    const result = await orch.runAsync({
+      id: "orch-acc-fail", goal: "",
+      tasks: [{ ...stubSpec, acceptance: { type: "contains", anyOf: ["罕见词XYZ"] } }], // task 级验收
+    });
+    expect(calls).toBe(2); // 首次 + 打回重做 1 次（maxAttempts=2）
+    expect(result.outputs[0]?.text).toContain("降级跳过");
+  });
+
+  it("manual 验收 → 升级人工：EscalatedError 上抛 + 快照落 escalated + 事件", async () => {
+    const store = new MemoryStateStore();
+    const escalated: string[] = [];
+    const orch = makeOrchestrator({
+      stateStore: store,
+      planner: stubPlanner,
+      executor: stubExecutor,
+      critic: judgingCritic,
+      onEvent: (e) => { if (e.type === "escalated") escalated.push(e.reason); },
+    });
+    await expect(orch.runAsync({
+      id: "orch-manual", goal: "", tasks: [{ ...stubSpec, acceptance: { type: "manual" } }],
+    })).rejects.toThrow("需人工验收");
+
+    const snap = await store.load("orch-manual");
+    expect(snap?.state).toBe("escalated"); // 终态可见：外部能看到「卡在等人」
+    expect(escalated).toHaveLength(1);
+  });
+
+  it("编排级终审（spec.acceptance）不通过 → failed 终态 + 上抛", async () => {
+    const store = new MemoryStateStore();
+    const orch = makeOrchestrator({
+      stateStore: store,
+      planner: stubPlanner,
+      executor: stubExecutor,
+      critic: judgingCritic,
+    });
+    await expect(orch.runAsync({
+      id: "orch-overall", goal: "", tasks: [stubSpec],
+      acceptance: { type: "contains", anyOf: ["罕见词XYZ"] },
+    })).rejects.toThrow("未包含任何预期关键词");
+    const snap = await store.load("orch-overall");
+    expect(snap?.state).toBe("failed"); // 终审不过落 failed（修后重入合法）
+  });
+});
+
+describe("Orchestrator（Effect 版）：失败终态落盘与重入", () => {
+  it("budget 超支 → 快照落 failed → 同 id 重入合法（不再炸 IllegalTransitionError）", async () => {
+    const store = new MemoryStateStore();
+    const tightBudget = new Budget(10, 60_000);
+    const executor: Executor = { execute: async (task) => {
+      if (tightBudget.tokensLeft <= 0) throw new BudgetExceededError({ message: "超支" });
+      tightBudget.spend(200); // 每次消耗 200——两个任务并行，第二个必超支
+      return stubOutput(task.id, "产出");
+    }};
+    const orch = makeOrchestrator({ stateStore: store, executor });
+
+    await expect(orch.runAsync({
+      id: "orch-terminal", goal: "", tasks: [stubSpec, stubSpec2], maxTokens: 10,
+    })).rejects.toThrow(BudgetExceededError);
+    expect((await store.load("orch-terminal"))?.state).toBe("failed");
+
+    // 重入：failed → executing 是表内迁移，不再抛 IllegalTransitionError
+    const orch2 = makeOrchestrator({
+      stateStore: store,
+      executor: { execute: async (task) => stubOutput(task.id, "重来一次成功") },
+    });
+    const result = await orch2.runAsync({ id: "orch-terminal", goal: "", tasks: [stubSpec] });
+    expect(result.state).toBe("done");
+  });
+
+  it("escalate 失败 → 快照落 escalated（状态可见，不再停留在虚假的 executing）", async () => {
+    const store = new MemoryStateStore();
+    const orch = makeOrchestrator({
+      stateStore: store,
+      planner: stubPlanner,
+      executor: { execute: async () => { throw new Error("挂"); } },
+      failurePolicy: { onFail: "escalate" },
+    });
+    await expect(
+      orch.runAsync({ id: "orch-esc-snap", goal: "", tasks: [stubSpec] }),
+    ).rejects.toThrow();
+    expect((await store.load("orch-esc-snap"))?.state).toBe("escalated");
+  });
+});
+
+describe("Orchestrator（Effect 版）：事件流与边界", () => {
+  it("state-changed 完整链：pending→executing→reviewing→done（静态任务单不过 planning）", async () => {
+    const events: string[] = [];
+    const orch = makeOrchestrator({
+      planner: stubPlanner,
+      executor: stubExecutor,
+      onEvent: (e) => { if (e.type === "state-changed") events.push(`${e.from}→${e.to}`); },
+    });
+    await orch.runAsync({ id: "orch-events", goal: "", tasks: [stubSpec] });
+    expect(events).toEqual(["pending→executing", "executing→reviewing", "reviewing→done"]);
+  });
+
+  it("task-completed 事件：每个子任务完成都发（含产出与消耗）", async () => {
+    const completed: { taskId: string; tokensUsed: number }[] = [];
+    const orch = makeOrchestrator({
+      planner: stubPlanner,
+      executor: stubExecutor,
+      onEvent: (e) => { if (e.type === "task-completed") completed.push({ taskId: e.taskId, tokensUsed: e.tokensUsed }); },
+    });
+    await orch.runAsync({ id: "orch-tc", goal: "", tasks: [stubSpec] });
+    expect(completed).toEqual([{ taskId: "t1", tokensUsed: 100 }]);
+  });
+
+  it("循环依赖：dispatch 前拒绝（有环的 DAG 无法完成）", async () => {
+    const orch = makeOrchestrator({ planner: stubPlanner, executor: stubExecutor });
+    await expect(orch.runAsync({
+      id: "orch-cycle", goal: "",
+      tasks: [
+        { id: "a", title: "a", goal: "", dependsOn: ["b"] },
+        { id: "b", title: "b", goal: "", dependsOn: ["a"] },
+      ],
+    })).rejects.toThrow("任务依赖存在循环");
+  });
+
+  it("abort 软着陆：预先中止 → 零派发 + 空产出 + 正常返回（不报错）", async () => {
+    const controller = new AbortController();
+    const executed: string[] = [];
+    const orch = makeOrchestrator({
+      planner: stubPlanner,
+      executor: { execute: async (task) => { executed.push(task.id); return stubOutput(task.id, `${task.title} 完成`); } },
+    });
+    controller.abort(); // 预先中止：第一波派发前就触发软着陆
+    const result = await orch.runAsync(
+      { id: "orch-abort", goal: "", tasks: [stubSpec, stubSpec2] },
+      controller.signal,
+    );
+    expect(executed).toHaveLength(0); // 已中止 → 不派发任何子任务
+    expect(result.outputs).toHaveLength(0);
+    expect(result.state).toBe("done"); // 软着陆：不报错，产出为空
+  });
+});
+
+describe("Orchestrator（Effect 版）：per-task 预算接线", () => {
+  it("task.maxDurationMs：executor 超时 → 按失败走策略 → 降级占位", async () => {
+    const slow: Executor = { execute: async (task) => {
+      await new Promise((r) => setTimeout(r, 80)); // 比 per-task 超时长
+      return stubOutput(task.id, "太慢了");
+    }};
+    const orch = makeOrchestrator({
+      planner: stubPlanner,
+      executor: slow,
+      failurePolicy: { onFail: "degrade" },
+    });
+    const result = await orch.runAsync({
+      id: "orch-task-timeout", goal: "",
+      tasks: [{ ...stubSpec, maxDurationMs: 10 }],
+    });
+    expect(result.outputs[0]?.text).toContain("降级跳过");
+  });
+
+  it("task.maxTokens：产出消耗超本任务预算 → 按失败走策略 → 降级", async () => {
+    const greedy: Executor = { execute: async (task) => stubOutput(task.id, "产出", 5_000) };
+    const orch = makeOrchestrator({
+      planner: stubPlanner,
+      executor: greedy,
+      failurePolicy: { onFail: "degrade" },
+    });
+    const result = await orch.runAsync({
+      id: "orch-task-tokens", goal: "",
+      tasks: [{ ...stubSpec, maxTokens: 100 }],
+    });
+    expect(result.outputs[0]?.text).toContain("降级跳过");
+  });
+});
+
+describe("Orchestrator（Effect 版）：动态规划断点续跑", () => {
+  it("重入复用快照任务单：planner 只调一次，重入不再规划、产出不重复执行", async () => {
+    const store = new MemoryStateStore();
+    let plannerCalls = 0;
+    const planner: Planner = { plan: async () => {
+      plannerCalls += 1;
+      return [stubSpec, { ...stubSpec2, dependsOn: ["t1"] }];
+    }};
+    const executed: string[] = [];
+    const executor: Executor = { execute: async (task) => {
+      executed.push(task.id);
+      return stubOutput(task.id, `${task.title} 完成`);
+    }};
+
+    // 第一轮：动态规划（空任务单）→ planner 拆单并存入快照 → 全部执行
+    const orch1 = makeOrchestrator({ stateStore: store, planner, executor });
+    await orch1.runAsync({ id: "orch-dyn", goal: "", tasks: [] });
+    expect(plannerCalls).toBe(1);
+    expect(executed).toEqual(["t1", "t2"]);
+
+    // 第二轮：同 id 重入、仍传空任务单 → 复用快照任务单（taskId 稳定），planner 不再被调
+    const orch2 = makeOrchestrator({ stateStore: store, planner, executor });
+    const resumed = await orch2.runAsync({ id: "orch-dyn", goal: "", tasks: [] });
+    expect(plannerCalls).toBe(1); // 断点续跑：不再规划
+    expect(resumed.state).toBe("done");
+    expect(executed).toEqual(["t1", "t2"]); // 重入全部跳过（已在快照 outputs 里）
   });
 });

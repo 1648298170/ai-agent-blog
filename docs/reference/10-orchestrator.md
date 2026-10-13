@@ -3,8 +3,8 @@
 > **这一模块解决「多 Agent 从概念到落地」**：任务拆分、编排模式、失败策略、预算控制、状态机——每个生产级关注点都有显式接口与可配策略。它是 [09 站客服系统](/reference/09-service)的 Supervisor 模式的**泛化**：不再绑死「三工人」，而是「N 个可插拔角色 + 显式状态机 + 可配失败策略」。
 
 **前置**：[02 · 工具循环](/guide/02-agent-loop)（executor 的底层引擎）· [09 · 产品线](/guide/09-product)（星型编排的单机版实战）
-**代码位置**：`packages/engine/src/orchestrator/`（7 文件 ~450 行）
-**测试**：`test/orchestrator.spec.ts`（9 用例：状态机守护 / 失败四分支 / 预算超支 / 断点续跑 / 事件断言）
+**代码位置**：`packages/engine/src/orchestrator/`（8 文件 ~980 行，Effect 范式）
+**测试**：`test/orchestrator.spec.ts`（26 用例：状态机守护 / 验收闭环 / 失败四分支 / 预算超支 / 失败终态落盘 / 断点续跑 / DAG 顺序 / 事件断言 / TestClock 虚拟时钟）
 
 ---
 
@@ -49,7 +49,7 @@
 
 ### 派（Dispatch）—— 小任务分配给谁执行
 
-依赖序分派 + 最小权限工具表。`Planner` 接口负责「谁来拆」（LLM 动态拆或静态任务单），拆出的 `TaskSpec` 按 `dependsOn` 拓扑排序逐个分发。
+依赖序分派 + 最小权限工具表。`Planner` 接口负责「谁来拆」（LLM 动态拆或静态任务单），拆出的 `TaskSpec` 按依赖图分波：入度 0 的任务**同波并行**（`Effect.all`），完成后解锁下游进入下一波。
 
 ### 跑（Run）—— 多个执行者协作不打架
 
@@ -91,29 +91,6 @@ type TaskState =
 | **Executor** | `execute(task, ctx) → TaskOutput` | `LoopExecutor`（runToolLoop 封装） | 确定性纯函数 |
 | **Critic** | `review(task, acceptance, output)` | `AcceptanceCritic`（LLM rubric 判定） | 布尔函数（确定性通过/拒绝） |
 
-| **Critic** | `review(task, acceptance, output)` | `AcceptanceCritic`（LLM rubric 判定） | 布尔函数（确定性通过/拒绝） |
-
-### 拆的方法论 · 任务拆分
-
-**什么时候拆**——四个「超过」信号（全部满足才拆，任何一个不满足就留在单 Agent）：
-
-| 信号 | 症状 |
-|---|---|
-| 工具表超载 | 单 Agent 塞 20+ 工具，选错率飙升 |
-| 上下文需要隔离 | 不同子任务的 system prompt 互相打架 |
-| 职责冲突 | 同一 prompt 同时要求「严谨查询」和「灵活创作」，行为不稳定 |
-| 并行机会 | 子任务互不依赖，拆开能并行提速 |
-
-**怎么拆**——三种切法，按优先级：
-
-| 切法 | 依据 | 例子 |
-|---|---|---|
-| **按业务域** | 订单/售后/知识是天然边界 | 客服三工人（09 站） |
-| **按认知角色** | 规划/执行/批判是不同的思考方式 | planner→executor→critic 流水线 |
-| **按数据/权限** | 不同 Agent 持不同密钥、访问不同数据 | 爆炸半径隔离（生产最硬的理由） |
-
-**何时不拆**——**能 Workflow 别 Agent，能单 Agent 别多 Agent**。拆分是代价高昂的重构（跨 Agent 传状态、失败传播、调试复杂度全部翻倍），四个信号全满足才动手。
-
 ### 层 3 · 失败策略（`policies.ts`）
 
 四分支，**部署形态决定选哪支**：
@@ -127,7 +104,7 @@ type TaskState =
 
 ---
 
-## 三、代码走读（`orchestrator.ts`，核心 ~120 行）
+## 三、代码走读（`orchestrator.ts`，Effect 范式）
 
 ### 组装：全部构造期注入
 
@@ -149,55 +126,66 @@ export class Orchestrator {
   }
 ```
 
-### 主循环：状态机 + 失败策略 + 预算
+### 主流程：Effect.gen 流水线（状态机 + 验收 + 波次派发）
 
 ```ts
-async run(spec: OrchestrationSpec): Promise<OrchestrationResult> {
-  const budget = new Budget(spec.maxTokens ?? 50_000, spec.maxDurationMs ?? 600_000);
+// 双出口：run() 返回 Effect（结构化并发 / 虚拟时钟），runAsync() 是 Promise 桥接
+run(spec: OrchestrationSpec, signal?): Effect.Effect<OrchestrationResult, unknown> {
+  return Effect.gen(function* () {
+    // 断点续跑：恢复快照；动态规划的任务单也存进快照（重入跳过重新规划）
+    let snapshot = (yield* load(spec.id)) ?? { state: "pending", … };
 
-  // 断点续跑：同 id 已有快照则恢复（已完成子任务跳过）
-  let snapshot = (await this.stateStore.load(spec.id)) ?? { /* …新建 pending… */ };
+    // 规划：静态任务单优先 → 快照任务单 → planner 动态拆（进 planning 态）
+    let tasks = spec.tasks.length > 0 ? spec.tasks
+      : (snapshot.tasks?.length ?? 0) > 0 ? snapshot.tasks!     // 断点续跑复用
+      : yield* planDynamically();                                // 真正的动态拆单
 
-  // 规划：静态任务单优先；无单时由 planner 动态拆
-  let tasks = [...spec.tasks];
-  if (tasks.length === 0) {
-    this.transitionAndSave(snapshot, "planning");
-    tasks = await this.planner.plan(spec.goal, { … });
-  }
-  snapshot = transition(snapshot, "executing");
-  await this.stateStore.save(snapshot);
+    // 所有状态迁移走 moveTo：迁移合法性 + 时间戳 + state-changed 事件三合一
+    snapshot = self.moveTo(snapshot, "executing");
 
-  for (const task of tasks) {
-    if (done.has(task.id)) continue;         // 断点续跑跳过
-    if (budget.exhausted) throw new BudgetExceededError(…); // 预算硬停
+    // DAG 波次派发：入度 0 并行跑（Effect.all），完成后解锁下游
+    const dispatched = yield* Effect.result(dispatch);
+    if (dispatched._tag === "Failure") {
+      // 失败终态落盘：EscalatedError → escalated，其余 → failed
+      //（落盘后重入合法：failed → executing 在迁移表内）
+      const terminal = dispatched.failure instanceof EscalatedError ? "escalated" : "failed";
+      snapshot = yield* self.persistTerminal(snapshot, terminal);
+      return yield* Effect.fail(dispatched.failure);
+    }
 
-    const output = await this.executeWithRetry(task, budget, upstream, spec.id);
-    // …追加产出 + 发 task-completed 事件…
-  }
-
-  // 汇总 + done 终态
+    // 编排级终审：汇总产出过 critic（spec.acceptance，缺省 none 瞬间过站）
+    // → reviewing 态 → done。终审不达标：manual → escalated，其余 → failed
+    snapshot = self.moveTo(snapshot, "done");
+  });
 }
 ```
 
-### 失败四分支（`executeWithRetry` 的 catch 路径）
+### 单子任务执行（`executeWithStrategy`：Effect.result 分支 + 虚拟时钟退避）
 
 ```ts
-// 预算超支：不可重试、不可降级——直接上抛
-if (err instanceof BudgetExceededError) throw err;
+// 完整管线：executor 调用 → 产出校验 → 验收 → 失败按策略分支
+const outcome = yield* Effect.result(guardedAttempt);   // 不用 try/catch——result 把错误搬进成功通道
 
-// escalate：升级人工
-if (onFail === "escalate") { onEvent({ type: "escalated", … }); throw err; }
-
-// compensate：执行补偿钩子后抛出
-if (onFail === "compensate" && compensate) { await compensate(…); throw err; }
-
-// retry：退避重试（耗尽后与 degrade 同流：降级跳过）
-if (onFail === "retry" && attempts < maxAttempts) { await sleep(backoff(…)); continue; }
-
-// degrade / retry 耗尽 → 降级跳过
-upstream.set(task.id, `（子任务…已降级跳过）`);
-return { taskId: task.id, text: "", … };
+// ① per-task 预算：maxDurationMs → Effect.timeout（虚拟时钟友好）；maxTokens 事后校验
+// ② 验收接线：产出先过 critic——
+//    manual → 直接 EscalatedError（升级人工，不重试不降级）；
+//    contains/llm-judge 不达标 → 打回重做（进失败策略）
+// ③ 失败四分支（Effect.fail 替代 throw）：
+if (err instanceof BudgetExceededError) return yield* Effect.fail(err);      // 预算穿透
+if (onFail === "escalate")  return yield* Effect.fail(new EscalatedError(…)); // 升级人工
+if (onFail === "compensate") { yield* compensate(…); return yield* Effect.fail(err); }
+if (onFail === "retry" && attempts < maxAttempts) {
+  const retriable = err.name === "RetriableError" || retryPolicy.isRetriable(err);
+  if (retriable) {
+    yield* Effect.sleep(Duration.millis(backoffDelay(…)));  // 虚拟时钟：TestClock 下零等待
+    continue;                                                 // 确定性失败不浪费重试
+  }
+}
+// degrade / retry 耗尽 → 降级跳过（占位产出，调用方据此判断哪些子任务被降级）
+return { taskId: task.id, text: "（降级跳过）", … };
 ```
+
+> **为什么是 Effect**：① `Effect.result` 取代 try/catch——错误进类型通道，`EscalatedError`/`BudgetExceededError` 按 `_tag` 精确分支（漏接 = 编译错误）；② `Effect.sleep` 驱动退避——`TestClock.adjust` 虚拟推进，重试测试零真实等待；③ `Effect.all` 并行波次——fiber scope 托管子任务生命周期，无孤儿 Promise。
 
 ---
 
@@ -206,7 +194,8 @@ return { taskId: task.id, text: "", … };
 ```powershell
 cd agent-app
 pnpm --filter @agent-app/engine exec vitest run test/orchestrator.spec.ts
-# 9 用例：状态机守护 / 失败四分支 / 预算超支 / 断点续跑 / 事件断言——全部离线零网络
+# 26 用例：状态机守护 / 验收闭环 / 失败四分支 / 预算超支 / 失败终态落盘 /
+# 断点续跑（含动态规划任务单复用）/ DAG 顺序 / 事件断言 / TestClock 虚拟时钟——全部离线零网络
 ```
 
 编排器默认不参与产品线（客服 / kb 均为单 Agent）——它是一个**可用的基建件**，消费方（api/cli）按需组装。
@@ -221,8 +210,10 @@ pnpm --filter @agent-app/engine exec vitest run test/orchestrator.spec.ts
 | 重试为什么用指数退避 + 全抖动？ | 固定间隔在并发场景造成重试风暴；全抖动（而非等比）是 AWS 官方推荐——冲突概率最低 |
 | 为什么失败策略是配置不是代码？ | 部署形态的属性：原型 retry×1，生产 retry×3 + 退避 + 补偿。策略接口不变，换一个对象 |
 | 为什么用接口注入而非继承？ | 依赖倒置 = 编排器只认契约，实现按环境装配（测试注入确定性桩 / 生产注入 LLM 版） |
-| 并行子任务呢？ | `dependsOn` 字段已入 TaskSpec 契约（预留）；DAG 并行调度为后续批次（先串行跑通再并行优化） |
-| 断点续跑的存储？ | `StateStore` 接口——内存默认（Demo），redis/pg 适配器实现同接口即升级（orchestrator 零改动） |
+| DAG 并行怎么做的？ | 入度计数 + 就绪波次：入度 0 的任务 `Effect.all` 并行（fiber scope 托管），完成解锁下游进下一波；有环在派发前直接拒绝 |
+| 失败后同 id 重入为什么不再炸？ | 失败终态落盘：escalate → escalated、其余 → failed（都是 executing/reviewing 的表内迁移）——`failed → executing` 合法，断点续跑闭环；escalated 是终态，人工裁决后换新 id 重开 |
+| 为什么整个编排器是 Effect 范式？ | ① 错误进类型通道（TaggedError + catchTag，漏接 = 编译错）② Effect.sleep 退避走虚拟时钟（TestClock 零等待测重试）③ Effect.all 并行 + fiber scope 托管生命周期。Promise 调用方走 `runAsync()` 桥接零迁移 |
+| 断点续跑的存储？ | `StateStore` 接口——内存默认（Demo），redis/pg 适配器实现同接口即升级（orchestrator 零改动）；动态规划的任务单也进快照（重入跳过重新规划，taskId 稳定） |
 
 ---
 
@@ -244,8 +235,8 @@ pnpm --filter @agent-app/engine exec vitest run test/orchestrator.spec.ts
 
 ## 延伸
 
-- `packages/engine/src/orchestrator/` —— 源码目录（7 文件）
-- `packages/engine/test/orchestrator.spec.ts` —— 9 用例离线测试
+- `packages/engine/src/orchestrator/` —— 源码目录（8 文件，Effect 范式）
+- `packages/engine/test/orchestrator.spec.ts` —— 26 用例离线测试
 - [09 · 产品线组装](/reference/09-service) —— Supervisor 星型的单机版实战（编排器的特化前身）
 - [05 · 工具层加固](/guide/05-tools-hardening) —— 幂等壳与审批壳（编排器的两个"壳"）
 - [MATURITY 矩阵](/how-to/MATURITY) —— 编排器的当前档位与生产前置项

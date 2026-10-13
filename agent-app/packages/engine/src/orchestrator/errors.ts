@@ -40,3 +40,10 @@ export class AcceptanceFailedError extends Data.TaggedError("AcceptanceFailedErr
   /** critic 的判定依据（转述给人工升级时的关键信息） */
   readonly detail: string;
 }> {}
+
+/** 升级人工：策略 onFail=escalate 或 acceptance.type=manual 触发——
+ *  编排器捕获它落 escalated 终态（区别于其他失败的 failed 终态），
+ *  人工裁决后重开新编排（escalated 是终态，重入须换新 id）。 */
+export class EscalatedError extends Data.TaggedError("EscalatedError")<{
+  readonly message: string;
+}> {}
