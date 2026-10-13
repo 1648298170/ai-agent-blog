@@ -8,10 +8,13 @@
 //
 // LLM 调用纪律（与 supervisor 三分类同款）：generateText + 严格 JSON 指令 +
 // extractJson 宽松抽取 + zod 校验 + 失败重试一次——glm-4-flash 实测守约。
+//
+// Effect 化说明：本文件保持 Promise 实现（LLM SDK 是 Promise 世界）——
+// 编排器负责把它们抬进 Effect。唯一改动：错误构造从位置参数改为
+// TaggedError 的对象参数（message 进 props，分类字段显式化）。
 
 import { generateText } from "ai";
 import type { ToolSet } from "ai";
-import { z } from "zod";
 import { runToolLoop } from "../agent-loop.js";
 import { extractJson } from "../json-utils.js";
 import { getModel } from "../llm.js";
@@ -105,15 +108,18 @@ export class AcceptanceCritic {
   async review(task: TaskSpec, acceptance: Acceptance, output: TaskOutput): Promise<void> {
     if (acceptance.type === "none") return;
     if (acceptance.type === "manual") {
-      throw new AcceptanceFailedError(`「${task.title}」需人工验收`, "acceptance.type=manual");
+      throw new AcceptanceFailedError({
+        message: `「${task.title}」需人工验收`,
+        detail: "acceptance.type=manual",
+      });
     }
     if (acceptance.type === "contains") {
       const hit = acceptance.anyOf.some((keyword: string) => output.text.includes(keyword));
       if (!hit) {
-        throw new AcceptanceFailedError(
-          `「${task.title}」产出未包含任何预期关键词（${acceptance.anyOf.join(" / ")}）`,
-          output.text.slice(0, 200),
-        );
+        throw new AcceptanceFailedError({
+          message: `「${task.title}」产出未包含任何预期关键词（${acceptance.anyOf.join(" / ")}）`,
+          detail: output.text.slice(0, 200),
+        });
       }
       return;
     }
@@ -133,10 +139,10 @@ export class AcceptanceCritic {
       });
       const verdict = extractJson(text) as { pass: boolean; reason?: string };
       if (verdict.pass !== true) {
-        throw new AcceptanceFailedError(
-          `「${task.title}」未通过验收：${verdict.reason ?? "无依据"}`,
-          output.text.slice(0, 200),
-        );
+        throw new AcceptanceFailedError({
+          message: `「${task.title}」未通过验收：${verdict.reason ?? "无依据"}`,
+          detail: output.text.slice(0, 200),
+        });
       }
     };
     try {

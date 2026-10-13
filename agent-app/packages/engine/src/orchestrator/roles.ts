@@ -6,14 +6,19 @@
 //
 // 与 05 站「壳」的一致性：工人/角色的执行全部复用 runToolLoop——
 // 编排器是循环之上的「循环的循环」，不重写执行引擎。
+//
+// Effect 化说明：角色接口保持 Promise（LLM SDK / 工具生态是 Promise 的）——
+// 编排器内部经 Effect.tryPromise 把它们抬进 Effect 世界获得
+// 结构化并发 / 虚拟时钟 / 类型化错误；角色实现层零迁移成本。
 
 import type { ToolSet } from "ai";
 import type { Acceptance, TaskOutput, TaskSpec } from "./types.js";
+import type { Budget } from "./types.js";
 
 /** 角色的运行上下文：编排器在调用时注入（产出记账 / 上游产出引用） */
 export interface RoleContext {
   /** 全局预算池引用（executor 消耗后向编排器记账） */
-  readonly budget: { spend(tokens: number): void; readonly exhausted: boolean };
+  readonly budget: Budget;
   /** 上游已产出（id → 产出文本）：依赖子任务的产出可拼进本任务 prompt */
   readonly upstream: ReadonlyMap<string, string>;
   /** 取消信号（编排器被中止时向下传播） */

@@ -3,6 +3,9 @@
 // 为什么是接缝：断点续跑（进程崩溃后任务从上次状态恢复）的前提是「状态是真的」——
 // 内存 Map 意味着重启即失忆（Demo/单实例档）；生产档挂 redis/pg 适配器
 //（实现同一接口，orchestrator 零改动）。接口与实现的分离 = 依赖倒置。
+//
+// Effect 化说明：StateStore 接口保持 Promise（持久化适配器生态是 Promise 的），
+// 编排器内部经 Effect.tryPromise 桥接——接缝层换范式，实现层不强迫迁移。
 import type { TaskState } from "./types.js";
 import { TASK_TRANSITIONS } from "./types.js";
 import { IllegalTransitionError } from "./errors.js";
@@ -49,7 +52,11 @@ export function transition(
 ): OrchestrationSnapshot {
   const allowed = TASK_TRANSITIONS[snapshot.state];
   if (!allowed.includes(to)) {
-    throw new IllegalTransitionError(snapshot.state, to);
+    throw new IllegalTransitionError({
+      message: `状态机非法迁移：${snapshot.state} → ${to}（请对照 TASK_TRANSITIONS 检查调用顺序）`,
+      from: snapshot.state,
+      to,
+    });
   }
   return { ...snapshot, state: to, updatedAt: Date.now() };
 }

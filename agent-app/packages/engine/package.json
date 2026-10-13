@@ -18,6 +18,7 @@
     "@ai-sdk/provider": "^2.0.5",
     "@modelcontextprotocol/sdk": "^1.31.0",
     "ai": "^5.0.266",
+    "effect": "^4.0.2",
     "ioredis": "^5.11.1",
     "pdf-parse": "^1.1.1",
     "postgres": "^3.4.9",

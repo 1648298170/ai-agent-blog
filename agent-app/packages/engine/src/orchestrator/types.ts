@@ -7,6 +7,9 @@
 //    状态可持久化（StateStore 接缝），断点续跑建立在「状态是真的」之上；
 // ③ 预算显式——maxTokens / maxDurationMs 是硬约束，超支触发 fail 或 escalate
 //    （预算不是监控指标，是控制信号）。
+//
+// Effect 化说明：本文件保持纯数据（零 Effect 依赖）——类型与预算记账本
+// 在 Promise 世界和 Effect 世界通用；Effect 范式只进入 policies / orchestrator。
 
 import type { ToolSet } from "ai";
 
@@ -49,7 +52,7 @@ export interface TaskSpec {
   readonly title: string;
   /** 目标描述：拼进 worker 的 prompt */
   readonly goal: string;
-  /** 依赖的子任务 id（第一批串行执行按序消费；DAG 并行为后续预留） */
+  /** 依赖的子任务 id（DAG 并行派发按依赖解锁；循环依赖在执行前拒绝） */
   readonly dependsOn?: readonly string[];
   /** 验收标准（缺省 = none） */
   readonly acceptance?: Acceptance;

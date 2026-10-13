@@ -1,8 +1,12 @@
-// orchestrator/policies.ts —— 可插拔策略：重试 / 失败分支 / 预算判定。
+// orchestrator/policies.ts —— 可插拔策略：重试 / 失败分支（Effect 版）。
 //
 // 为什么是策略不是硬编码：失败处理是「部署形态的属性」——同一编排器，
 // 原型环境 retry×1 就够，生产环境要指数退避 + 抖动 + 预算降级。
 // 策略接口生产级、默认实现够用，替换 = 换一个对象（依赖注入）。
+//
+// Effect 化说明：重试的「执行」从手写 withRetry 循环改为编排器内的
+// Effect.gen 循环 + Effect.sleep（虚拟时钟友好——TestClock 可零等待测退避）。
+// 本文件只保留策略的「数据」部分：退避序列计算与失败分支声明。
 //
 // 可重试判定的口径（与 errors.ts 的分类对齐）：
 // - RetriableError → 可重试；
@@ -28,7 +32,7 @@ export const defaultRetryPolicy: RetryPolicy = {
   isRetriable: (err) => {
     if (err instanceof Error) {
       const m = err.message;
-      // 暂时性失败特征：限流 / 网关 / 服务端 / 超时（一致性优先：显式 RetriableError 走独立分支）
+      // 暂时性失败特征：限流 / 网关 / 服务端 / 超时
       return /429|5\d\d|timeout|ECONNRESET|ETIMEDOUT/i.test(m);
     }
     return false;
@@ -43,39 +47,12 @@ export function backoffDelay(policy: RetryPolicy, failedAttempts: number): numbe
   return Math.floor(capped * (0.5 + Math.random() * 0.5));
 }
 
-/** 带重试的执行：可重试错误按策略退避重试，不可重试错误立即上抛。 */
-export async function withRetry<T>(
-  policy: RetryPolicy,
-  operation: (attempt: number) => Promise<T>,
-  isRetriable: (err: unknown) => boolean = policy.isRetriable,
-): Promise<T> {
-  let lastError: unknown;
-  for (let attempt = 1; attempt <= policy.maxAttempts; attempt++) {
-    try {
-      return await operation(attempt);
-    } catch (err) {
-      lastError = err;
-      // 显式 RetriableError 恒定可重试；其余交给判定函数
-      const retriable =
-        err instanceof Error && err.name === "RetriableError" ? true : isRetriable(err);
-      const isLast = attempt >= policy.maxAttempts;
-      if (!retriable || isLast) throw err;
-      await sleep(backoffDelay(policy, attempt));
-    }
-  }
-  throw lastError; // 不可达（循环内必返回或抛出），类型收窄用
-}
-
-export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
 /** 子任务失败后的四分支策略 */
 export type FailureStrategy = "retry" | "degrade" | "compensate" | "escalate";
 
 export interface FailurePolicy {
-  /** 默认分支（子任务可覆写）：retry = 重试耗尽后标记 failed；degrade = 接受降级产出继续；
-   *  compensate = 先执行补偿再标记 compensated；escalate = 升级人工裁决 */
+  /** 默认分支（子任务可覆写）：retry = 重试耗尽后降级跳过；degrade = 立即降级不重试；
+   *  compensate = 先执行补偿再上抛；escalate = 升级人工裁决（上抛） */
   readonly onFail: FailureStrategy;
   /** compensate 分支的补偿钩子：接收已完成子任务的产出，执行回滚（写操作必配） */
   readonly compensate?: (outputs: readonly TaskOutputLike[]) => Promise<void>;
