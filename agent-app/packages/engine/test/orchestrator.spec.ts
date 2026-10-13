@@ -11,7 +11,7 @@ import { Effect, Duration, Fiber } from "effect";
 import { TestClock } from "effect/testing";
 import type { Acceptance, TaskOutput, TaskSpec } from "../src/orchestrator/types.js";
 import { Budget } from "../src/orchestrator/types.js";
-import { BudgetExceededError, IllegalTransitionError, AcceptanceFailedError } from "../src/orchestrator/errors.js";
+import { BudgetExceededError, IllegalTransitionError, AcceptanceFailedError, RetriableError } from "../src/orchestrator/errors.js";
 import { Orchestrator } from "../src/orchestrator/orchestrator.js";
 import { MemoryStateStore, transition } from "../src/orchestrator/state-store.js";
 import type { Executor, Planner } from "../src/orchestrator/roles.js";
@@ -512,5 +512,78 @@ describe("Orchestrator（Effect 版）：动态规划断点续跑", () => {
     expect(plannerCalls).toBe(1); // 断点续跑：不再规划
     expect(resumed.state).toBe("done");
     expect(executed).toEqual(["t1", "t2"]); // 重入全部跳过（已在快照 outputs 里）
+  });
+});
+
+describe("Orchestrator（Effect 版）：复查修复配套补测", () => {
+  it("RetriableError 恒重试：isRetriable 判 false 也重试（instanceof 判 TaggedError）", async () => {
+    let calls = 0;
+    const orch = makeOrchestrator({
+      planner: stubPlanner,
+      executor: { execute: async (task) => {
+        calls += 1;
+        if (calls < 3) throw new RetriableError({ message: "无特征词的限流" });
+        return stubOutput(task.id, "第三次成功");
+      }},
+      // isRetriable 恒 false——重试全靠 RetriableError 的 instanceof 恒重试分支
+      retryPolicy: { maxAttempts: 5, baseDelayMs: 0, maxDelayMs: 0, isRetriable: () => false },
+      failurePolicy: { onFail: "retry" },
+    });
+    const result = await orch.runAsync({ id: "orch-retriable", goal: "", tasks: [stubSpec] });
+    expect(calls).toBe(3);
+    expect(result.outputs[0]?.text).toContain("第三次成功");
+  });
+
+  it("compensate 失败 → 快照落 failed（补偿分支的上抛也走终态落盘）", async () => {
+    const store = new MemoryStateStore();
+    let compensated = false;
+    const orch = makeOrchestrator({
+      stateStore: store,
+      planner: stubPlanner,
+      executor: { execute: async () => { throw new Error("写操作失败"); } },
+      failurePolicy: { onFail: "compensate", compensate: async () => { compensated = true; } },
+    });
+    await expect(
+      orch.runAsync({ id: "orch-comp-snap", goal: "", tasks: [stubSpec] }),
+    ).rejects.toThrow("写操作失败");
+    expect(compensated).toBe(true);
+    expect((await store.load("orch-comp-snap"))?.state).toBe("failed");
+  });
+
+  it("编排级 manual 终审 → reviewing 落 escalated（人在环路的终审站）", async () => {
+    const store = new MemoryStateStore();
+    const orch = makeOrchestrator({
+      stateStore: store,
+      planner: stubPlanner,
+      executor: stubExecutor,
+      critic: judgingCritic, // manual → 抛 AcceptanceFailedError
+    });
+    await expect(orch.runAsync({
+      id: "orch-overall-manual", goal: "", tasks: [stubSpec],
+      acceptance: { type: "manual" },
+    })).rejects.toThrow("需人工验收");
+    expect((await store.load("orch-overall-manual"))?.state).toBe("escalated");
+  });
+
+  it("软着陆后重入：done（空产出）→ executing 补跑全部任务", async () => {
+    const store = new MemoryStateStore();
+    const makeExecutor = (log: string[]): Executor => ({ execute: async (task) => {
+      log.push(task.id);
+      return stubOutput(task.id, `${task.title} 完成`);
+    }});
+    const log1: string[] = [];
+    const controller = new AbortController();
+    controller.abort(); // 预先中止 → 软着陆
+    await makeOrchestrator({ stateStore: store, executor: makeExecutor(log1) }).runAsync(
+      { id: "orch-soft-resume", goal: "", tasks: [stubSpec, stubSpec2] },
+      controller.signal,
+    );
+    expect(log1).toHaveLength(0);
+
+    const log2: string[] = [];
+    const resumed = await makeOrchestrator({ stateStore: store, executor: makeExecutor(log2) })
+      .runAsync({ id: "orch-soft-resume", goal: "", tasks: [stubSpec, stubSpec2] });
+    expect(log2).toEqual(["t1", "t2"]); // 重入补跑全部
+    expect(resumed.state).toBe("done");
   });
 });

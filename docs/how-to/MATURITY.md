@@ -17,6 +17,7 @@
 | `tools/idempotency` | Demo | 进程内存 TTL 缓存，重启即清 | 跨实例部署需 Redis SETNX 版（接口已留，实现未写） |
 | 审批登记簿（api 层） | Demo | 进程内存，重启 = 全部过期 | 同上；多实例需共享登记簿 |
 | `evals/` | 单实例 | 76 例版本化数据集 + 基线；CI 已接 Tier 1 门禁 | Tier 2/3 未进 CI（需 key）；在线评估（真实流量回流）未做 |
+| `orchestrator/` | 单实例（Effect 版） | Effect.gen 流水线 + DAG 波次并行 + 验收闭环（manual→escalated）+ 失败终态落盘（重入合法）+ 30 离线用例 | 无 CLI/API 入口（引擎件，消费方未接）；编排事件流未接 SSE；token 成本聚合未做（与 #10 共享）；escalated 的人工裁决闭环靠外部系统 |
 
 ## 存储（同接口多实现，env 一键切换）
 

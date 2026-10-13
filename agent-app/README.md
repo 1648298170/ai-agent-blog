@@ -52,7 +52,7 @@ pnpm typecheck
 | `pnpm test:infra` | 基础设施集成测试（RUN_INFRA_TESTS=1，需先 `infra:up`） | week14 / week17 实战 |
 | `pnpm typecheck` | `tsc --noEmit` 零错误检查 | — |
 | `pnpm verify` | 聚合自检一条命令：typecheck → engine/api 测试 → selftest → examples 类型检查 → 架构红线 | — |
-| `pnpm examples` | 跑两个最小可运行示例（最小 Agent / 自定义工具，需先 `pnpm build` + 配好 key） | [engine/docs/EXTENDING.md](packages/engine/docs/EXTENDING.md) |
+| `pnpm examples` | 跑两个最小可运行示例（最小 Agent / 自定义工具，需先 `pnpm build` + 配好 key） | [EXTENDING 扩展指南](../docs/how-to/EXTENDING.md) |
 | `pnpm eval` | 跑评测考卷（76 例三档判分，无 key 自动跳过需网关的档位） | [week16/evals-ts.md](../docs/archive/weeks/week16/evals-ts.md) |
 
 ## 目录结构（pnpm workspace 单仓）
@@ -71,9 +71,10 @@ agent-app/
 │   │   │   ├── memory/              # 三层记忆：session / preference / episodic（内存版）
 │   │   │   ├── tools/               # registry / demo-tools / kb-search / idempotency（幂等）/ compose（壳组合器）
 │   │   │   ├── mcp/  guardrails/  evals/   # 标准插口 / 安全员 / 考试系统（各自带 README）
-│   │   │   └── service/             # 客服产品核心：supervisor / workers / handoff（CLI 与 API 共用）
+│   │   │   ├── service/             # 客服产品核心：supervisor / workers / handoff（CLI 与 API 共用）
+│   │   │   └── orchestrator/        # 多 Agent 编排器（Effect 版）：拆·派·跑 / 验收闭环 / 失败终态（带 README）
 │   │   ├── examples/                # 最小可运行示例（minimal-agent / custom-tool），pnpm examples 一键跑
-│   │   └── docs/                    # 教学文档（总览 + 九站深讲 + 成熟度矩阵 + 扩展指南）
+│   │   └── docs/                    # 教学文档（指路牌：深讲/成熟度/扩展指南已迁博客站 docs/）
 │   └── shared/                      # @agent-app/shared：纯类型契约（SSE 事件 / 错误体 / 路由 / HandoffPack）
 ├── apps/
 │   ├── cli/                         # @agent-app/cli：tsx 直跑（chat / kb / service REPL + selftest）
@@ -129,7 +130,7 @@ REPL 里可以试：
 设计要点：
 
 - **硬规则优先于模型**：转人工/投诉关键词、连续 2 轮未解决，纯函数判定，零 LLM 调用、行为可测（`pnpm test:service`）
-- **模型只兜模糊地带**：generateObject 三分类（order / refund / knowledge）+ reason
+- **模型只兜模糊地带**：generateText + 严格 JSON 指令三分类（order / refund / knowledge）+ reason（宽松解析见 `engine/json-utils.ts`）
 - **工具表按工人裁剪**：order 只发查订单的锤子，refund 只发建工单的锤子，knowledge 只发知识库检索
 - **转人工 = 业务流程的正常一步**：建工单 + HandoffPack 上下文包（工单号 / 原因 / 用户摘要 / 最近对话），接手人不用用户复述
 - **降级链路**：模型路由不可用时直接转人工而不是报错（service.md 上线检查清单第 8 条）

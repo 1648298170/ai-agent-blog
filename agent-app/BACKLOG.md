@@ -50,40 +50,15 @@
 
 **验收**：单测——估算三层各自可断言（注假 usage/注假系数）；水位触发与 40 条兜底两条路径；两存储实现行为一致。动手实验不变：`pnpm service --trace` 看 🧠 事件。
 
-## ② Multi-Agent 教学落地（等现有七模块学完再开工）
+## ② Multi-Agent 教学落地
 
-**触发条件**：按各模块 README 建议顺序学完 tools → rag → memory → service → mcp → guardrails → evals（多 Agent 是单 Agent 的乘法，基础不牢学它容易糊涂）。
+> **状态更新（2026-10-13）**：P2 主体已由 `packages/engine/src/orchestrator/`（模块八，Effect 范式）落地——commit `48ad814` + `2a01e3d`。与原计划的差异：目录名 `teams/` → `orchestrator/`；文件划分改为 types/errors/policies/state-store/roles/defaults/orchestrator/index（无 blackboard/planner/executor/critic 单文件——三角色合入 roles.ts + defaults.ts，黑板职责由 StateStore 快照承担）；实现范式从手写 Promise 升级为 Effect.gen（结构化并发 / TestClock 虚拟时钟 / TaggedError 类型化错误）。critic 评审-打回已接线（manual→escalated、失败终态落盘后重入合法）、DAG 波次并行、per-task 预算均已实现，30 离线用例全绿。完整深讲见 `docs/reference/10-orchestrator.md`。
 
-**教学主张**：多 Agent = 单 Agent 的乘法，不是玄学——每个"Agent"就是独立 system prompt + 独立职责 + 受控输入输出的 `runToolLoop` 组合。多 Agent 的新问题只有三个：**分工**（谁干什么）、**共享状态**（互相知道什么）、**质量闭环**（谁验收）。
-
-### P1 升格叙事（半小时，零代码）
-`service/README.md` 增补一章「你就是多 Agent：Supervisor 模式」——用已有代码教第一个多 Agent 模式：
-- supervisor = 路由 Agent（硬规则 + 三分类），workers = 三个专家 Agent（独立 system prompt + 最小权限工具表），HandoffPack = Agent 间上下文交接
-- 对照业界：LangGraph 的 supervisor 模式、CrewAI 的 manager+crew——同一思想不同皮肤
-
-### P2 `teams/` 流水线（核心新增，模块八）
-```text
-packages/engine/src/teams/
-├── types.ts       # TaskPlan / PlanStep / TeamResult 契约
-├── blackboard.ts  # 共享黑板：任务状态单一事实源（内存版，接口留持久化缝）
-├── planner.ts     # 规划 Agent：目标 → 有序步骤 JSON（宽松解析+重试一次，同 supervisor 套路）
-├── executor.ts    # 执行 Agent：逐步骤调 runToolLoop（每步一个带工具的单 Agent）
-├── critic.ts      # 评审 Agent：验收结果，不达标带反馈打回（重试上限，evals 思想进运行时）
-├── pipeline.ts    # 编排：planner → (executor → critic)* 循环，全程 trace（🧩🔧🔍 区分角色）
-└── index.ts + README.md（模块八，标准九节体例）
-```
-- 示例目标：「查订单 A-1024，未发货就建催发工单」——正好逼出规划/执行/验收三分工
-- 依赖倒置（planner/critic 可注假件），离线单测全绿
-- 入口：`pnpm team "目标"` CLI；真实成本 ≈ 3-8 次 LLM 调用/流水线
-
-### P3 A2A 落地（week19 Day 4 的代码化）
-- `GET /.well-known/agent-card.json`：本机 Agent Card（名称/skills/端点）
-- `POST /a2a/tasks`：接收外部 Agent 委托 → 路由到对应 worker 或 teams 流水线 → 回传 artifact（契约进 packages/shared）
-- 狗粮：起两个 agent-app 实例，A 读 B 的 Agent Card、委托「查订单」、收回结果
-
-### 验收与风险
-- P2 验收：typecheck 全绿 + 离线单测 + `pnpm team` 真实跑通（trace 可见三角色）
-- 风险：glm-4-flash 计划 JSON 稳定性（宽松解析+重试一次+失败降级单步）；critic 打回死循环（重试上限 2 次，超限带「未完全达成」诚实收尾）
+**仍挂账的子项**：
+- `pnpm team "目标"` CLI 入口（apps/cli 加编排命令，消费 Orchestrator）
+- P1 升格叙事（半小时，零代码）：`service/README.md` 增补「你就是多 Agent：Supervisor 模式」——supervisor = 路由 Agent，workers = 三个专家 Agent（独立 system prompt + 最小权限工具表），HandoffPack = Agent 间上下文交接；对照 LangGraph supervisor / CrewAI manager+crew
+- P3 A2A 落地（week19 Day 4 的代码化）：`GET /.well-known/agent-card.json` + `POST /a2a/tasks`（接收外部 Agent 委托 → 路由到 worker 或编排流水线）；狗粮：双实例互调
+- 在线观测档位：编排事件流接 SSE（前端看拆/派/跑实时轨迹）、token 成本聚合（与 #10 共享基建）
 
 ## ② 其他挂账（按 SECURITY.md / README 既有记录）
 

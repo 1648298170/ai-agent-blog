@@ -29,7 +29,7 @@ import { Effect, Duration } from "effect";
 import type { ToolSet } from "ai";
 import { Budget } from "./types.js";
 import type { OrchestrationSpec, TaskOutput, TaskSpec, TaskState } from "./types.js";
-import { BudgetExceededError, EscalatedError } from "./errors.js";
+import { BudgetExceededError, EscalatedError, RetriableError } from "./errors.js";
 import { MemoryStateStore, transition } from "./state-store.js";
 import type { OrchestrationSnapshot, StateStore } from "./state-store.js";
 import { AcceptanceCritic, LlmPlanner, LoopExecutor } from "./defaults.js";
@@ -444,10 +444,10 @@ export class Orchestrator {
         }
 
         if (self.failurePolicy.onFail === "retry" && attempts < self.retryPolicy.maxAttempts) {
-          // 可重试判定（与 policies.ts 口径一致）：RetriableError 恒重试；
+          // 可重试判定（与 policies.ts 口径一致）：RetriableError 恒重试（instanceof 判
+          // TaggedError——err.name 是 "Error"，旧版的 name 检查是恒 false 的死代码）；
           // 其余交给策略判定——确定性失败（4xx/校验）不浪费重试
-          const retriable = (err as Partial<Record<"name", unknown>>)?.name === "RetriableError"
-            || self.retryPolicy.isRetriable(err);
+          const retriable = err instanceof RetriableError || self.retryPolicy.isRetriable(err);
           if (retriable) {
             // Effect.sleep：退避走运行时时钟——TestClock 下零等待，测试不真睡
             yield* Effect.sleep(Duration.millis(backoffDelay(self.retryPolicy, attempts)));

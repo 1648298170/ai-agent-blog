@@ -4,7 +4,7 @@
 
 > | 内容 | 位置（仓库根相对） |
 > | --- | --- |
-> | 参考库 · 模块深讲（九篇） | docs/reference/01-agent-loop.md ~ 09-service.md |
+> | 参考库 · 模块深讲（十篇） | docs/reference/01-agent-loop.md ~ 10-orchestrator.md |
 > | 指南 · 扩展与成熟度 | docs/how-to/EXTENDING.md 与 docs/how-to/MATURITY.md |
 > | 主线课程 · 从 0 到生产（十二站） | docs/guide/ |
 > | 最小可运行示例 | packages/engine/examples/（pnpm examples） |

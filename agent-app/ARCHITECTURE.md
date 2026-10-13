@@ -31,6 +31,7 @@
 │  agent-loop  手写多步工具循环（①入账 ②调度 ③回灌）                        │
 │  rag/        递归切块 → 批量嵌入 → 余弦检索 → 引用拼装（+JSON 快照库）      │
 │  memory/     会话窗口(超限压缩) / 用户偏好 / 情景记忆                     │
+│  orchestrator/ 多 Agent 编排器（Effect 版：拆·派·跑 + 验收闭环 + 失败终态）│
 │  llm         OpenAI 兼容网关接入（GLM / Qwen / DeepSeek 可切换）           │
 │  trace       执行轨迹开关（▶⚙✓🧭🔎🧠）        json-utils  宽松 JSON 提取  │
 └──────────────┬───────────────────────────────────────────────────────────┘
@@ -77,6 +78,14 @@ agent-app/                        # pnpm workspace 根（packages/* + apps/*）
 │   │       │   ├── supervisor.ts # 硬规则 → 模型三分类路由
 │   │       │   ├── workers.ts    # order / refund / knowledge 三工人
 │   │       │   └── handoff.ts    # 转人工：建工单 + HandoffPack 上下文包
+│   │       ├── orchestrator/       # 多 Agent 编排器（Effect 版，本文未展开——见 docs/reference/10-orchestrator.md）
+│   │       │   ├── types.ts       # TaskSpec / 状态机迁移表 / Acceptance / Budget（纯数据）
+│   │       │   ├── errors.ts      # Data.TaggedError 编排域错误（catchTag 精确分支）
+│   │       │   ├── policies.ts    # RetryPolicy（指数退避+全抖动）/ 失败四分支声明
+│   │       │   ├── state-store.ts # 状态持久化接缝 + transition 守护
+│   │       │   ├── roles.ts       # 三角色契约：Planner / Executor / Critic
+│   │       │   ├── defaults.ts    # LLM 默认实现（LlmPlanner / LoopExecutor / AcceptanceCritic）
+│   │       │   └── orchestrator.ts # Effect.gen 主流程：DAG 波次并行 + 验收闭环 + 终态落盘
 │   │       └── types/pdf-parse.d.ts # pdf-parse 子路径导入的类型补丁（坑，见 8.2）
 │   └── shared/                   # @agent-app/shared：纯类型契约（SSE 事件 / 错误体 / 路由 / HandoffPack）
 ├── apps/
