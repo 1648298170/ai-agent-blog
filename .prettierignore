@@ -1,0 +1,18 @@
+# 依赖与构建产物（各层级均忽略）
+node_modules
+dist
+.next
+.turbo
+coverage
+
+# VitePress 缓存与构建输出
+docs/.vitepress
+
+# lockfile 与运行时数据（不入 formatter 视野）
+pnpm-lock.yaml
+.data
+
+# 本地工具状态目录
+.omc
+.playwright-mcp
+.temp

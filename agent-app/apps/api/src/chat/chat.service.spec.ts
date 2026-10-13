@@ -17,7 +17,11 @@ import { NON_STREAM_APPROVAL_UNSUPPORTED } from "./errors.js";
 const { streamTextMock } = vi.hoisted(() => ({ streamTextMock: vi.fn() }));
 
 vi.mock("@agent-app/engine/agent-loop", () => ({ DEFAULT_MAX_STEPS: 5, runToolLoop: vi.fn() }));
-vi.mock("@agent-app/engine/llm", () => ({ createModel: vi.fn(() => ({ fake: "model" })) }));
+vi.mock("@agent-app/engine/llm", () => ({
+  createModel: vi.fn(() => ({ fake: "model" })),
+  getModel: vi.fn(() => ({ fake: "model" })),
+  llmCallPolicy: vi.fn(() => ({ maxRetries: 0, abortSignal: undefined })),
+}));
 // ai 包部分 mock：tool 等工具原语用真品（demo 工具表要在构造时真实生成），
 // 只把 streamText 换成可控假流——最终答案的逐 token 输出来源
 vi.mock("ai", async (importOriginal) => {
@@ -135,9 +139,9 @@ describe("ChatService", () => {
     vi.mocked(runToolLoop).mockRejectedValue(new Error("模型网关不可达"));
 
     const events: ChatStreamEvent[] = [];
-    await expect(
-      service.chatStream({ message: "你好" }, (event) => events.push(event)),
-    ).rejects.toThrow("模型网关不可达");
+    await expect(service.chatStream({ message: "你好" }, (event) => events.push(event))).rejects.toThrow(
+      "模型网关不可达",
+    );
     // 中断前只发出了 session 开场事件
     expect(events.map((e) => e.type)).toEqual(["session"]);
   });
@@ -285,9 +289,9 @@ describe("ChatService", () => {
       throw new Error("This operation was aborted");
     });
 
-    await expect(
-      service.chat({ message: "你好" }, { signal: controller.signal }),
-    ).rejects.toThrow("客户端已断开连接");
+    await expect(service.chat({ message: "你好" }, { signal: controller.signal })).rejects.toThrow(
+      "客户端已断开连接",
+    );
 
     // 透传断言（同一 mock 的首次调用）
     const options = vi.mocked(runToolLoop).mock.calls[0][0];

@@ -8,6 +8,7 @@ import { INestApplication, Logger, ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { loadEnv } from "@agent-app/engine/config";
+import helmet from "helmet";
 import { AppModule } from "./app.module.js";
 import { AllExceptionsFilter } from "./common/all-exceptions.filter.js";
 import { ChatService } from "./chat/chat.service.js";
@@ -42,6 +43,12 @@ async function bootstrap(): Promise<void> {
   // 优雅关闭：收到 SIGINT/SIGTERM 时先 onModuleDestroy/onApplicationShutdown 再退出
   // （开发 Ctrl+C / 生产容器停止都走这条路，避免请求被拦腰掐断）
   app.enableShutdownHooks();
+
+  // 安全头（helmet）：一行挡住 MIME 嗅探（X-Content-Type-Options）/ 点击劫持（X-Frame-Options）
+  // 等常见客户端攻击面。唯一让步是 contentSecurityPolicy：Swagger UI（/api/docs）靠
+  // 内联 <script> 初始化，helmet 默认 CSP（script-src 'self'）会把它拦成白屏——
+  // 「默认行为零破坏」优先，先关掉 CSP，其余安全头全量生效。
+  app.use(helmet({ contentSecurityPolicy: false }));
 
   // CORS：web（apps/web 默认 3001 端口）跨域调用 API 必需；学习项目放开来源即可
   app.enableCors({ origin: true });

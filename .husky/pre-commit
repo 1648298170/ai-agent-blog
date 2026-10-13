@@ -1,0 +1,2 @@
+# pre-commit 钩子 —— 只格式化本次提交的文件（增量，不做全仓格式化）
+pnpm lint-staged

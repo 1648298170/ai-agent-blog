@@ -36,6 +36,17 @@ const ENV_KEYS = [
   "PG_CONNECTION_STRING",
   "REDIS_URL",
   "EMBEDDING_DIM",
+  // LLM 调用策略（AI SDK 内建能力：maxRetries 指数退避 + abortSignal 超时——
+  // 全部模型调用点经 llmCallPolicy() 统一注入，销 BACKLOG #3「无显式超时/退避」）
+  "AGENT_LLM_MAX_RETRIES",
+  "AGENT_LLM_TIMEOUT_MS",
+  // 幂等层存储开关（memory | redis；redis 版用 SET NX PX，多实例/重启语义正确）
+  "IDEMPOTENCY_STORE",
+  // 日志形态（text = 教学 icon/console 直出；json = pino 结构化行——生产采集用）
+  "AGENT_LOG_FORMAT",
+  "AGENT_LOG_LEVEL",
+  // token 估算器（tiktoken = js-tiktoken 编码近似；chars = 字符系数兜底）
+  "AGENT_TOKEN_ESTIMATOR",
 ] as const;
 
 /**
@@ -56,10 +67,7 @@ function parseEnvFile(dir: string): Record<string, string> {
 
     const key = line.slice(0, eq).trim();
     let value = line.slice(eq + 1).trim();
-    if (
-      (value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))
-    ) {
+    if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
       value = value.slice(1, -1);
     }
     vars[key] = value;
@@ -108,7 +116,7 @@ export function loadEnv(): Record<string, string> {
     if (dir) {
       fileVars = parseEnvFile(dir);
       break; // 先找到的 .env 生效，不与更远处的合并——「就近原则」：谁离启动位置近听谁的，
-    }        // 避免嵌套仓库/多个包各有一份 .env 时重复读、互相污染。
+    } // 避免嵌套仓库/多个包各有一份 .env 时重复读、互相污染。
   }
 
   // 来源 ① 铺底，来源 ② 覆盖。三条规则都在这个循环里：
@@ -131,5 +139,24 @@ export function getConfig(): AppConfig {
     baseURL: env.OPENAI_BASE_URL || "https://open.bigmodel.cn/api/paas/v4",
     model: env.OPENAI_MODEL || "glm-4-flash",
     embeddingModel: env.EMBEDDING_MODEL || "embedding-3",
+  };
+}
+
+/** LLM 调用策略：重试次数与单次调用超时（毫秒）——AI SDK 调用点经 llmCallPolicy() 消费 */
+export interface LlmPolicy {
+  /** 传输层重试次数（AI SDK 内置指数退避，429/5xx/网络错误自动重试）；默认 2 */
+  maxRetries: number;
+  /** 单次模型调用超时（毫秒），经 AbortSignal.timeout 实施；默认 60_000 */
+  timeoutMs: number;
+}
+
+/** 读 LLM 调用策略（env 可覆盖，非法值回退默认——配置错误不应炸掉调用链） */
+export function getLlmPolicy(): LlmPolicy {
+  const env = loadEnv();
+  const retries = Number.parseInt(env.AGENT_LLM_MAX_RETRIES ?? "", 10);
+  const timeout = Number.parseInt(env.AGENT_LLM_TIMEOUT_MS ?? "", 10);
+  return {
+    maxRetries: Number.isFinite(retries) && retries >= 0 ? retries : 2,
+    timeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : 60_000,
   };
 }

@@ -1,0 +1,41 @@
+# 依赖安全审计（BACKLOG #7）—— 独立 workflow，失败不阻塞 deploy.yml 的 Pages 部署
+# pnpm audit 基于 lockfile 向 registry 查安全通告，无需安装依赖
+# 触发：push 到 main + 每周一定时 + Actions 页手动
+name: Dependency audit
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    # 每周一 03:00 UTC（北京时间 11:00）
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: pnpm audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # 根 workspace（VitePress 博客链路）
+      - name: Audit root dependencies
+        run: pnpm audit --audit-level high
+
+      # agent-app 是独立 workspace（自带 pnpm-lock.yaml），单独审计
+      - name: Audit agent-app dependencies
+        working-directory: agent-app
+        run: pnpm audit --audit-level high

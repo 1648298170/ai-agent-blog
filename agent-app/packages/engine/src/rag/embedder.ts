@@ -4,7 +4,7 @@
 //（SDK 返回值与输入同序），跨批按批次顺序拼接，texts[i] 的向量就是返回值第 i 项。
 import { embedMany } from "ai";
 import { getConfig } from "../config.js";
-import { getEmbeddingModel } from "../llm.js";
+import { getEmbeddingModel, llmCallPolicy } from "../llm.js";
 
 /** 单批条数：embeddings 接口天生支持批量，几十条一批（教程 BATCH 思想） */
 const BATCH_SIZE = 32;
@@ -45,7 +45,11 @@ export async function embed(texts: string[]): Promise<number[][]> {
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE);
     try {
-      const { embeddings } = await embedMany({ model: getEmbeddingModel(), values: batch });
+      const { embeddings } = await embedMany({
+        model: getEmbeddingModel(),
+        values: batch,
+        ...llmCallPolicy(),
+      });
       // 防御：SDK 理应同序同长返回，但"多退少补"式的错位一旦发生就是全库语义错乱，
       // 与其静默入库不如当场报错——错误信息带上批号，排障能直接定位到哪一批
       if (embeddings.length !== batch.length) {

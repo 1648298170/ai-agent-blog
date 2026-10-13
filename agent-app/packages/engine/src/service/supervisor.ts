@@ -9,7 +9,7 @@ import type { ModelMessage } from "ai";
 import { z } from "zod";
 import type { RouteDecision, RouteTarget, WorkerRoute } from "@agent-app/shared";
 import { extractJson } from "../json-utils.js";
-import { getModel } from "../llm.js";
+import { getModel, llmCallPolicy } from "../llm.js";
 import type { ChatTurn } from "../memory/types.js";
 import { trace } from "../trace.js";
 
@@ -78,9 +78,9 @@ export function checkHardRules(state: SupervisorState): RouteDecision | null {
 
 /** 模型分类的输出 schema：三选一的选择题，不是问答题（能枚举就硬，枚举不了再软） */
 const routeSchema = z.object({
-  route: z.enum(["order", "refund", "knowledge"]).describe(
-    "order=订单/物流/发货查询；refund=退款退货售后；knowledge=制度政策等知识库问答",
-  ),
+  route: z
+    .enum(["order", "refund", "knowledge"])
+    .describe("order=订单/物流/发货查询；refund=退款退货售后；knowledge=制度政策等知识库问答"),
   reason: z.string().describe("判定依据，一句话"),
 });
 
@@ -91,7 +91,7 @@ const ROUTER_PROMPT = [
   "- knowledge：公司制度、政策、常见问题（知识库问答）",
   "只依据对话内容分类，不猜测对话没提到的业务。用中文写 reason。",
   "", // 以下为输出格式硬约定：轻薄模型不吃 response_format，格式必须写进提示词
-  '只输出一个 JSON 对象，禁止输出解释、markdown 围栏或任何其他文字。格式：',
+  "只输出一个 JSON 对象，禁止输出解释、markdown 围栏或任何其他文字。格式：",
   '{"route":"order","reason":"判定依据一句话"}',
   'route 只能取 "order" / "refund" / "knowledge" 之一。',
 ].join("\n");
@@ -117,7 +117,12 @@ export async function classifyWithLlm(history: ChatTurn[]): Promise<RouteDecisio
       attempt === 1
         ? system
         : `${system}\n\n重要：你上一次的回复不是合法 JSON。现在只输出 JSON 对象本身，不要任何其他文字。`;
-    const { text } = await generateText({ model: getModel(), system: effectiveSystem, messages: baseMessages });
+    const { text } = await generateText({
+      model: getModel(),
+      system: effectiveSystem,
+      messages: baseMessages,
+      ...llmCallPolicy(),
+    });
     try {
       const parsed = routeSchema.parse(extractJson(text));
       if (attempt > 1) trace("🧭", "路由 → 重试后输出合规");

@@ -21,7 +21,7 @@
 // 在单测里换假实现，零网络跑通整条编排链路。
 import { generateText } from "ai";
 import { extractJson } from "../../json-utils.js";
-import { getModel } from "../../llm.js";
+import { getModel, llmCallPolicy } from "../../llm.js";
 import type { ScorerOutput } from "../types.js";
 
 /** judge 的二元判定结论：过/不过 + 一句中文依据 */
@@ -31,7 +31,11 @@ export interface JudgeVerdict {
 }
 
 /** 评审员函数：输入问题/回答/rubric，输出二元判定（真实实现见 createLlmJudge） */
-export type JudgeFn = (input: { userMessage: string; answer: string; rubric: string[] }) => Promise<JudgeVerdict>;
+export type JudgeFn = (input: {
+  userMessage: string;
+  answer: string;
+  rubric: string[];
+}) => Promise<JudgeVerdict>;
 
 /** 判定值的人话渲染：报告里不出现裸 true/false，人眼不歧义 */
 function formatVerdict(pass: boolean): string {
@@ -72,7 +76,7 @@ export function buildJudgePrompt(input: { userMessage: string; answer: string; r
     "1. 只依据 rubric 条目逐条核对候选回答，不得引入 rubric 之外的标准——文笔、语气、篇幅一律不看；",
     "2. 全部条目都满足才能判 pass=true；任何一条不满足、只满足一半、或你无法确认是否满足，一律判 pass=false——宁可误杀，不可放过；",
     "3. 按条目编号逐条核对，前面的条目满足了不代表后面的也满足，不得放水；",
-    "4. 输出严格的单行 JSON：{\"pass\": boolean, \"reason\": string}，禁止使用 markdown 代码围栏，禁止输出 JSON 以外的任何文字；",
+    '4. 输出严格的单行 JSON：{"pass": boolean, "reason": string}，禁止使用 markdown 代码围栏，禁止输出 JSON 以外的任何文字；',
     "5. reason 用一句中文说明判定依据；判 pass=false 时指出不满足的条目编号。",
   ].join("\n");
 
@@ -107,16 +111,23 @@ function parseJudgeVerdict(text: string): JudgeVerdict {
     return { pass: false, reason: `judge 输出不可解析：${err instanceof Error ? err.message : String(err)}` };
   }
   if (typeof parsed !== "object" || parsed === null) {
-    return { pass: false, reason: `judge 输出不可解析（不是 JSON 对象），原文摘录：${text.trim().slice(0, 120)}` };
+    return {
+      pass: false,
+      reason: `judge 输出不可解析（不是 JSON 对象），原文摘录：${text.trim().slice(0, 120)}`,
+    };
   }
   const passValue: unknown = Reflect.get(parsed, "pass");
   const reasonValue: unknown = Reflect.get(parsed, "reason");
   if (typeof passValue !== "boolean") {
-    return { pass: false, reason: `judge 输出不可解析（pass 字段缺失或不是 boolean），原文摘录：${text.trim().slice(0, 120)}` };
+    return {
+      pass: false,
+      reason: `judge 输出不可解析（pass 字段缺失或不是 boolean），原文摘录：${text.trim().slice(0, 120)}`,
+    };
   }
   return {
     pass: passValue,
-    reason: typeof reasonValue === "string" && reasonValue.trim() !== "" ? reasonValue : "（judge 未说明理由）",
+    reason:
+      typeof reasonValue === "string" && reasonValue.trim() !== "" ? reasonValue : "（judge 未说明理由）",
   };
 }
 
@@ -133,6 +144,7 @@ export function createLlmJudge(): JudgeFn {
       system,
       prompt: user,
       temperature: 0,
+      ...llmCallPolicy(),
     });
     return parseJudgeVerdict(text);
   };

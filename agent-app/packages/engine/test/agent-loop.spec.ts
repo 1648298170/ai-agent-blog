@@ -59,7 +59,7 @@ function echoTools() {
 }
 
 describe("runToolLoop 的 signal（断开中止）", () => {
-  it("透传：doGenerate 收到的 callOptions.abortSignal 就是传给 runToolLoop 的 signal", async () => {
+  it("透传：doGenerate 收到的 abortSignal 与传入 signal 中止联动（llmCallPolicy 合并超时后）", async () => {
     const controller = new AbortController();
     const model = new MockLanguageModelV2({
       doGenerate: async () => textResponse("好的"),
@@ -72,9 +72,14 @@ describe("runToolLoop 的 signal（断开中止）", () => {
       signal: controller.signal,
     });
 
-    // MockLanguageModelV2 自带调用录音：doGenerateCalls[0] 就是第一次 callOptions
-    expect(model.doGenerateCalls.length).toBe(1);
-    expect(model.doGenerateCalls[0]?.abortSignal).toBe(controller.signal);
+    // MockLanguageModelV2 自带调用录音：doGenerateCalls[0] 就是第一次 callOptions。
+    // llmCallPolicy 会把用户 signal 与超时信号 AbortSignal.any 合并——不是同一引用，
+    // 但中止状态必须联动：用户 signal aborted → 引擎给的 abortSignal 也 aborted
+    const delivered = model.doGenerateCalls[0]?.abortSignal;
+    expect(delivered).toBeDefined();
+    expect(delivered?.aborted).toBe(false);
+    controller.abort();
+    expect(delivered?.aborted).toBe(true); // 联动成立 = 透传语义保留
   });
 
   it("预中止：signal 已 aborted → 首次模型调用前就退出，doGenerate 零调用", async () => {
@@ -145,7 +150,9 @@ describe("runToolLoop 的 signal（断开中止）", () => {
     expect(result.text).toBe("两步完成");
     expect(result.steps).toBe(2);
     expect(doGenerateCount).toBe(2);
-    expect(model.doGenerateCalls[0]?.abortSignal).toBeUndefined(); // SDK 默认值原样
+    // llmCallPolicy 后不传 signal 也有超时信号（AbortSignal.timeout）——不再是无信号裸调
+    expect(model.doGenerateCalls[0]?.abortSignal).toBeDefined();
+    expect(model.doGenerateCalls[0]?.abortSignal?.aborted).toBe(false);
   });
 
   it("错误消息口径：导出的 TOOL_LOOP_ABORTED 常量与抛出的错误一致", async () => {
@@ -156,7 +163,12 @@ describe("runToolLoop 的 signal（断开中止）", () => {
       doGenerate: async () => textResponse("x"),
     });
     await expect(
-      runToolLoop({ model, messages: [{ role: "user", content: "hi" }], tools: {}, signal: controller.signal }),
+      runToolLoop({
+        model,
+        messages: [{ role: "user", content: "hi" }],
+        tools: {},
+        signal: controller.signal,
+      }),
     ).rejects.toThrow(TOOL_LOOP_ABORTED);
   });
 });

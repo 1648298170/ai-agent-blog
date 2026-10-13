@@ -1,12 +1,11 @@
 // idempotency.spec.ts —— 工具执行幂等层的离线单测：首调执行 / 重放命中 / 失败不缓存 /
-// 在途共享 / TTL 过期 / scope 隔离 / 参数指纹规范化 / 容量淘汰。全程零网络零延迟——
-// execute 用计数器闭包，行为断言只看「真执行了几次」。
+// 在途共享 / TTL 过期 / scope 隔离 / 参数指纹规范化 / 容量淘汰 / env 工厂装配。
+// 全程零网络零延迟——execute 用计数器闭包，行为断言只看「真执行了几次」。
+// （Redis 实现的集成用例在 infra.idempotency-redis.spec.ts，RUN_INFRA_TESTS=1 门控。）
 import { describe, expect, it, vi } from "vitest";
-import {
-  IdempotencyRegistry,
-  stableStringify,
-  wrapToolsWithIdempotency,
-} from "../src/tools/idempotency.js";
+import { IdempotencyRegistry, stableStringify, wrapToolsWithIdempotency } from "../src/tools/idempotency.js";
+import { RedisIdempotencyRegistry } from "../src/tools/idempotency.redis.js";
+import { createIdempotencyRegistryFromEnv } from "../src/tools/idempotency.factory.js";
 import { tool } from "ai";
 import { z } from "zod";
 import type { AgentToolSet } from "../src/types.js";
@@ -182,5 +181,30 @@ describe("wrapToolsWithIdempotency：工具表壳", () => {
     const bare = { schemaOnly: tool({ description: "无 execute", inputSchema: z.object({}) }) };
     const wrapped = wrapToolsWithIdempotency(bare, registry, { scope: "s" });
     expect(wrapped.schemaOnly).toBe(bare.schemaOnly); // 引用相等：未包壳
+  });
+});
+
+describe("createIdempotencyRegistryFromEnv：env 装配（离线——redis 开关构造零连接）", () => {
+  it("默认（不配置）→ 内存版：与改造前逐字节一致", () => {
+    expect(createIdempotencyRegistryFromEnv({})).toBeInstanceOf(IdempotencyRegistry);
+  });
+
+  it("IDEMPOTENCY_STORE=memory → 内存版", () => {
+    expect(createIdempotencyRegistryFromEnv({ IDEMPOTENCY_STORE: "memory" })).toBeInstanceOf(
+      IdempotencyRegistry,
+    );
+  });
+
+  it("IDEMPOTENCY_STORE=redis → Redis 版（懒连接：构造不起任何连接，close 是 no-op）", () => {
+    const registry = createIdempotencyRegistryFromEnv({ IDEMPOTENCY_STORE: "redis" });
+    expect(registry).toBeInstanceOf(RedisIdempotencyRegistry);
+    if (!(registry instanceof RedisIdempotencyRegistry)) throw new Error("unreachable");
+    registry.close(); // 未起连接时 close 不炸
+  });
+
+  it("不认识的值 → 告警并回退内存默认（离线优先，不炸启动）", () => {
+    expect(createIdempotencyRegistryFromEnv({ IDEMPOTENCY_STORE: "sqlite" })).toBeInstanceOf(
+      IdempotencyRegistry,
+    );
   });
 });

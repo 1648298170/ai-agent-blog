@@ -4,7 +4,7 @@
 //   const llm = llmProvider.chat(model);
 import { createOpenAI } from "@ai-sdk/openai";
 import type { EmbeddingModelV2, LanguageModelV2 } from "@ai-sdk/provider";
-import { getConfig } from "./config.js";
+import { getConfig, getLlmPolicy } from "./config.js";
 
 /**
  * 创建一个新的 chat 模型实例。缺 apiKey 不会在这里抛错——
@@ -37,4 +37,25 @@ function createEmbeddingModel(): EmbeddingModelV2<string> {
 export function getEmbeddingModel(): EmbeddingModelV2<string> {
   cachedEmbeddingModel ??= createEmbeddingModel();
   return cachedEmbeddingModel;
+}
+
+/**
+ * LLM 调用统一策略（全部模型调用点的标准参数，spread 进 generateText/embedMany）：
+ * - maxRetries：AI SDK 内置传输层指数退避（429/5xx/网络错误自动重试），env 可配；
+ * - abortSignal：单次调用超时（AbortSignal.timeout）；调用方自己的 signal
+ *   （如 SSE 断连中止）经 AbortSignal.any 合并——任一触发即中止。
+ *
+ * 与应用层重试（supervisor/orchestrator 的「JSON 不合规换提示词重发」）正交：
+ * 传输层管「请求有没有到达并成功」，应用层管「到达了但回答不守约」。
+ */
+export function llmCallPolicy(signal?: AbortSignal): {
+  maxRetries: number;
+  abortSignal: AbortSignal;
+} {
+  const { maxRetries, timeoutMs } = getLlmPolicy();
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  return {
+    maxRetries,
+    abortSignal: signal ? AbortSignal.any([signal, timeoutSignal]) : timeoutSignal,
+  };
 }

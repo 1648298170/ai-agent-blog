@@ -24,6 +24,9 @@ vi.mock("@agent-app/engine/agent-loop", () => ({ DEFAULT_MAX_STEPS: 5, runToolLo
 vi.mock("@agent-app/engine/llm", () => ({
   createModel: vi.fn(() => ({ fake: "model" })),
   getModel: vi.fn(() => ({ fake: "model" })),
+  // llmCallPolicy（maxRetries/超时统一策略）也要 stub——engine dist 的 supervisor/
+  // handoff 现在会 import 它，factory 缺导出 = undefined 调用 = 路由静默降级 human
+  llmCallPolicy: vi.fn(() => ({ maxRetries: 0, abortSignal: undefined })),
 }));
 // ai 包部分 mock：tool 等工具原语用真品（demo 工具表 / createTicket 工单要真实生成），
 // 只换 streamText（最终答案流）与 generateText（LLM 三分类 / 摘要）
@@ -161,18 +164,14 @@ describe("ServiceController GET /api/service/stream（SSE 流式客服）", () =
     ]);
 
     // 会话回写镜像 POST /message：user 轮 + assistant 轮（token 拼接的最终答案）
-    const history = await request(app.getHttpServer()).get(
-      `/api/service/sessions/${session.sessionId}`,
-    );
+    const history = await request(app.getHttpServer()).get(`/api/service/sessions/${session.sessionId}`);
     const turns = history.body.turns as Array<{ role: string; content: string }>;
     expect(turns.map((t) => t.role)).toEqual(["user", "assistant"]);
     expect(turns[1].content).toBe("已发货。");
   });
 
   it("硬规则转人工：session → route(human) → handoff → token* → done，零 LLM 分类调用", async () => {
-    const res = await request(app.getHttpServer())
-      .get("/api/service/stream")
-      .query({ message: "转人工" });
+    const res = await request(app.getHttpServer()).get("/api/service/stream").query({ message: "转人工" });
 
     expect(res.status).toBe(200);
     const events = parseSse(res.text);
@@ -189,7 +188,8 @@ describe("ServiceController GET /api/service/stream（SSE 流式客服）", () =
     expect(route.reason).toContain("用户明确要求转人工");
 
     const handoff = events.find((e) => e.type === "handoff");
-    if (handoff === undefined || handoff.type !== "handoff") throw new Error("unreachable：必须有 handoff 事件");
+    if (handoff === undefined || handoff.type !== "handoff")
+      throw new Error("unreachable：必须有 handoff 事件");
     expect(handoff.handoff.ticketId).not.toBe(""); // mock 工单真实产出
     expect(handoff.handoff.reason).toContain("用户明确要求转人工");
     expect(handoff.handoff.recentTranscript).toContain("转人工"); // 文稿里有本轮用户消息

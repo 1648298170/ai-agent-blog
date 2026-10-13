@@ -8,6 +8,14 @@
 //
 // 输出走 stderr 而不是 stdout：stdout 保持干净（管道 / 重定向不被轨迹污染），
 // 控制台上两者都可见，观察时不损失任何信息。
+//
+// ── 结构化轨迹（AGENT_LOG_FORMAT=json）───────────────────────────────────
+// json 模式下轨迹从「给人扫读的 icon 行」切为「给机器采集的 JSON 行」
+// （{time, icon, event} 三字段，仍写 stderr——轨迹与库日志是两条管道，各走各的出口，
+// 这也是 trace.ts 不并入 logger.ts 的原因，开关口径则借 logger.isJsonLogFormat 唯一一份）。
+// 默认（未设置 / text）保持 `${icon} ${message}` 逐字节不变。
+
+import { isJsonLogFormat } from "./logger.js";
 
 /** 轨迹是否已开启（读环境变量，默认关） */
 export function isTraceEnabled(): boolean {
@@ -47,5 +55,11 @@ export function preview(value: unknown, max = 200): string {
  */
 export function trace(icon: string, message: string): void {
   if (!isTraceEnabled()) return;
+  // json 模式：一行一个结构化事件（time 为 ISO 串，icon/event 原样保留）；
+  // text 模式（默认）：`${icon} ${message}` 原样直出，逐字节兼容
+  if (isJsonLogFormat()) {
+    process.stderr.write(JSON.stringify({ time: new Date().toISOString(), icon, event: message }) + "\n");
+    return;
+  }
   process.stderr.write(`${icon} ${message}\n`);
 }

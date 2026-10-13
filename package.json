@@ -8,9 +8,25 @@
   "scripts": {
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
-    "docs:preview": "vitepress preview docs"
+    "docs:preview": "vitepress preview docs",
+    "prepare": "husky",
+    "lint:staged": "lint-staged",
+    "format:check": "prettier --check ."
+  },
+  "lint-staged": {
+    "*.{ts,tsx,mjs,mts}": [
+      "prettier --write"
+    ],
+    "*.{md,json,yml,yaml}": [
+      "prettier --write"
+    ]
   },
   "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.9.10",
     "vitepress": "^1.6.3",
     "vue": "^3.5.42"
   }

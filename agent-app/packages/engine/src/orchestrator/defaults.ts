@@ -17,7 +17,7 @@ import { generateText } from "ai";
 import type { ToolSet } from "ai";
 import { runToolLoop } from "../agent-loop.js";
 import { extractJson } from "../json-utils.js";
-import { getModel } from "../llm.js";
+import { getModel, llmCallPolicy } from "../llm.js";
 import type { Acceptance } from "./types.js";
 import { AcceptanceFailedError } from "./errors.js";
 import type { RoleContext } from "./roles.js";
@@ -36,7 +36,7 @@ export class LlmPlanner {
         model: getModel(),
         system: PLANNER_PROMPT,
         messages: [{ role: "user", content: goal }],
-        abortSignal: ctx.signal,
+        ...llmCallPolicy(ctx.signal),
       });
       const raw = extractJson(text) as { id?: string; title?: string; goal?: string; dependsOn?: string[] }[];
       if (!Array.isArray(raw) || raw.length === 0) throw new Error("规划器未返回任务清单");
@@ -138,6 +138,7 @@ export class AcceptanceCritic {
             content: `验收标准：${(acceptance as { rubric: string }).rubric}\n\n产出：\n${output.text}`,
           },
         ],
+        ...llmCallPolicy(),
       });
       const verdict = extractJson(text) as { pass: boolean; reason?: string };
       if (verdict.pass !== true) {

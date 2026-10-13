@@ -15,6 +15,7 @@
 import { generateText, tool as defineTool } from "ai";
 import type { LanguageModel, ModelMessage, ToolSet } from "ai";
 import { EngineError } from "./errors.js";
+import { llmCallPolicy } from "./llm.js";
 import { preview, trace } from "./trace.js";
 
 /** 步数上限的库级默认值：调用方（api / cli / workers）统一引用，magic number 不散落 */
@@ -128,8 +129,18 @@ export async function runToolLoop(options: RunToolLoopOptions): Promise<ToolLoop
     if (signal?.aborted) {
       throw new ToolLoopAbortedError(TOOL_LOOP_ABORTED);
     }
-    trace("▶", `思考 step ${step} → 调用模型（上下文 ${messages.length} 条消息，可用工具 ${Object.keys(tools).length} 个）`);
-    const result = await generateText({ model, messages, tools: schemaTools, system, abortSignal: signal });
+    trace(
+      "▶",
+      `思考 step ${step} → 调用模型（上下文 ${messages.length} 条消息，可用工具 ${Object.keys(tools).length} 个）`,
+    );
+    // llmCallPolicy：传输层重试（maxRetries 指数退避）+ 单步超时，与用户 signal 合并
+    const result = await generateText({
+      model,
+      messages,
+      tools: schemaTools,
+      system,
+      ...llmCallPolicy(signal),
+    });
 
     if (result.toolCalls.length === 0) {
       trace("◆", `完成 → 模型给出最终回答（${result.text.length} 字，共 ${step} 步）`);
@@ -144,8 +155,11 @@ export async function runToolLoop(options: RunToolLoopOptions): Promise<ToolLoop
     messages.push(...result.response.messages); // ① 入账：模型的调用意图
     // 步间文本快照：模型伴随工具调用"说"的那句话（有则随 onStep 广播，无则 undefined）
     const stepText = result.text.trim();
-    trace("⚙", `行动 step ${step} → 要调 ${result.toolCalls.length} 个工具：` +
-      result.toolCalls.map((c) => `${c.toolName}(${preview(c.input, 120)})`).join("、"));
+    trace(
+      "⚙",
+      `行动 step ${step} → 要调 ${result.toolCalls.length} 个工具：` +
+        result.toolCalls.map((c) => `${c.toolName}(${preview(c.input, 120)})`).join("、"),
+    );
 
     for (const call of result.toolCalls) {
       const tool = tools[call.toolName];
@@ -154,10 +168,12 @@ export async function runToolLoop(options: RunToolLoopOptions): Promise<ToolLoop
       if (tool?.execute) {
         try {
           // ② 调度：execute 就是普通函数；call.input 已由 SDK 按 schema 解析好
-          output = jsonOutput(await tool.execute(call.input, {
-            toolCallId: call.toolCallId,
-            messages,
-          }));
+          output = jsonOutput(
+            await tool.execute(call.input, {
+              toolCallId: call.toolCallId,
+              messages,
+            }),
+          );
         } catch (err) {
           failed = true;
           output = errorOutput({
@@ -182,7 +198,10 @@ export async function runToolLoop(options: RunToolLoopOptions): Promise<ToolLoop
         ],
       });
 
-      trace(failed ? "✗" : "✓", `观察 step ${step} → ${call.toolName} ${failed ? "失败" : "返回"}：${preview(output.value)}`);
+      trace(
+        failed ? "✗" : "✓",
+        `观察 step ${step} → ${call.toolName} ${failed ? "失败" : "返回"}：${preview(output.value)}`,
+      );
 
       // 可选观察钩子：回灌落账后再广播，订阅方看到的一定是已提交的状态
       onStep?.({
@@ -202,9 +221,7 @@ export async function runToolLoop(options: RunToolLoopOptions): Promise<ToolLoop
  * 展示「循环就是全部逻辑」时如何收编成一个对象：消息历史由类内部维护，调用方只给 prompt 拿 text。
  */
 export class ToolLoopAgent {
-  constructor(
-    private readonly options: { model: LanguageModel; tools: ToolSet; maxSteps?: number },
-  ) {}
+  constructor(private readonly options: { model: LanguageModel; tools: ToolSet; maxSteps?: number }) {}
 
   /** 一轮生成：prompt 可以是单条字符串，也可以是现成的消息数组；system 单独走选项 */
   async generate(input: { prompt: string | ModelMessage[]; system?: string }): Promise<ToolLoopResult> {

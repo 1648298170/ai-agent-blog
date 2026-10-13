@@ -26,7 +26,11 @@ vi.mock("@agent-app/engine/rag", () => ({
   extractTextFromFile: vi.fn(),
   SUPPORTED_EXTENSIONS: new Set([".txt", ".md", ".pdf"]),
 }));
-vi.mock("@agent-app/engine/llm", () => ({ createModel: vi.fn(() => ({ fake: "model" })) }));
+vi.mock("@agent-app/engine/llm", () => ({
+  createModel: vi.fn(() => ({ fake: "model" })),
+  getModel: vi.fn(() => ({ fake: "model" })),
+  llmCallPolicy: vi.fn(() => ({ maxRetries: 0, abortSignal: undefined })),
+}));
 // ai 包部分 mock：只接管 generateText（答案生成入口），其余导出用真品
 vi.mock("ai", async (importOriginal) => {
   const actual = await importOriginal<typeof import("ai")>();
@@ -103,9 +107,7 @@ describe("KbService.query", () => {
 
     const result = await service.query({ question: "CEO 是谁" });
 
-    expect(result.answer).toBe(
-      "知识库里没有找到相关内容，这题我不答。请先入库对应文档，或换个问法试试。",
-    );
+    expect(result.answer).toBe("知识库里没有找到相关内容，这题我不答。请先入库对应文档，或换个问法试试。");
     expect(result.citations).toEqual([]);
     expect(result.degraded).toBe(false);
     expect(generateTextMock).not.toHaveBeenCalled();

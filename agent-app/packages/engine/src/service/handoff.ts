@@ -6,7 +6,7 @@
 // 离线优先：摘要模型挂了降级为最近用户消息拼接，工单是 mock 实现，无网也能完成转人工。
 import { generateText } from "ai";
 import type { ServiceHandoffPack } from "@agent-app/shared";
-import { getModel } from "../llm.js";
+import { getModel, llmCallPolicy } from "../llm.js";
 import type { ChatTurn } from "../memory/types.js";
 import { createTicket } from "../tools/demo-tools.js";
 
@@ -75,6 +75,7 @@ export async function buildHandoffPack(input: {
       model: getModel(),
       system: PACK_PROMPT,
       prompt: transcript || "（空会话）",
+      ...llmCallPolicy(),
     });
     userSummary = text.trim() || fallbackSummary(input.turns);
   } catch {
@@ -110,7 +111,6 @@ export function formatHandoffPack(pack: ServiceHandoffPack): string {
 /** 给用户的转人工告知：用户要知道被转了、工单号是多少、无需重复描述（service.md 完成线） */
 export function handoffReply(pack: ServiceHandoffPack): string {
   return (
-    `已为您转接人工客服，工单号 ${pack.ticketId}。` +
-    "您的问题和已尝试的方案已同步给客服，无需重复描述。"
+    `已为您转接人工客服，工单号 ${pack.ticketId}。` + "您的问题和已尝试的方案已同步给客服，无需重复描述。"
   );
 }

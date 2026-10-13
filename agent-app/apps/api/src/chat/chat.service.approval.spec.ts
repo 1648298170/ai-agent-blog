@@ -16,7 +16,11 @@ import { ChatService } from "./chat.service.js";
 const { streamTextMock } = vi.hoisted(() => ({ streamTextMock: vi.fn() }));
 
 vi.mock("@agent-app/engine/agent-loop", () => ({ DEFAULT_MAX_STEPS: 5, runToolLoop: vi.fn() }));
-vi.mock("@agent-app/engine/llm", () => ({ createModel: vi.fn(() => ({ fake: "model" })) }));
+vi.mock("@agent-app/engine/llm", () => ({
+  createModel: vi.fn(() => ({ fake: "model" })),
+  getModel: vi.fn(() => ({ fake: "model" })),
+  llmCallPolicy: vi.fn(() => ({ maxRetries: 0, abortSignal: undefined })),
+}));
 // ai 包部分 mock：tool 等工具原语用真品（demo 工具表要在构造时真实生成），
 // 只把 streamText 换成可控假流——最终答案的逐 token 输出来源
 vi.mock("ai", async (importOriginal) => {
@@ -159,10 +163,13 @@ describe("ChatService 工具审批（week18 Day 6）", () => {
   it("名单外的工具不包壳（默认 createTicket 名单）：getOrderStatus 直传 + 立即执行无 approval 事件", async () => {
     const demoTools = createDemoTools();
     vi.mocked(runToolLoop).mockImplementation(async (options) => {
-      const output = await mustExecute(options.tools, "getOrderStatus")({ orderId: "A-1024" }, {
-        toolCallId: "call_test_2",
-        messages: [],
-      });
+      const output = await mustExecute(options.tools, "getOrderStatus")(
+        { orderId: "A-1024" },
+        {
+          toolCallId: "call_test_2",
+          messages: [],
+        },
+      );
       options.onStep?.({
         step: 1,
         toolCall: { toolName: "getOrderStatus", input: { orderId: "A-1024" } },

@@ -1,0 +1,3 @@
+# commit-msg 钩子 —— 校验提交信息符合 conventional 规范（中文 subject 已在 commitlint.config.js 适配）
+# $1 是 git 传入的 COMMIT_EDITMSG 文件路径
+pnpm commitlint --edit "$1"

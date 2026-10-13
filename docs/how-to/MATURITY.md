@@ -8,36 +8,36 @@
 
 ## 内核与能力件
 
-| 模块 | 档位 | 现状 | 生产前置（缺什么） |
-|---|---|---|---|
-| `agent-loop.ts` | 单实例 | maxSteps 保险丝、abort 中止、错误回灌、入参校验闸 | 无重试/退避（模型调用失败即失败）；无并发步数熔断指标 |
-| `llm.ts` | 单实例 | OpenAI 兼容网关一键切换、懒创建 | 无多厂商故障切换/限流；无 token 用量统计 |
-| `config.ts` | 单实例 | 白名单 + 双来源合并 | 密钥管理建议接 secrets 管理器（而非 .env 文件） |
-| `trace.ts` | Demo | stderr + 图标，开关控制 | 无结构化输出（JSON 行）、无 trace-id 贯穿、无采样 |
-| `tools/idempotency` | Demo | 进程内存 TTL 缓存，重启即清 | 跨实例部署需 Redis SETNX 版（接口已留，实现未写） |
-| 审批登记簿（api 层） | Demo | 进程内存，重启 = 全部过期 | 同上；多实例需共享登记簿 |
-| `evals/` | 单实例 | 76 例版本化数据集 + 基线；CI 已接 Tier 1 门禁 | Tier 2/3 未进 CI（需 key）；在线评估（真实流量回流）未做 |
-| `orchestrator/` | 单实例（Effect 版） | Effect.gen 流水线 + DAG 波次并行 + 验收闭环（manual→escalated）+ 失败终态落盘（重入合法）+ 30 离线用例 | 无 CLI/API 入口（引擎件，消费方未接）；编排事件流未接 SSE；token 成本聚合未做（与 #10 共享）；escalated 的人工裁决闭环靠外部系统 |
+| 模块                 | 档位                | 现状                                                                                                                                                                      | 生产前置（缺什么）                                                                                                               |
+| -------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `agent-loop.ts`      | 单实例              | maxSteps 保险丝、abort 中止、错误回灌、入参校验闸；重试/超时已接（AI SDK maxRetries 指数退避 + AbortSignal.timeout，`AGENT_LLM_MAX_RETRIES`/`AGENT_LLM_TIMEOUT_MS` 可配） | 无并发步数熔断指标                                                                                                               |
+| `llm.ts`             | 单实例              | OpenAI 兼容网关一键切换、懒创建                                                                                                                                           | 无多厂商故障切换/限流；无 token 用量统计                                                                                         |
+| `config.ts`          | 单实例              | 白名单 + 双来源合并                                                                                                                                                       | 密钥管理建议接 secrets 管理器（而非 .env 文件）                                                                                  |
+| `trace.ts`           | Demo                | stderr + 图标，开关控制；`AGENT_LOG_FORMAT=json` 出结构化 JSON 行（机器可采集）                                                                                           | 无 trace-id 贯穿、无采样                                                                                                         |
+| `tools/idempotency`  | 单实例              | 内存 TTL 版（默认）；`IDEMPOTENCY_STORE=redis` 切 SET NX PX 版（多实例/重启语义正确，接口同族）                                                                           | Redis 版依赖 compose 的 redis；线上观测（重放命中率）未接                                                                        |
+| 审批登记簿（api 层） | Demo                | 进程内存，重启 = 全部过期                                                                                                                                                 | 同上；多实例需共享登记簿                                                                                                         |
+| `evals/`             | 单实例              | 76 例版本化数据集 + 基线；CI 已接 Tier 1 门禁                                                                                                                             | Tier 2/3 未进 CI（需 key）；在线评估（真实流量回流）未做                                                                         |
+| `orchestrator/`      | 单实例（Effect 版） | Effect.gen 流水线 + DAG 波次并行 + 验收闭环（manual→escalated）+ 失败终态落盘（重入合法）+ 30 离线用例                                                                    | 无 CLI/API 入口（引擎件，消费方未接）；编排事件流未接 SSE；token 成本聚合未做（与 #10 共享）；escalated 的人工裁决闭环靠外部系统 |
 
 ## 存储（同接口多实现，env 一键切换）
 
-| 存储 | 档位 | 现状 | 生产前置 |
-|---|---|---|---|
-| RagStore `json` | Demo | `.data/kb-store.json` 快照 | 仅单进程，无并发写保护 |
-| RagStore `memory` | Demo | 进程内 | 重启全丢 |
-| RagStore `pgvector` | 单实例 | HNSW 检索、幂等建表 | 连接池调优、备份策略 |
-| SessionStore `memory` | Demo | 进程内 Map | 重启失忆（刻意默认） |
-| SessionStore `redis` | 单实例 | TTL 24h 续期、压缩分布式锁 | 多 Redis 哨兵/集群配置 |
-| PreferenceStore `pg` / EpisodicStore `pgvector` | 单实例 | 行级 upsert / 向量召回 | 同 pgvector 行 |
+| 存储                                            | 档位   | 现状                       | 生产前置               |
+| ----------------------------------------------- | ------ | -------------------------- | ---------------------- |
+| RagStore `json`                                 | Demo   | `.data/kb-store.json` 快照 | 仅单进程，无并发写保护 |
+| RagStore `memory`                               | Demo   | 进程内                     | 重启全丢               |
+| RagStore `pgvector`                             | 单实例 | HNSW 检索、幂等建表        | 连接池调优、备份策略   |
+| SessionStore `memory`                           | Demo   | 进程内 Map                 | 重启失忆（刻意默认）   |
+| SessionStore `redis`                            | 单实例 | TTL 24h 续期、压缩分布式锁 | 多 Redis 哨兵/集群配置 |
+| PreferenceStore `pg` / EpisodicStore `pgvector` | 单实例 | 行级 upsert / 向量召回     | 同 pgvector 行         |
 
 ## 产品线与安全
 
-| 模块 | 档位 | 现状 | 生产前置 |
-|---|---|---|---|
-| `service/` | 单实例 | 硬规则 + 三分类 + 降级转人工 | 会话恢复体验（CLI 重启失忆） |
-| `guardrails/` | 单实例 | PII 脱敏、注入扫描、审计账本（JSONL 文件） | 审计账本进只追加存储；注入黑名单定期更新 |
-| MCP 集成 | 单实例 | stdio 子进程桥 | 远程 MCP（SSE/HTTP 传输）未接 |
-| web/api | 单实例 | SSE 流式、审批 UI、历史面板 | 认证、多租户 RBAC、限流（week20 已声明未做） |
+| 模块          | 档位   | 现状                                                                      | 生产前置                                          |
+| ------------- | ------ | ------------------------------------------------------------------------- | ------------------------------------------------- |
+| `service/`    | 单实例 | 硬规则 + 三分类 + 降级转人工                                              | 会话恢复体验（CLI 重启失忆）                      |
+| `guardrails/` | 单实例 | PII 脱敏、注入扫描、审计账本（JSONL 文件）                                | 审计账本进只追加存储；注入黑名单定期更新          |
+| MCP 集成      | 单实例 | stdio 子进程桥                                                            | 远程 MCP（SSE/HTTP 传输）未接                     |
+| web/api       | 单实例 | SSE 流式、审批 UI、历史面板；helmet 安全头 + 全局限流（100/min 可配可关） | 认证、多租户 RBAC、CORS 收紧（week20 已声明未做） |
 
 ## 使用建议
 

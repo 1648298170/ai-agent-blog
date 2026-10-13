@@ -22,7 +22,7 @@
 // 不碰任何存储——内存版拿去 set 回 Map，Redis 版拿去重写 list，各自管各自的落盘。
 import { generateText } from "ai";
 import { getConfig } from "../config.js";
-import { getModel } from "../llm.js";
+import { getModel, llmCallPolicy } from "../llm.js";
 import { trace } from "../trace.js";
 import type { ChatTurn } from "./types.js";
 
@@ -43,7 +43,7 @@ export const defaultSummarizer: Summarizer = async (prompt) => {
   if (!apiKey) {
     throw new Error("未配置 OPENAI_API_KEY，无法生成会话摘要");
   }
-  const { text } = await generateText({ model: getModel(), prompt });
+  const { text } = await generateText({ model: getModel(), prompt, ...llmCallPolicy() });
   return text.trim();
 };
 
@@ -98,13 +98,19 @@ export async function compressIfNeeded(
 
   if (summary === null) {
     // 降级路径：退回纯窗口截断（保最近 KEEP_RECENT 条），不出摘要轮
-    trace("🧠", `会话 ${sessionId} 超过 ${COMPRESS_AFTER} 条：摘要不可用（无 key / 网关不通），降级为窗口截断（保最近 ${KEEP_RECENT} 条）`);
+    trace(
+      "🧠",
+      `会话 ${sessionId} 超过 ${COMPRESS_AFTER} 条：摘要不可用（无 key / 网关不通），降级为窗口截断（保最近 ${KEEP_RECENT} 条）`,
+    );
     return recent;
   }
 
   // 滚动摘要：旧摘要 + 新摘要拼在一起，作为合成 system 轮挂在窗口头
   const rolling = prevSummary ? `${prevSummary} ${summary}`.trim() : summary;
   const summaryTurn: ChatTurn = { role: "system", content: SUMMARY_PREFIX + rolling };
-  trace("🧠", `会话 ${sessionId} 超过 ${COMPRESS_AFTER} 条：压缩 ${older.length} 条旧消息为滚动摘要（${rolling.length} 字），保最近 ${recent.length} 条`);
+  trace(
+    "🧠",
+    `会话 ${sessionId} 超过 ${COMPRESS_AFTER} 条：压缩 ${older.length} 条旧消息为滚动摘要（${rolling.length} 字），保最近 ${recent.length} 条`,
+  );
   return [summaryTurn, ...recent];
 }

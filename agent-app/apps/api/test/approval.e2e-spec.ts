@@ -13,7 +13,11 @@ import { AllExceptionsFilter } from "../src/common/all-exceptions.filter.js";
 
 const { streamTextMock } = vi.hoisted(() => ({ streamTextMock: vi.fn() }));
 
-vi.mock("@agent-app/engine/llm", () => ({ createModel: vi.fn(() => ({ fake: "model" })) }));
+vi.mock("@agent-app/engine/llm", () => ({
+  createModel: vi.fn(() => ({ fake: "model" })),
+  getModel: vi.fn(() => ({ fake: "model" })),
+  llmCallPolicy: vi.fn(() => ({ maxRetries: 0, abortSignal: undefined })),
+}));
 // runToolLoop 假实现：真实执行 ChatService 装配好的工具表（含审批壳），
 // 让 approval 事件 → 挂起 → 裁决回填这条 API 层链路在 e2e 里完整发生
 vi.mock("@agent-app/engine/agent-loop", () => ({
