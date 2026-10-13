@@ -92,12 +92,21 @@ if (gated) {
 
   if (reachable) {
     const store = createRedisSessionStore();
+    // 清理上一轮的残留（含会话隔离用例的 iso-a/iso-b fixture）：契约断言假设
+    // 初始干净——残留 key 会让 listSessions/隔离断言被陈旧数据打穿（实测翻过车）。
+    // beforeAll 与 afterAll 双向清理，本轮结束也不给下一轮留雷
+    const redis = new Redis(REDIS_URL);
+    const sweep = async (): Promise<void> => {
+      const stale = await redis.keys("agent:sess:iso-*");
+      if (stale.length > 0) await redis.del(...stale);
+    };
+    await sweep();
     runSessionStoreContract("redis 实现", () => store);
     // 清理契约用例的残留（key 前缀 contract-*；有 24h TTL 兜底，但测试应自扫门前）
-    const redis = new Redis(REDIS_URL);
     afterAll(async () => {
       const keys = await redis.keys("contract-*");
       if (keys.length > 0) await redis.del(...keys);
+      await sweep();
       redis.disconnect();
     });
   }
