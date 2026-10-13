@@ -10,12 +10,12 @@
 
 agent-loop 解决了"模型怎么用工具"，本目录解决"工具本身怎么造、怎么管"：
 
-| 问题 | 本目录的回答 |
-|---|---|
+| 问题                             | 本目录的回答                                                                         |
+| -------------------------------- | ------------------------------------------------------------------------------------ |
 | 模型怎么知道有哪些工具、怎么调？ | 每个工具自带说明书：`description` + zod `inputSchema`，SDK 转成 JSON Schema 发给模型 |
-| 模型回传的参数能直接执行吗？ | 不能。zod schema 先 `safeParse` 校验（生成与校验**同一张图纸**） |
-| 工具表怎么按应用裁剪？ | `ToolRegistry` 按名登记；chat 拿 4 个，客服工人各拿 1 个——职责外的锤子不发 |
-| "创建工单"被执行两次怎么办？ | 幂等层：同会话 + 同工具 + 同参数，TTL 窗口内只真正执行一次 |
+| 模型回传的参数能直接执行吗？     | 不能。zod schema 先 `safeParse` 校验（生成与校验**同一张图纸**）                     |
+| 工具表怎么按应用裁剪？           | `ToolRegistry` 按名登记；chat 拿 4 个，客服工人各拿 1 个——职责外的锤子不发           |
+| "创建工单"被执行两次怎么办？     | 幂等层：同会话 + 同工具 + 同参数，TTL 窗口内只真正执行一次                           |
 
 还有一个容易被忽视的事实：**`description` 和 `.describe()` 本身就是 prompt 的一部分**，
 措辞模型直接看得见。实测 glm-4-flash 这类轻量模型对描述开头的内容、以及工具表里
@@ -33,11 +33,11 @@ agent-loop 解决了"模型怎么用工具"，本目录解决"工具本身怎么
 
 ### ② 工具表 = 能力边界
 
-| 消费方 | 工具表 | 出处 |
-|---|---|---|
-| chat REPL | `{ ...createDemoTools(), searchKnowledgeBase }` 共 4 个 | `apps/cli/src/apps/chat/cli.ts` |
-| service 三个工人 | order `{getOrderStatus}` / refund `{createTicket}` / knowledge `{searchKnowledgeBase}` 各 1 个 | `src/service/workers.ts` |
-| selftest | `ToolRegistry` 登记 demo 三件套 → `getAll()` 喂 `runToolLoop` | `apps/cli/src/selftest.ts` |
+| 消费方           | 工具表                                                                                         | 出处                            |
+| ---------------- | ---------------------------------------------------------------------------------------------- | ------------------------------- |
+| chat REPL        | `{ ...createDemoTools(), searchKnowledgeBase }` 共 4 个                                        | `apps/cli/src/apps/chat/cli.ts` |
+| service 三个工人 | order `{getOrderStatus}` / refund `{createTicket}` / knowledge `{searchKnowledgeBase}` 各 1 个 | `src/service/workers.ts`        |
+| selftest         | `ToolRegistry` 登记 demo 三件套 → `getAll()` 喂 `runToolLoop`                                  | `apps/cli/src/selftest.ts`      |
 
 不给职责之外的锤子，误伤面从工具表上就掐掉了——这是最便宜的安全措施。
 
@@ -60,11 +60,11 @@ LLM 的工具调用不受客户端事务控制——模型重试、用户重复�
 
 ### 1. `registry.ts`（28 行）—— 注册表
 
-| 位置 | 内容 | 要点 |
-|---|---|---|
-| `register`（L10） | 按名登记进 Map | 同名重复注册以最后一次为准；返回 `this` 支持链式 |
-| `getAll`（L16） | 吐出普通对象 | 正是 `generateText({ tools })` / `runToolLoop({ tools })` 要的形状 |
-| `names`（L25） | 工具名列表 | 排障日志用 |
+| 位置              | 内容           | 要点                                                               |
+| ----------------- | -------------- | ------------------------------------------------------------------ |
+| `register`（L10） | 按名登记进 Map | 同名重复注册以最后一次为准；返回 `this` 支持链式                   |
+| `getAll`（L16）   | 吐出普通对象   | 正是 `generateText({ tools })` / `runToolLoop({ tools })` 要的形状 |
+| `names`（L25）    | 工具名列表     | 排障日志用                                                         |
 
 ```ts
 export class ToolRegistry {
@@ -72,11 +72,15 @@ export class ToolRegistry {
 
   register(name: string, tool: AgentTool): this {
     this.tools.set(name, tool);
-    return this;                                    // 链式：registry.register(a, ta).register(b, tb)
+    return this; // 链式：registry.register(a, ta).register(b, tb)
   }
 
-  getAll(): Record<string, AgentTool> { /* Map → 普通对象 */ }
-  names(): string[] { /* 排障用 */ }
+  getAll(): Record<string, AgentTool> {
+    /* Map → 普通对象 */
+  }
+  names(): string[] {
+    /* 排障用 */
+  }
 }
 ```
 
@@ -86,22 +90,22 @@ selftest——在那里验证"registry 吐出的表与手写循环兼容"。它�
 
 ### 2. `demo-tools.ts`（78 行）—— 三个纯数据演示工具
 
-| 工具 | 位置 | 入参 | 返回 | 性质 |
-|---|---|---|---|---|
-| `getOrderStatus` | L32 | `orderId` | `status + eta`（查 mock 表 `ORDERS`：A-1024 已发货 / A-2048 打包中 / B-0001 已签收；查不到老实返回"未找到"） | 读 |
-| `createTicket` | L47 | `subject, description` | 自增工单号 `TK-日期-序号`（`nextTicketId()` L18） | **写**（幂等层的经典案例） |
-| `escalateToHuman` | L59 | `reason, transcript` | `HandoffPack`（ticketId / reason / transcript / createdAt，L9） | 写 |
+| 工具              | 位置 | 入参                   | 返回                                                                                                         | 性质                       |
+| ----------------- | ---- | ---------------------- | ------------------------------------------------------------------------------------------------------------ | -------------------------- |
+| `getOrderStatus`  | L32  | `orderId`              | `status + eta`（查 mock 表 `ORDERS`：A-1024 已发货 / A-2048 打包中 / B-0001 已签收；查不到老实返回"未找到"） | 读                         |
+| `createTicket`    | L47  | `subject, description` | 自增工单号 `TK-日期-序号`（`nextTicketId()` L18）                                                            | **写**（幂等层的经典案例） |
+| `escalateToHuman` | L59  | `reason, transcript`   | `HandoffPack`（ticketId / reason / transcript / createdAt，L9）                                              | 写                         |
 
 ```ts
 export const getOrderStatus = tool({
   description: "按订单号查询订单状态与预计送达时间",
   inputSchema: z.object({
-    orderId: z.string().describe("订单号，如 A-1024"),   // .describe 也是 prompt 的一部分
+    orderId: z.string().describe("订单号，如 A-1024"), // .describe 也是 prompt 的一部分
   }),
   execute: async ({ orderId }) => {
-    const order = ORDERS[orderId];                       // 固定 mock 表
+    const order = ORDERS[orderId]; // 固定 mock 表
     if (order) return { orderId, status: order.status, eta: order.eta };
-    return { orderId, status: "未找到", eta: "请确认订单号是否正确" };  // 老实说找不到，不编
+    return { orderId, status: "未找到", eta: "请确认订单号是否正确" }; // 老实说找不到，不编
   },
 });
 ```
@@ -178,7 +182,7 @@ run<T>(scope: string, toolName: string, args: unknown, execute: () => Promise<T>
 
 ```ts
 const entries = Object.entries(value as Record<string, unknown>)
-  .filter(([, v]) => v !== undefined)   // zod optional 缺省的两种形态等价
+  .filter(([, v]) => v !== undefined) // zod optional 缺省的两种形态等价
   .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
 ```
 
@@ -197,6 +201,28 @@ tools: wrapToolsWithIdempotency(tools, idempotency, { scope: sessionId }),
 > 实战推荐：多个壳的叠加用 `composeToolShells`（`src/tools/compose.ts`）声明式组合——
 > 数组顺序 = 拦截顺序（洋葱模型，shells[0] 最外层），api/cli 两端共用同一份壳清单，
 > 叠加顺序从"代码嵌套"升格为"一眼可见的配置"。
+
+### 5. `idempotency.redis.ts` + `idempotency.factory.ts` —— 幂等层的 Redis 版（2026-10 落地）
+
+内存版"接口不变、换 Redis SETNX + TTL"的预留位已兑现，env 一行切换：
+
+```powershell
+$env:IDEMPOTENCY_STORE = "redis"   # 默认 memory = 改造前行为，离线机器零依赖
+```
+
+与内存版的三条语义纪律逐条对齐，存储口径换成 Redis：
+
+| 语义       | 内存版                                     | Redis 版                                                                                                                                            |
+| ---------- | ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 键         | `{scope}::{tool}::{stableStringify(args)}` | `agent:idem:{scope}:{tool}:{sha256(指纹)}`（大参数不撑爆 key）                                                                                      |
+| 成功才缓存 | 失败自删（Promise 链上）                   | execute 抛错 → holder 校验 Lua DEL 占位（执行超过 TTL、锁易主时**迟到的 DEL 不误删他人的锁**）                                                      |
+| 在途共享   | 同进程共享 Promise                         | 同进程同款 + 跨进程在途返回结构化降级值 `IdempotencyDegraded`（模型可见："正在另一实例处理中"）——「至多执行一次」是底线，拿不到首次结果是可接受降级 |
+| 重放命中   | 重放返回首次结果                           | 占位/结果两态值：完成后覆写 `{"state":"done","result"}`（剩余 TTL，窗口从首调起算），重放命中返回首次结果                                           |
+
+工厂 `createIdempotencyRegistryFromEnv()`（`idempotency.factory.ts`）负责装配，消费方
+（api 的 chat.service / cli 的 chat）零分支；`wrapToolsWithIdempotencyAuto` 按实际实现
+分发到对应壳。Redis 版的集成用例在 `test/infra.idempotency-redis.spec.ts`
+（`RUN_INFRA_TESTS=1` 门控，对真实 Redis 实测抢锁/重放/降级/释放全链路）。
 
 ---
 
@@ -229,14 +255,14 @@ pnpm selftest         # 注册表链路：ToolRegistry → getAll() → runToolL
 
 ## 设计取舍（面试级追问）
 
-| 追问 | 回答 |
-|---|---|
-| 为什么不用显式幂等键（Stripe 式）？ | 那要求调用方可靠地生成并携带键；Agent 场景里调用方是模型——它连"今年是哪年"都会幻觉。参数指纹是"模型不可靠"前提下的退一档选择：可重复的输入 = 可重放的请求 |
-| 为什么"成功才缓存"是纪律？ | 失败重试是真重试（网络抖动后理应再试一次）；把失败也缓存住，重试会永远拿到同一个错误——等于把临时故障升级成永久故障 |
-| 在途共享为什么存 Promise 而不是结果值？ | 并发时第二个调用者不能等第一个"执行完再查表"（有时序窗口），直接拿到同一个 Promise await 才是封闭的；失败自删挂在 promise 链上而不是 catch 吞错，reject 照常传给所有等待者 |
-| 为什么进程内存 Map 而不是 Redis？ | 与审批登记簿同一取舍：重启即清 = 缓存窗口过期，语义上完全可接受；跨实例部署要共享幂等窗口时换 Redis SETNX + TTL，接口不变（头注释 L18 写明） |
-| TTL 为什么默认 10 分钟 + 500 条上限？ | 覆盖"模型重试 / 用户手抖 / 上游超时补偿"的时间尺度；maxEntries 按插入序淘汰防长跑进程内存泄漏。都是 `IdempotencyRegistryOptions`（L28）可调的构造参数 |
-| 演示工具为什么纯 mock？ | 离线可跑（selftest 铁律）、行为确定（可逐字断言）、教学聚焦。换真实后端时契约（AgentTool）不变，只换 execute——mock 表就是替换点 |
+| 追问                                    | 回答                                                                                                                                                                                                                                                                         |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 为什么不用显式幂等键（Stripe 式）？     | 那要求调用方可靠地生成并携带键；Agent 场景里调用方是模型——它连"今年是哪年"都会幻觉。参数指纹是"模型不可靠"前提下的退一档选择：可重复的输入 = 可重放的请求                                                                                                                    |
+| 为什么"成功才缓存"是纪律？              | 失败重试是真重试（网络抖动后理应再试一次）；把失败也缓存住，重试会永远拿到同一个错误——等于把临时故障升级成永久故障                                                                                                                                                           |
+| 在途共享为什么存 Promise 而不是结果值？ | 并发时第二个调用者不能等第一个"执行完再查表"（有时序窗口），直接拿到同一个 Promise await 才是封闭的；失败自删挂在 promise 链上而不是 catch 吞错，reject 照常传给所有等待者                                                                                                   |
+| 为什么进程内存 Map 而不是 Redis？       | 默认内存是离线优先取舍（重启即清 = 窗口过期，语义可接受）。跨实例/重启共享幂等窗口的场景已落地：`IDEMPOTENCY_STORE=redis` 切 `idempotency.redis.ts` 的 SET NX PX 版（占位/结果两态值 + holder 校验 Lua，消费方经 `createIdempotencyRegistryFromEnv()` 装配，业务代码零改动） |
+| TTL 为什么默认 10 分钟 + 500 条上限？   | 覆盖"模型重试 / 用户手抖 / 上游超时补偿"的时间尺度；maxEntries 按插入序淘汰防长跑进程内存泄漏。都是 `IdempotencyRegistryOptions`（L28）可调的构造参数                                                                                                                        |
+| 演示工具为什么纯 mock？                 | 离线可跑（selftest 铁律）、行为确定（可逐字断言）、教学聚焦。换真实后端时契约（AgentTool）不变，只换 execute——mock 表就是替换点                                                                                                                                              |
 
 ---
 
