@@ -29,7 +29,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
+          # 刻意不开 cache: pnpm——audit 只读 lockfile 查 registry、不安装依赖，
+          # runner 上永远不会产生 pnpm store，post 阶段的缓存保存会报
+          # 「path does not exist」把整个 job 染红（首跑实测踩坑）
 
       # 根 workspace（VitePress 博客链路）
       - name: Audit root dependencies
