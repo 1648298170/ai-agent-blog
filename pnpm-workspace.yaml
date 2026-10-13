@@ -1,2 +1,20 @@
+# 博客根 workspace 配置（pnpm 11：overrides / auditConfig 统一走本文件，package.json 的 pnpm 字段已弃用）
 allowBuilds:
   esbuild: true
+# 独立说明：agent-app 是自带 pnpm-workspace.yaml 的子 workspace，两边互不污染。
+overrides:
+  # 依赖审计 high 修复线：source-map-js 事件循环 DoS（GHSA-68fv-2mgg-jv7q），patch 级安全升
+  source-map-js: "^1.2.2"
+auditConfig:
+  ignoreGhsas:
+    # 以下全部是 vitepress 1.6.3 + vite 5 锁死链上的 dev/build 时依赖（vite 不进生产运行时——
+    # GitHub Pages 部署的是 docs:build 的静态产物）。升级修复线需要 vite >=6.4.3（major），
+    # 而 vitepress 2.x 仍在 alpha——升级前先用审计豁免留痕，待 vitepress 2 stable 一并迁移。
+    # - vite dev server 的 server.fs.deny 绕过（Windows 特定，仅影响本机开着 pnpm docs:dev 的开发者）
+    - GHSA-fx2h-pf6j-xcff
+    # - vite dev server 路径穿越（optimized deps，同为 dev 时攻击面）
+    - GHSA-4w7w-66w2-5vf9
+    # - vite dev server 相关（同上）
+    - GHSA-v6wh-96g9-6wx3
+    # - esbuild dev server 跨源请求（GHSA-67mh-4wv8-2f99，dev 时攻击面）
+    - GHSA-67mh-4wv8-2f99

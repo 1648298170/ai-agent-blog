@@ -3,15 +3,26 @@ packages:
   - "apps/*"
   - "packages/*"
 allowBuilds:
-  '@scarf/scarf': false
+  "@scarf/scarf": false
   esbuild: true
 minimumReleaseAgeExclude:
-  - '@nestjs/testing@12.1.1'
+  - "@nestjs/testing@12.1.1"
+# 依赖安全审计（CI audit.yml）抓到的传递依赖修复线，overrides 强制升级：
+# - undici 5→6：ai SDK（@ai-sdk/provider-utils）的 fetch 层——三条 high 全在 WebSocket
+#   client，本项目只用 HTTP fetch；6.x 对齐 WHATWG 标准，provider-utils 用的核心 API 兼容
+# - postcss 8.4→8.5：web 构建链（8.x 内 API 稳定，任意文件读/路径穿越两条 high 的修复线）
+# - source-map-js 1.2.1→1.2.2：事件循环 DoS 修复线（patch 级）
+# - @fastify/busboy 2→3：MCP SDK 链路的 DoS 修复线（3.x API 兼容原 busboy）
+overrides:
+  undici: "^6.27.0"
+  postcss: "^8.5.28"
+  source-map-js: "^1.2.2"
+  "@fastify/busboy": "^3.2.1"
 # dependency-cruiser 18.x 只认经典 TypeScript 编译器（>=2 <7），仓库主线的 typescript@7（tsgo）
 # 会被它的版本门禁拒收 → .ts 一个都不解析、tsconfig 静默跳过（假绿）。这里注入一份经典 TS 5.9
 # 到 dependency-cruiser 自己的 node_modules：它用 createRequire(自身路径) 找 "typescript"，
 # 会先命中注入的 5.9（放行），根目录的 typescript@7 不受影响，typecheck/build 继续走 tsgo。
 packageExtensions:
-  'dependency-cruiser@*':
+  "dependency-cruiser@*":
     dependencies:
-      typescript: '~5.9.0'
+      typescript: "~5.9.0"
