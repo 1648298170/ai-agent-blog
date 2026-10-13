@@ -23,7 +23,12 @@ import { createMcpClientBridge } from "@agent-app/engine/mcp";
 import type { McpClientBridge } from "@agent-app/engine/mcp";
 import { createRagStoreFromEnv, RAG_GROUNDING_RULE, setRagStore } from "@agent-app/engine/rag";
 import { enableTrace, preview } from "@agent-app/engine/trace";
-import { composeToolShells, createDemoTools, IdempotencyRegistry, wrapToolsWithIdempotency } from "@agent-app/engine/tools";
+import {
+  composeToolShells,
+  createDemoTools,
+  createIdempotencyRegistryFromEnv,
+  wrapToolsWithIdempotencyAuto,
+} from "@agent-app/engine/tools";
 import { searchKnowledgeBase } from "@agent-app/engine/tools";
 
 // ReAct 式提示词：让模型把「想查什么」显式化，排障日志才有内容（教程 agent-loop-ts.md）。
@@ -116,7 +121,10 @@ function parseMcpOption(args: string[]): string {
 
 /** 命令行字符串 → spawn 参数（首 token = 命令，其余 = 参数，纯空白切分） */
 function splitCommandLine(commandLine: string): { command: string; args: string[] } {
-  const tokens = commandLine.trim().split(/\s+/).filter((token) => token.length > 0);
+  const tokens = commandLine
+    .trim()
+    .split(/\s+/)
+    .filter((token) => token.length > 0);
   const [command, ...rest] = tokens;
   if (command === undefined || command === "") {
     throw new Error(`--mcp 命令行为空：${commandLine}（示例：--mcp "cmd /c pnpm mcp:server"）`);
@@ -136,7 +144,11 @@ function splitCommandLine(commandLine: string): { command: string; args: string[
  *   逐字转述伪造状态。严格模式从根上消灭遮蔽语义，代价是同名新工具进不来（教学
  *   上可接受：想用 MCP 版就改个名）。默认策略不变（零变化默认铁律）。
  */
-export function mergeMcpTools(local: ToolSet, mcpTools: ToolSet, options: { strict?: boolean } = {}): ToolSet {
+export function mergeMcpTools(
+  local: ToolSet,
+  mcpTools: ToolSet,
+  options: { strict?: boolean } = {},
+): ToolSet {
   const collisions = Object.keys(mcpTools).filter((name) => name in local);
   if (collisions.length === 0) {
     return { ...local, ...mcpTools };
@@ -152,7 +164,9 @@ export function mergeMcpTools(local: ToolSet, mcpTools: ToolSet, options: { stri
     }
     return merged;
   }
-  console.warn(`⚠ MCP 工具与本地工具重名（${collisions.join("、")}），已用 MCP 版本覆盖：同名工具改走 MCP 服务器执行。`);
+  console.warn(
+    `⚠ MCP 工具与本地工具重名（${collisions.join("、")}），已用 MCP 版本覆盖：同名工具改走 MCP 服务器执行。`,
+  );
   return { ...local, ...mcpTools };
 }
 
@@ -209,7 +223,9 @@ function describeActiveGuards(guard: GuardSwitches): string {
  */
 function askToolConfirm(rl: ReadlineInterface): ToolConfirmFn {
   return async (info) => {
-    process.stderr.write(`🛡 MCP 工具 ${info.toolName} 请求执行，入参：${preview(info.input, 120)}。允许吗？[y/N] `);
+    process.stderr.write(
+      `🛡 MCP 工具 ${info.toolName} 请求执行，入参：${preview(info.input, 120)}。允许吗？[y/N] `,
+    );
     return await new Promise<boolean>((resolve) => {
       let settled = false;
       const finish = (value: boolean) => {
@@ -232,7 +248,12 @@ function askToolConfirm(rl: ReadlineInterface): ToolConfirmFn {
 }
 
 /** 给合并后的工具表里 MCP 来源的工具逐个套闸（重名被 MCP 覆盖的键也在其中） */
-function applyGuardsToMcpTools(tools: ToolSet, bridge: McpClientBridge, guard: GuardSwitches, confirm: ToolConfirmFn): void {
+function applyGuardsToMcpTools(
+  tools: ToolSet,
+  bridge: McpClientBridge,
+  guard: GuardSwitches,
+  confirm: ToolConfirmFn,
+): void {
   for (const name of Object.keys(bridge.tools)) {
     const original = tools[name];
     if (original === undefined) continue; // 理论不可达：合并后 MCP 工具必在表内
@@ -275,8 +296,9 @@ export async function main(args: string[] = []): Promise<void> {
   setRagStore(createRagStoreFromEnv());
   // 工具表：三个演示工具 + 知识库检索（模型按问题自主决定调不调——Agentic RAG 的最小形态）
   const localTools = { ...createDemoTools(), searchKnowledgeBase };
-  // 工具执行幂等登记簿：进程内存、TTL 窗口内同参重放命中（详见 engine/tools/idempotency.ts 头注）
-  const idempotency = new IdempotencyRegistry();
+  // 工具执行幂等登记簿：实现由 IDEMPOTENCY_STORE 决定（默认 memory 与改造前一致；
+  // redis = SET NX PX 抢锁，多实例/重启共享 TTL 窗口——详见 engine/tools/idempotency.factory.ts 头注）
+  const idempotency = createIdempotencyRegistryFromEnv();
 
   // --mcp：spawn 子进程 + initialize + listTools + 适配，全部就绪后才进 REPL——
   // 连接失败（命令写错、服务器起不来）在启动期暴露并给出修复指引，不带着半残的工具表聊天。
@@ -295,7 +317,9 @@ export async function main(args: string[] = []): Promise<void> {
       mcpBridge = await createMcpClientBridge({ command, args: commandArgs });
     } catch (err) {
       console.error(`接入 MCP 服务器失败：${err instanceof Error ? err.message : String(err)}`);
-      console.error('请检查 --mcp 的命令行能否在终端直接跑通；Windows 下 pnpm/npx 等 .cmd 命令需要包一层 cmd /c，例如：--mcp "cmd /c pnpm mcp:server"');
+      console.error(
+        '请检查 --mcp 的命令行能否在终端直接跑通；Windows 下 pnpm/npx 等 .cmd 命令需要包一层 cmd /c，例如：--mcp "cmd /c pnpm mcp:server"',
+      );
       process.exitCode = 1;
       return;
     }
@@ -303,7 +327,8 @@ export async function main(args: string[] = []): Promise<void> {
 
   // 工具表定稿：无 --mcp 时与从前逐字节一致；有 --mcp 时 MCP 工具合并进来
   // （默认重名 MCP 胜出；AGENT_GUARD_MCP_STRICT=1 时重名跳过、本地胜出——H9）
-  const mcpStrict = process.env.AGENT_GUARD_MCP_STRICT === "1" || process.env.AGENT_GUARD_MCP_STRICT === "true";
+  const mcpStrict =
+    process.env.AGENT_GUARD_MCP_STRICT === "1" || process.env.AGENT_GUARD_MCP_STRICT === "true";
   let tools: ToolSet =
     mcpBridge === undefined ? localTools : mergeMcpTools(localTools, mcpBridge.tools, { strict: mcpStrict });
   let sessionId = newSessionId();
@@ -327,7 +352,9 @@ export async function main(args: string[] = []): Promise<void> {
       applyGuardsToMcpTools(tools, mcpBridge, guard, askToolConfirm(rl));
       console.log(describeActiveGuards(guard));
     } else {
-      console.log("已配置安全护栏开关，但未通过 --mcp 接入外部工具，护栏本次未生效（护栏只作用于 MCP 工具）。");
+      console.log(
+        "已配置安全护栏开关，但未通过 --mcp 接入外部工具，护栏本次未生效（护栏只作用于 MCP 工具）。",
+      );
     }
   }
 
@@ -336,7 +363,9 @@ export async function main(args: string[] = []): Promise<void> {
   // 铁律的刻意取舍（SECURITY.md 第五节：黑名单宁可漏报不误伤，先灰度观察误伤率）。
   const inputGuardOn = process.env.AGENT_GUARD_INPUT === "1" || process.env.AGENT_GUARD_INPUT === "true";
   if (inputGuardOn) {
-    console.log("安全护栏已启用：用户消息输入闸（AGENT_GUARD_INPUT）——命中提示注入黑名单的消息将被拒收，不调用模型（灰度开关）。");
+    console.log(
+      "安全护栏已启用：用户消息输入闸（AGENT_GUARD_INPUT）——命中提示注入黑名单的消息将被拒收，不调用模型（灰度开关）。",
+    );
   }
 
   for await (const line of rl) {
@@ -378,7 +407,9 @@ export async function main(args: string[] = []): Promise<void> {
         system: SYSTEM_PROMPT,
         // 工具执行幂等壳（scope=当前会话）：模型重试/重复提问不再重复建工单。
         // 请求级包装（/new 换会话后 scope 随之切换，旧会话的缓存天然隔离）。
-        tools: composeToolShells(tools, [(table) => wrapToolsWithIdempotency(table, idempotency, { scope: sessionId })]),
+        tools: composeToolShells(tools, [
+          (table) => wrapToolsWithIdempotencyAuto(table, idempotency, { scope: sessionId }),
+        ]),
         maxSteps: DEFAULT_MAX_STEPS,
       });
 

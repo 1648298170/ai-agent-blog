@@ -38,22 +38,22 @@ pnpm typecheck
 
 ## 命令与教程周次映射
 
-| 命令 | 作用 | 对应教程 |
-| --- | --- | --- |
-| `pnpm chat` | readline 聊天 REPL：会话窗口 + 手写工具循环 + 演示工具 | [week11 主线补篇 · Agent 循环 TS 深入](../docs/archive/weeks/week11/agent-loop-ts.md) |
-| `pnpm chat --selftest` / `pnpm selftest` | 无网络自检（切块 / 余弦检索 / 会话存储） | [week11 · RAG TS 全链路](../docs/archive/weeks/week11/rag-ts.md)、[week11 · 记忆 TS 版](../docs/archive/weeks/week11/memory-ts.md) |
-| `pnpm chat --mcp "cmd /c pnpm mcp:server"` | 聊天 REPL 接入外部 MCP 服务器（spawn stdio 子进程，工具表自动合并） | —（MCP 专题教程规划中） |
-| `pnpm cli chat` | 入口路由：聊天 | 同 `pnpm chat` |
-| `pnpm cli kb` / `pnpm kb` | 知识库问答 REPL：检索 top5 → 带引用回答 | [products · 知识库问答](../docs/products/kb.md)、[week11 · RAG TS](../docs/archive/weeks/week11/rag-ts.md) |
-| `pnpm kb:ingest <文件>` | 知识库入库：切块 → 向量化 → 快照落盘（.txt / .md / .pdf） | [week11 · RAG TS](../docs/archive/weeks/week11/rag-ts.md) |
-| `pnpm cli service` / `pnpm service` | 智能客服 REPL：硬规则 + 三分类路由 + 三工人 + 转人工 | [products · 客服系统](../docs/products/service.md) |
-| `pnpm test:service` | 客服硬规则离线自测（纯函数断言，无网络） | [products · 客服系统](../docs/products/service.md) |
-| `pnpm infra:up` / `pnpm infra:down` | 真实持久化基座：pgvector(pg16) + redis(7) 容器起停 | [week14](../docs/archive/weeks/week14/index.md)、[week17](../docs/archive/weeks/week17/index.md) |
-| `pnpm test:infra` | 基础设施集成测试（RUN_INFRA_TESTS=1，需先 `infra:up`） | week14 / week17 实战 |
-| `pnpm typecheck` | `tsc --noEmit` 零错误检查 | — |
-| `pnpm verify` | 聚合自检一条命令：typecheck → engine/api 测试 → selftest → examples 类型检查 → 架构红线 | — |
-| `pnpm examples` | 跑两个最小可运行示例（最小 Agent / 自定义工具，需先 `pnpm build` + 配好 key） | [EXTENDING 扩展指南](../docs/how-to/EXTENDING.md) |
-| `pnpm eval` | 跑评测考卷（76 例三档判分，无 key 自动跳过需网关的档位） | [week16/evals-ts.md](../docs/archive/weeks/week16/evals-ts.md) |
+| 命令                                       | 作用                                                                                    | 对应教程                                                                                                                           |
+| ------------------------------------------ | --------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm chat`                                | readline 聊天 REPL：会话窗口 + 手写工具循环 + 演示工具                                  | [week11 主线补篇 · Agent 循环 TS 深入](../docs/archive/weeks/week11/agent-loop-ts.md)                                              |
+| `pnpm chat --selftest` / `pnpm selftest`   | 无网络自检（切块 / 余弦检索 / 会话存储）                                                | [week11 · RAG TS 全链路](../docs/archive/weeks/week11/rag-ts.md)、[week11 · 记忆 TS 版](../docs/archive/weeks/week11/memory-ts.md) |
+| `pnpm chat --mcp "cmd /c pnpm mcp:server"` | 聊天 REPL 接入外部 MCP 服务器（spawn stdio 子进程，工具表自动合并）                     | —（MCP 专题教程规划中）                                                                                                            |
+| `pnpm cli chat`                            | 入口路由：聊天                                                                          | 同 `pnpm chat`                                                                                                                     |
+| `pnpm cli kb` / `pnpm kb`                  | 知识库问答 REPL：检索 top5 → 带引用回答                                                 | [products · 知识库问答](../docs/products/kb.md)、[week11 · RAG TS](../docs/archive/weeks/week11/rag-ts.md)                         |
+| `pnpm kb:ingest <文件>`                    | 知识库入库：切块 → 向量化 → 快照落盘（.txt / .md / .pdf）                               | [week11 · RAG TS](../docs/archive/weeks/week11/rag-ts.md)                                                                          |
+| `pnpm cli service` / `pnpm service`        | 智能客服 REPL：硬规则 + 三分类路由 + 三工人 + 转人工                                    | [products · 客服系统](../docs/products/service.md)                                                                                 |
+| `pnpm test:service`                        | 客服硬规则离线自测（纯函数断言，无网络）                                                | [products · 客服系统](../docs/products/service.md)                                                                                 |
+| `pnpm infra:up` / `pnpm infra:down`        | 真实持久化基座：pgvector(pg16) + redis(7) 容器起停                                      | [week14](../docs/archive/weeks/week14/index.md)、[week17](../docs/archive/weeks/week17/index.md)                                   |
+| `pnpm test:infra`                          | 基础设施集成测试（RUN_INFRA_TESTS=1，需先 `infra:up`）                                  | week14 / week17 实战                                                                                                               |
+| `pnpm typecheck`                           | `tsc --noEmit` 零错误检查                                                               | —                                                                                                                                  |
+| `pnpm verify`                              | 聚合自检一条命令：typecheck → engine/api 测试 → selftest → examples 类型检查 → 架构红线 | —                                                                                                                                  |
+| `pnpm examples`                            | 跑两个最小可运行示例（最小 Agent / 自定义工具，需先 `pnpm build` + 配好 key）           | [EXTENDING 扩展指南](../docs/how-to/EXTENDING.md)                                                                                  |
+| `pnpm eval`                                | 跑评测考卷（76 例三档判分，无 key 自动跳过需网关的档位）                                | [week16/evals-ts.md](../docs/archive/weeks/week16/evals-ts.md)                                                                     |
 
 ## 目录结构（pnpm workspace 单仓）
 
@@ -146,15 +146,15 @@ $env:AGENT_TRACE = "1"; pnpm api     # 方式二：环境变量（HTTP API 服�
 
 轨迹图标约定：
 
-| 图标 | 含义 | 示例 |
-| --- | --- | --- |
-| ▶ | 思考（调用模型） | `▶ 思考 step 1 → 调用模型（上下文 1 条消息，可用工具 1 个）` |
-| ⚙ | 行动（工具调用意图） | `⚙ 行动 step 1 → 要调 1 个工具：getOrderStatus({"orderId":"A-1024"})` |
-| ✓ / ✗ | 观察（工具返回 / 失败） | `✓ 观察 step 1 → getOrderStatus 返回：{...}` |
-| ◆ | 完成 | `◆ 完成 → 模型给出最终回答（25 字，共 2 步）` |
-| 🧭 | 路由判定 | `🧭 路由 → 硬规则命中（不问模型）：… ⇒ human` |
-| 🔎 | 知识库检索 | `🔎 检索 → 「…」命中 5 块，top1：《…》相似度 0.83` |
-| 🧠 | 记忆压缩 | `🧠 会话 cs_xxx 超过 40 条：压缩 21 条旧消息为滚动摘要…` |
+| 图标  | 含义                    | 示例                                                                  |
+| ----- | ----------------------- | --------------------------------------------------------------------- |
+| ▶     | 思考（调用模型）        | `▶ 思考 step 1 → 调用模型（上下文 1 条消息，可用工具 1 个）`          |
+| ⚙     | 行动（工具调用意图）    | `⚙ 行动 step 1 → 要调 1 个工具：getOrderStatus({"orderId":"A-1024"})` |
+| ✓ / ✗ | 观察（工具返回 / 失败） | `✓ 观察 step 1 → getOrderStatus 返回：{...}`                          |
+| ◆     | 完成                    | `◆ 完成 → 模型给出最终回答（25 字，共 2 步）`                         |
+| 🧭    | 路由判定                | `🧭 路由 → 硬规则命中（不问模型）：… ⇒ human`                         |
+| 🔎    | 知识库检索              | `🔎 检索 → 「…」命中 5 块，top1：《…》相似度 0.83`                    |
+| 🧠    | 记忆压缩                | `🧠 会话 cs_xxx 超过 40 条：压缩 21 条旧消息为滚动摘要…`              |
 
 > 顺带修复：模型三分类原来走 `generateObject`（依赖网关 response_format 结构化输出），`glm-4-flash` 会静默无视导致解析失败；现改为 `generateText` + 严格 JSON 指令 + 宽松解析（`engine/json-utils.ts`）+ 不合规自动重试一次，任何 OpenAI 兼容网关行为一致。
 
@@ -177,13 +177,23 @@ pnpm chat --mcp "cmd /c pnpm mcp:server" --trace   # 狗粮：接我们自己的
 
 复制 `.env.example` 为 `.env` 后填写。**默认接智谱 GLM**（OpenAI 兼容协议，聊天 + embeddings 一站式），也可三选一：
 
-| 厂商 | baseURL | 聊天模型示例 | embedding 模型 |
-| --- | --- | --- | --- |
-| 智谱 GLM（默认） | `https://open.bigmodel.cn/api/paas/v4` | `glm-4-flash` | `embedding-3` |
-| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` | ❌ 无 embeddings 接口 |
-| 通义千问 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-plus` | `text-embedding-v3` |
+| 厂商             | baseURL                                             | 聊天模型示例    | embedding 模型        |
+| ---------------- | --------------------------------------------------- | --------------- | --------------------- |
+| 智谱 GLM（默认） | `https://open.bigmodel.cn/api/paas/v4`              | `glm-4-flash`   | `embedding-3`         |
+| DeepSeek         | `https://api.deepseek.com/v1`                       | `deepseek-chat` | ❌ 无 embeddings 接口 |
+| 通义千问         | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-plus`     | `text-embedding-v3`   |
 
 > 查询与入库必须用同一个 EMBEDDING_MODEL，混用则检索失真；换网关时 embedding 模型要跟着换。
+
+### 运行策略开关（全部有安全默认值，不配置 = 默认行为）
+
+| 环境变量                                         | 默认            | 说明                                                                                                                            |
+| ------------------------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENT_LLM_MAX_RETRIES` / `AGENT_LLM_TIMEOUT_MS` | `2` / `60000`   | 模型调用传输层重试（AI SDK 内置指数退避，429/5xx 自动重试）与单次调用超时——全部模型调用点统一生效                               |
+| `AGENT_TOKEN_ESTIMATOR`                          | `tiktoken`      | token 估算口径：`tiktoken`（cl100k_base 精确编码）/ `chars`（字符系数兜底，中文1/字 英文0.25/字符）                             |
+| `AGENT_LOG_FORMAT` / `AGENT_LOG_LEVEL`           | `text` / `info` | 日志形态：`json` 时 logger 切 pino 结构化行（stdout）、trace 出 JSON 行（stderr）；默认 text 逐字节不变                         |
+| `IDEMPOTENCY_STORE`                              | `memory`        | 工具幂等层存储：`redis` 切 SET NX PX 抢锁版（多实例/重启共享幂等窗口，需 `REDIS_URL`）                                          |
+| `AGENT_THROTTLE_LIMIT` / `THROTTLE_DISABLED`     | `100` / 未设    | API 全局限流（次/分钟 per IP）；`THROTTLE_DISABLED=1` 整体关闭（测试用）。API 还默认挂 helmet 安全头（CSP 关闭以保 Swagger UI） |
 
 ## 真实持久化（Docker）
 
@@ -201,15 +211,15 @@ pnpm infra:down    # 用完关掉（数据卷保留；docker compose down -v 才
 
 ### 2. 切换存储（env 开关，默认 = 改造前的离线行为）
 
-| 环境变量 | 可选值 | 默认 | 说明 |
-| --- | --- | --- | --- |
-| `RAG_STORE` | `memory` / `json` / `pgvector` | `json` | 知识库：内存 / `.data/kb-store.json` 快照 / PostgreSQL+pgvector（HNSW 余弦检索） |
-| `SESSION_STORE` | `memory` / `redis` | `memory` | 会话窗口：内存 Map / Redis list（`agent:sess:{id}`，TTL 24h 续期，跨进程共享） |
-| `PREFERENCE_STORE` | `memory` / `pg` | `memory` | 用户偏好：内存 Map / PG `user_preferences` 表（行级 upsert） |
-| `EPISODIC_STORE` | `memory` / `pgvector` | `memory` | 情景记忆：内存数组 / PG `episodic_memories` 表（`<=>` 余弦 top-k 召回历史会话摘要） |
-| `PG_CONNECTION_STRING` | 连接串 | `postgres://agent:agent@localhost:5433/agent` | 三个 PG 实现共用（pgvector 两个表 + 偏好长表） |
-| `REDIS_URL` | 连接串 | `redis://localhost:6379` | Redis 会话存储用 |
-| `EMBEDDING_DIM` | 整数 1~16000 | `2048` | 建表时固定（GLM embedding-3 = 2048 维）。换维度模型须 `DROP TABLE kb_chunks` 全库重嵌；另 ANN 索引（HNSW/IVFFlat）只支持 ≤2000 维，超限时检索自动走精确顺序扫描 |
+| 环境变量               | 可选值                         | 默认                                          | 说明                                                                                                                                                            |
+| ---------------------- | ------------------------------ | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RAG_STORE`            | `memory` / `json` / `pgvector` | `json`                                        | 知识库：内存 / `.data/kb-store.json` 快照 / PostgreSQL+pgvector（HNSW 余弦检索）                                                                                |
+| `SESSION_STORE`        | `memory` / `redis`             | `memory`                                      | 会话窗口：内存 Map / Redis list（`agent:sess:{id}`，TTL 24h 续期，跨进程共享）                                                                                  |
+| `PREFERENCE_STORE`     | `memory` / `pg`                | `memory`                                      | 用户偏好：内存 Map / PG `user_preferences` 表（行级 upsert）                                                                                                    |
+| `EPISODIC_STORE`       | `memory` / `pgvector`          | `memory`                                      | 情景记忆：内存数组 / PG `episodic_memories` 表（`<=>` 余弦 top-k 召回历史会话摘要）                                                                             |
+| `PG_CONNECTION_STRING` | 连接串                         | `postgres://agent:agent@localhost:5433/agent` | 三个 PG 实现共用（pgvector 两个表 + 偏好长表）                                                                                                                  |
+| `REDIS_URL`            | 连接串                         | `redis://localhost:6379`                      | Redis 会话存储用                                                                                                                                                |
+| `EMBEDDING_DIM`        | 整数 1~16000                   | `2048`                                        | 建表时固定（GLM embedding-3 = 2048 维）。换维度模型须 `DROP TABLE kb_chunks` 全库重嵌；另 ANN 索引（HNSW/IVFFlat）只支持 ≤2000 维，超限时检索自动走精确顺序扫描 |
 
 写进 `.env` 或临时环境变量都行（环境变量优先）。示例——CLI 切 pgvector + Redis：
 
@@ -269,11 +279,11 @@ pnpm --filter @agent-app/web dev        # 前端开发服务器（默认 3000；
 
 ### 三个页面
 
-| 路由 | 功能 |
-| --- | --- |
-| `/`（智能对话） | SSE 流式对话：fetch + ReadableStream 手解析（不用 EventSource，便于携带 sessionId 与读错误体）；`session`→`step`（思考过程面板，Thought/Action/Observation 三段式，可折叠）→`token`（逐段追加正文，`[1][2]` 引用标记原样保留）→`done`/`error`（红色错误 + hint）；顶部显示 sessionId + 「新会话」 |
-| `/kb`（知识库管理） | 上传入库（前端扩展名闸 + multipart，成功显示「N 块入库」并刷新列表）、文档列表（标题 / docId / 块数 / 删除，confirm 确认后刷新）、问答试用（answer + 引用列表 no/title/score，`degraded=true` 显示黄色「降级：检索原文」徽标 + hint） |
-| `/service`（智能客服） | 对话式：每条回复带路由徽标（订单蓝 / 退款紫 / 知识库绿 / 转人工琥珀）+ reason；`route=human` 渲染工单卡片（工单号 / 原因 / 用户摘要 / 最近对话 / 时间）；sessionId 经 localStorage 跨刷新保持 |
+| 路由                   | 功能                                                                                                                                                                                                                                                                                              |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `/`（智能对话）        | SSE 流式对话：fetch + ReadableStream 手解析（不用 EventSource，便于携带 sessionId 与读错误体）；`session`→`step`（思考过程面板，Thought/Action/Observation 三段式，可折叠）→`token`（逐段追加正文，`[1][2]` 引用标记原样保留）→`done`/`error`（红色错误 + hint）；顶部显示 sessionId + 「新会话」 |
+| `/kb`（知识库管理）    | 上传入库（前端扩展名闸 + multipart，成功显示「N 块入库」并刷新列表）、文档列表（标题 / docId / 块数 / 删除，confirm 确认后刷新）、问答试用（answer + 引用列表 no/title/score，`degraded=true` 显示黄色「降级：检索原文」徽标 + hint）                                                             |
+| `/service`（智能客服） | 对话式：每条回复带路由徽标（订单蓝 / 退款紫 / 知识库绿 / 转人工琥珀）+ reason；`route=human` 渲染工单卡片（工单号 / 原因 / 用户摘要 / 最近对话 / 时间）；sessionId 经 localStorage 跨刷新保持                                                                                                     |
 
 响应式：移动端单列 + 底部 tab 导航（64px 触达区），桌面端顶栏导航 + 限宽 `max-w-4xl`（kb 页双栏）。字体走系统栈（刻意不用 `next/font/google`，构建离线可行）。
 
@@ -285,16 +295,16 @@ pnpm --filter @agent-app/web dev        # 前端开发服务器（默认 3000；
 pnpm api        # 等价：构建 @agent-app/engine + @agent-app/api 后 node apps/api/dist/main.js，默认端口 3000（PORT 可改）
 ```
 
-| 方法 | 路径 | 作用 | 离线（无 .env）行为 |
-| --- | --- | --- | --- |
-| GET | `/api/health` | 健康检查 | 正常 |
-| POST | `/api/chat` | 非流式对话（手写工具循环 + 会话记忆） | 500 + 中文配置提示 |
-| GET | `/api/chat/stream?message=` | SSE 流式对话：`session` → `approval`（高危工具待审批，week18 Day 6）→ `step`（工具调用/结果）→ `token`（答案分片）→ `done` | SSE `error` 事件 + 配置提示 |
-| POST | `/api/chat/approve` | 工具审批裁决 `{ sessionId, approvalId, approved }` → `{ approvalId, approved }`；未知/过期/超时已自动拒绝 → 404 中文错误 | 404 `{ statusCode, message }` |
-| POST | `/api/kb/ingest` | multipart 文件上传入库（字段名 `file`，支持 .txt/.md/.pdf） | 500 + embeddings 配置提示 |
-| POST | `/api/kb/ingest-path` | 服务端本地路径入库（开发用） | 同上 |
-| POST | `/api/kb/query` | 知识库问答 `{ question, topK? }` → `{ answer, citations }` | 500 + 配置提示 |
-| POST | `/api/service/message` | 客服消息 `{ sessionId?, message }` → `{ route, reply, handoff? }` | **降级转人工出工单**（完整可用） |
+| 方法 | 路径                        | 作用                                                                                                                       | 离线（无 .env）行为              |
+| ---- | --------------------------- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------- |
+| GET  | `/api/health`               | 健康检查                                                                                                                   | 正常                             |
+| POST | `/api/chat`                 | 非流式对话（手写工具循环 + 会话记忆）                                                                                      | 500 + 中文配置提示               |
+| GET  | `/api/chat/stream?message=` | SSE 流式对话：`session` → `approval`（高危工具待审批，week18 Day 6）→ `step`（工具调用/结果）→ `token`（答案分片）→ `done` | SSE `error` 事件 + 配置提示      |
+| POST | `/api/chat/approve`         | 工具审批裁决 `{ sessionId, approvalId, approved }` → `{ approvalId, approved }`；未知/过期/超时已自动拒绝 → 404 中文错误   | 404 `{ statusCode, message }`    |
+| POST | `/api/kb/ingest`            | multipart 文件上传入库（字段名 `file`，支持 .txt/.md/.pdf）                                                                | 500 + embeddings 配置提示        |
+| POST | `/api/kb/ingest-path`       | 服务端本地路径入库（开发用）                                                                                               | 同上                             |
+| POST | `/api/kb/query`             | 知识库问答 `{ question, topK? }` → `{ answer, citations }`                                                                 | 500 + 配置提示                   |
+| POST | `/api/service/message`      | 客服消息 `{ sessionId?, message }` → `{ route, reply, handoff? }`                                                          | **降级转人工出工单**（完整可用） |
 
 curl 冒烟示例：
 

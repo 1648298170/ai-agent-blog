@@ -11,8 +11,8 @@ import type { ToolSet } from "ai";
 import type { ChatStreamEvent } from "@agent-app/shared";
 import {
   composeToolShells,
-  IdempotencyRegistry,
-  wrapToolsWithIdempotency,
+  type AnyIdempotencyRegistry,
+  wrapToolsWithIdempotencyAuto,
 } from "@agent-app/engine/tools";
 import { wrapToolsWithApproval } from "./tool-approval.js";
 
@@ -21,8 +21,8 @@ export interface ChatToolAssemblyOptions {
   baseTools: ToolSet;
   /** 会话 id：幂等键的 scope（同会话去重，跨会话互不影响） */
   sessionId: string;
-  /** 幂等登记簿（service 持有的单例） */
-  idempotency: IdempotencyRegistry;
+  /** 幂等登记簿（service 持有的单例；memory/redis 由 IDEMPOTENCY_STORE 决定） */
+  idempotency: AnyIdempotencyRegistry;
   /**
    * 审批壳参数（仅流式端点传入）：confirmTools 为空 = 不装审批壳（零变化默认）。
    * 非流式端点没有 SSE 通道，审批壳挂上来只会白等超时——由调用方决定不传。
@@ -50,7 +50,7 @@ export function assembleChatTools(options: ChatToolAssemblyOptions): ToolSet {
       }),
     );
   }
-  shells.push((table) => wrapToolsWithIdempotency(table, idempotency, { scope: sessionId }));
+  shells.push((table) => wrapToolsWithIdempotencyAuto(table, idempotency, { scope: sessionId }));
 
   return composeToolShells(baseTools, shells);
 }

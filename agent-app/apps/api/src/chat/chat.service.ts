@@ -15,7 +15,7 @@ import { auditLog, inspectTextInput } from "@agent-app/engine";
 import { createModel } from "@agent-app/engine/llm";
 import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
 import type { ChatTurn, SessionSummary } from "@agent-app/engine/memory";
-import { createDemoTools, IdempotencyRegistry } from "@agent-app/engine/tools";
+import { createDemoTools, createIdempotencyRegistryFromEnv } from "@agent-app/engine/tools";
 import { ApprovalUnsupportedError, NON_STREAM_APPROVAL_UNSUPPORTED } from "./errors.js";
 import { SYSTEM_PROMPT } from "./prompt.js";
 import { assembleChatTools } from "./tool-assembly.js";
@@ -67,7 +67,8 @@ export class ChatService {
    * （模型重试 / 用户重复提问不会再建重复工单）。进程内存实现，取舍同审批簿。
    * 默认对整个工具表生效——查询工具天然幂等，命中缓存只是省一次上游调用。
    */
-  private readonly idempotency = new IdempotencyRegistry();
+  // 幂等登记簿：实现由 IDEMPOTENCY_STORE 决定（默认 memory 与改造前一致；redis = 多实例共享窗口）
+  private readonly idempotency = createIdempotencyRegistryFromEnv();
 
   constructor(private readonly config: ConfigProvider) {}
 
