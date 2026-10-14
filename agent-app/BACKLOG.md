@@ -14,7 +14,7 @@
 ### 🔴 待办（bug 级，修完 #1/#2 后接着做）
 
 - ~~**#3 LLM 调用无显式超时/退避**~~ ✅ **已落地（2026-10-13）**：核实结论——ai SDK 内置传输层指数退避（maxRetries，429/5xx/网络错误自动重试）+ AbortSignal.timeout 超时，经 `llmCallPolicy()` 统一注入全部 8 处模型调用点；`AGENT_LLM_MAX_RETRIES`/`AGENT_LLM_TIMEOUT_MS` env 可配（默认 2 次 / 60s）；与应用层 JSON 合规重试正交（传输层管到达，应用层管守约）
-- **#4 pgvector HNSW 未生效**：2048 维 > ANN 上限 2000，检索走顺序扫描——三选一拍板：换 ≤2000 维模型 / pgvector 0.7+ halfvec / 降维
+- ~~**#4 pgvector HNSW 未生效**~~ ✅ **已落地（2026-10-13）**：三选一收敛为 halfvec 唯一正解（容器内 pgvector 扩展实测 0.8.6 ≥0.7）——rag/store.pgvector.ts 与 memory/episodic.pgvector.ts 列类型 vector→halfvec（半精度 HNSW 上限 4000 维，2048 默认即走索引），旧表 ensureSchema 自动 ALTER 迁移（数据保留零重嵌，17 行历史数据实测完好）；EMBEDDING_DIM 校验上限 16000→4000。真实库迁移实测 + RUN_INFRA_TESTS 全量 259/259
 - **#11 chat 页职责边界只有软约束**（2026-09-30 实测）：SYSTEM_PROMPT 加了职责范围+越界策略后，glm-4-flash 对直接创作请求（"写首诗"）**仍然照写不误**——prompt 是软约束，与用户直接指令冲突时落败。结构化解法三选一：chat 流前加分诊（复用 service 的 supervise 思路做范围分类）/ 角色切换器（opencode 式，选角色=选 prompt+裁剪工具表）/ 干脆明确 chat 就是通用演示位（产品决策：这个页面本来就叫"演示助手"）。倾向第三种+文档声明：教学项目的演示位不必伪装成生产客服，真客服在 /service 页
 
 ### 🟡 待办（生产壳与工程链，可打包为「week20 生产化」批次）

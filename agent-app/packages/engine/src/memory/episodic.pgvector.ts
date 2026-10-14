@@ -55,8 +55,8 @@ function toIsoDate(raw: string): string {
  * 表结构（ensureSchema 幂等创建）：
  *   episodic_memories(seq bigserial PRIMARY KEY, session_id text, summary text,
  *                     embedding vector(dim), created_at timestamptz)
- *   + HNSW 索引 episodic_memories_embedding_hnsw（embedding vector_cosine_ops，
- *     余弦检索走它；仅当 dim ≤ 2000 创建——pgvector 的 ANN 索引硬上限）
+ *   + HNSW 索引 episodic_memories_embedding_hnsw（embedding halfvec_cosine_ops，
+ *     余弦检索走它；halfvec 上限 4000 维，2048 维默认即走 HNSW）
  * seq（bigserial）即入库顺序：recall 并列分数时按它稳定排序，
  * 对齐内存版「同分按入库先后」的可复现语义。
  */
