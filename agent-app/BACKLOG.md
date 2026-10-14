@@ -31,7 +31,9 @@
 
 纯向量检索无混合/重排（week15 进阶）；judge 无校准集；MCP 仅 stdio；listSessions 无分页；.env 明文密钥（生产需 secrets manager）。
 
-## ① 压缩水位线升级：按模型上下文上限 × buffer 替代固定条数阈值（week17 Day 2 学完后的首选练习）
+## ① 压缩水位线升级：按模型上下文上限 × buffer 替代固定条数阈值 ✅ **已落地（2026-10-13）**
+
+> **落地说明**：照下方设计稿实现，改动边界守约（只动 `compression.ts` 水位策略 + factory 组装 + session 两实现透传 + config 一个 key）。与设计稿的一处升级：估算②「字符数×系数」层直接被 `memory/token-estimate.ts`（tiktoken/chars 可切）取代，比字符系数更精确。实现：配置 `MODEL_CONTEXT_TOKENS`（env 直配或按 OPENAI_MODEL 查表：glm-4-flash=128K / deepseek-chat=64K / qwen-plus=131072，查表未命中不启用）后，压缩按 token 水位触发（全窗口估算 > 窗口×75%），保留量从尾部贪心至 ≤ 窗口×25%（约 50% 水位）；未配置走条数阈值现状行为逐字节不变。watermark 8 用例（查表/直配/水位触发/贪心保留/单条超预算保 1/降级）+ 全量 232 过。
 
 **触发条件**：学完 `docs/archive/weeks/week17/day2.md`（短期记忆/compaction）——适合自己动手当练习，做完我验收；也可指定由我实现。
 

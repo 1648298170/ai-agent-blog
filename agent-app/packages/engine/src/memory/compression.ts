@@ -20,10 +20,20 @@
 //
 // 纯函数式接口：compressIfNeeded 吃完整 turns 数组，吐压缩后的新数组，
 // 不碰任何存储——内存版拿去 set 回 Map，Redis 版拿去重写 list，各自管各自的落盘。
+//
+// ── 水位线模式（MODEL_CONTEXT_TOKENS 配置时启用，销 BACKLOG ①）──────────
+// 条数阈值（40 条）不是 token 的合格代理变量：40 条"你好"与 40 条 10KB 日志
+// 天差地别。配置 MODEL_CONTEXT_TOKENS（或模型命中查表）后改为按 token 水位触发：
+//   触发 = 全窗口估算 token > 窗口 × (1 − buffer)    （buffer 默认 25%，留给回答）
+//   压缩目标 = 从尾部贪心保留，直到 ≤ 窗口 × buffer（约 50% 窗口水位）
+// 未配置 → 条数阈值路径，与引入前逐字节一致（离线优先，零变化默认）。
+// 估算走 token-estimate 的 estimateTokens（tiktoken 精确 / chars 兜底，env 可切）；
+// WatermarkPolicy.estimate 可注入——测试注假函数精确控制水位。
 import { generateText } from "ai";
 import { getConfig } from "../config.js";
 import { getModel, llmCallPolicy } from "../llm.js";
 import { trace } from "../trace.js";
+import { estimateTokens } from "./token-estimate.js";
 import type { ChatTurn } from "./types.js";
 
 /** 压缩阈值：消息条数超过 40（约 20 轮问答）才动手（教程 COMPRESS_AFTER） */
@@ -37,6 +47,38 @@ export const SUMMARY_PREFIX = "[会话摘要] ";
 /** 摘要器：吃完整提示词，吐一段短摘要。独立成可注入的参数，自检才能离线覆盖压缩与降级两条路径 */
 export type Summarizer = (prompt: string) => Promise<string>;
 
+/** 压缩水位线策略：配置后压缩从「条数阈值」切换为「token 水位」触发 */
+export interface WatermarkPolicy {
+  /** 模型上下文窗口（token 数）——通常来自 MODEL_CONTEXT_TOKENS 或按模型名查表 */
+  readonly contextTokens: number;
+  /** 预留比例：触发水位 = 窗口 × (1 − buffer)，默认 0.25（留给回答与压缩调用本身） */
+  readonly bufferRatio?: number;
+  /** 估算函数（默认 estimateTokens）；测试注假函数精确控制水位 */
+  readonly estimate?: (text: string) => number;
+}
+
+/** 常见模型上下文窗口查表（token 数）——MODEL_CONTEXT_TOKENS 未配置时按模型名兜底 */
+const MODEL_CONTEXT_TABLE: Record<string, number> = {
+  "glm-4-flash": 128_000,
+  "glm-4-air": 128_000,
+  "glm-4-plus": 128_000,
+  "deepseek-chat": 64_000,
+  "qwen-plus": 131_072,
+};
+
+/**
+ * 模型上下文窗口解析（优先级：env 直配 > 模型名查表 > 未启用）。
+ * 返回 undefined = 水位线未启用，压缩走条数阈值（现状行为）。
+ * 放在 compression.ts 而非 config.ts：查表是「压缩策略」的领域知识，
+ * config 只管网关四件套的装配。
+ */
+export function modelContextTokensFromEnv(env: Record<string, string>, modelId: string): number | undefined {
+  const raw = env.MODEL_CONTEXT_TOKENS ?? "";
+  const direct = Number.parseInt(raw, 10);
+  if (Number.isInteger(direct) && direct > 0) return direct;
+  return MODEL_CONTEXT_TABLE[modelId?.trim().toLowerCase() ?? ""];
+}
+
 /** 默认摘要器：真实调用 getModel()；缺 key 时当场抛错（不发起任何网络请求），交给上层降级 */
 export const defaultSummarizer: Summarizer = async (prompt) => {
   const { apiKey } = getConfig();
@@ -47,18 +89,25 @@ export const defaultSummarizer: Summarizer = async (prompt) => {
   return text.trim();
 };
 
-/** 构造参数：summarize 缺省走真实模型；测试注入假实现即可离线测压缩与降级 */
+/** 构造参数：summarize 缺省走真实模型；watermark 配置后压缩按 token 水位触发（销 BACKLOG ①）；
+ *  测试注入假实现即可离线测压缩与降级 */
 export interface SessionStoreOptions {
   summarize?: Summarizer;
+  watermark?: WatermarkPolicy;
 }
 
 /**
  * 压缩阀门：未超阈值原样返回同一数组引用（零开销）；超了就把溢出旧轮压成滚动摘要。
  *
+ * 触发判定（二选一，由 watermark 决定）：
+ * - 传了 watermark → token 水位：全窗口估算 > 窗口 × (1 − buffer) 触发；
+ *   保留量 = 从尾部贪心保留至 ≤ 窗口 × buffer（约 50% 水位），不再固定 20 条
+ * - 未传 → 条数阈值（turns.length > COMPRESS_AFTER，现状行为逐字节不变）
+ *
  * 返回值约定：
  * - 未超阈值 → 原数组（调用方可以直接忽略返回值）
- * - 压缩成功 → [合成摘要轮, ...最近 KEEP_RECENT 条] 的新数组
- * - 摘要不可用 → 只含最近 KEEP_RECENT 条的新数组（降级为窗口截断，不出摘要轮）
+ * - 压缩成功 → [合成摘要轮, ...保留的最近消息] 的新数组
+ * - 摘要不可用 → 只含保留消息的新数组（降级为窗口截断，不出摘要轮）
  *
  * 竞态说明同教程坑 4：摘要是异步的，压缩期间若有新 append 落到同一会话，
  * 压缩基于「当下的最新内容」重算，最坏多压一轮，不丢消息。
@@ -67,12 +116,37 @@ export async function compressIfNeeded(
   sessionId: string,
   turns: ChatTurn[],
   summarize: Summarizer,
+  watermark?: WatermarkPolicy,
 ): Promise<ChatTurn[]> {
-  if (turns.length <= COMPRESS_AFTER) return turns;
+  // ── 触发判定 + older/recent 切分（两种模式在此分叉，后续摘要逻辑共用）──
+  let older: ChatTurn[];
+  let recent: ChatTurn[];
+  if (watermark !== undefined && turns.length > 1) {
+    const { contextTokens, bufferRatio = 0.25, estimate = estimateTokens } = watermark;
+    const totalTokens = turns.reduce((sum, t) => sum + estimate(t.content), 0);
+    const trigger = contextTokens * (1 - bufferRatio);
+    if (totalTokens <= trigger) return turns; // 水位未到：不压缩（水位模式下条数不触发）
 
-  // 教程同款切法：older 压摘要，recent 原样保留
-  const older = turns.slice(0, -KEEP_RECENT);
-  const recent = turns.slice(-KEEP_RECENT);
+    // 压缩目标：从尾部贪心保留至 ≤ 窗口 × buffer（约 50% 水位）。
+    // 至少保 1 条——单条超预算的消息也保留（摘要它毫无意义，让上层护栏处理）
+    const budget = contextTokens * bufferRatio;
+    let keptTokens = 0;
+    let keepCount = 0;
+    for (let i = turns.length - 1; i >= 0; i--) {
+      const t = estimate(turns[i]!.content);
+      if (keptTokens + t > budget && keepCount > 0) break;
+      keptTokens += t;
+      keepCount++;
+    }
+    const keep = Math.max(keepCount, 1);
+    older = turns.slice(0, -keep);
+    recent = turns.slice(-keep);
+  } else {
+    if (turns.length <= COMPRESS_AFTER) return turns;
+    older = turns.slice(0, -KEEP_RECENT);
+    recent = turns.slice(-KEEP_RECENT);
+  }
+  if (older.length === 0) return turns; // 全部都在保留区：无事可做
 
   // 已有滚动摘要长在窗口头（合成 system 轮）；头一条没带前缀说明是首轮压缩
   const prevSummaryTurn =
@@ -97,10 +171,10 @@ export async function compressIfNeeded(
   }
 
   if (summary === null) {
-    // 降级路径：退回纯窗口截断（保最近 KEEP_RECENT 条），不出摘要轮
+    // 降级路径：退回纯窗口截断（保保留区），不出摘要轮
     trace(
       "🧠",
-      `会话 ${sessionId} 超过 ${COMPRESS_AFTER} 条：摘要不可用（无 key / 网关不通），降级为窗口截断（保最近 ${KEEP_RECENT} 条）`,
+      `会话 ${sessionId} 压缩触发：摘要不可用（无 key / 网关不通），降级为窗口截断（保最近 ${recent.length} 条）`,
     );
     return recent;
   }
@@ -110,7 +184,7 @@ export async function compressIfNeeded(
   const summaryTurn: ChatTurn = { role: "system", content: SUMMARY_PREFIX + rolling };
   trace(
     "🧠",
-    `会话 ${sessionId} 超过 ${COMPRESS_AFTER} 条：压缩 ${older.length} 条旧消息为滚动摘要（${rolling.length} 字），保最近 ${recent.length} 条`,
+    `会话 ${sessionId} 压缩 ${older.length} 条旧消息为滚动摘要（${rolling.length} 字），保最近 ${recent.length} 条`,
   );
   return [summaryTurn, ...recent];
 }

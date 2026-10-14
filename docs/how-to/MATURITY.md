@@ -13,6 +13,7 @@
 | `agent-loop.ts`      | 单实例              | maxSteps 保险丝、abort 中止、错误回灌、入参校验闸；重试/超时已接（AI SDK maxRetries 指数退避 + AbortSignal.timeout，`AGENT_LLM_MAX_RETRIES`/`AGENT_LLM_TIMEOUT_MS` 可配） | 无并发步数熔断指标                                                                                                               |
 | `llm.ts`             | 单实例              | OpenAI 兼容网关一键切换、懒创建                                                                                                                                           | 无多厂商故障切换/限流；无 token 用量统计                                                                                         |
 | `config.ts`          | 单实例              | 白名单 + 双来源合并                                                                                                                                                       | 密钥管理建议接 secrets 管理器（而非 .env 文件）                                                                                  |
+| `memory/compression` | Demo→单实例         | 条数阈值（40/20）默认不变；配置 `MODEL_CONTEXT_TOKENS` 后按 token 水位触发（estimateTokens 估算，压到 ×25% 水位）                                                         | 压缩摘要的质量校准（evals 思想进运行时）未做                                                                                     |
 | `trace.ts`           | Demo                | stderr + 图标，开关控制；`AGENT_LOG_FORMAT=json` 出结构化 JSON 行（机器可采集）                                                                                           | 无 trace-id 贯穿、无采样                                                                                                         |
 | `tools/idempotency`  | 单实例              | 内存 TTL 版（默认）；`IDEMPOTENCY_STORE=redis` 切 SET NX PX 版（多实例/重启语义正确，接口同族）                                                                           | Redis 版依赖 compose 的 redis；线上观测（重放命中率）未接                                                                        |
 | 审批登记簿（api 层） | Demo                | 进程内存，重启 = 全部过期                                                                                                                                                 | 同上；多实例需共享登记簿                                                                                                         |
@@ -21,14 +22,14 @@
 
 ## 存储（同接口多实现，env 一键切换）
 
-| 存储                                            | 档位   | 现状                       | 生产前置               |
-| ----------------------------------------------- | ------ | -------------------------- | ---------------------- |
-| RagStore `json`                                 | Demo   | `.data/kb-store.json` 快照 | 仅单进程，无并发写保护 |
-| RagStore `memory`                               | Demo   | 进程内                     | 重启全丢               |
-| RagStore `pgvector`                             | 单实例 | HNSW 检索、幂等建表        | 连接池调优、备份策略   |
-| SessionStore `memory`                           | Demo   | 进程内 Map                 | 重启失忆（刻意默认）   |
-| SessionStore `redis`                            | 单实例 | TTL 24h 续期、压缩分布式锁 | 多 Redis 哨兵/集群配置 |
-| PreferenceStore `pg` / EpisodicStore `pgvector` | 单实例 | 行级 upsert / 向量召回     | 同 pgvector 行         |
+| 存储                                            | 档位   | 现状                                                                                             | 生产前置               |
+| ----------------------------------------------- | ------ | ------------------------------------------------------------------------------------------------ | ---------------------- |
+| RagStore `json`                                 | Demo   | `.data/kb-store.json` 快照                                                                       | 仅单进程，无并发写保护 |
+| RagStore `memory`                               | Demo   | 进程内                                                                                           | 重启全丢               |
+| RagStore `pgvector`                             | 单实例 | halfvec 半精度列 + HNSW 检索（上限 4000 维，2048 默认即走索引）+ 旧 vector 表自动迁移 + 幂等建表 | 连接池调优、备份策略   |
+| SessionStore `memory`                           | Demo   | 进程内 Map                                                                                       | 重启失忆（刻意默认）   |
+| SessionStore `redis`                            | 单实例 | TTL 24h 续期、压缩分布式锁                                                                       | 多 Redis 哨兵/集群配置 |
+| PreferenceStore `pg` / EpisodicStore `pgvector` | 单实例 | 行级 upsert / 向量召回                                                                           | 同 pgvector 行         |
 
 ## 产品线与安全
 

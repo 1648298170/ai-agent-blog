@@ -47,6 +47,10 @@ const ENV_KEYS = [
   "AGENT_LOG_LEVEL",
   // token 估算器（tiktoken = js-tiktoken 编码近似；chars = 字符系数兜底）
   "AGENT_TOKEN_ESTIMATOR",
+  // 压缩水位线（销 BACKLOG ①）：模型上下文窗口 token 数——配置后压缩按 token 水位
+  // 触发（替代固定 40 条阈值）；未配置时按 OPENAI_MODEL 查表（glm-4-flash=128K 等），
+  // 查表也未命中则水位线不启用（走条数阈值现状行为）
+  "MODEL_CONTEXT_TOKENS",
 ] as const;
 
 /**

@@ -12,8 +12,9 @@
 //
 // 铁律：不配置（或值不认识）一律回内存默认——离线优先原则，
 // 没起 Docker 的机器上行为与改造前逐字节一致。
-import { loadEnv } from "../config.js";
+import { loadEnv, getConfig } from "../config.js";
 import { getEngineLogger } from "../logger.js";
+import { modelContextTokensFromEnv } from "./compression.js";
 import { InMemorySessionStore } from "./session.memory.js";
 import { createRedisSessionStore } from "./session.redis.js";
 import { InMemoryPreferenceStore } from "./preference.memory.js";
@@ -35,37 +36,44 @@ export const DEFAULT_PREFERENCE_STORE: PreferenceStoreKind = "memory";
 export const DEFAULT_EPISODIC_STORE: EpisodicStoreKind = "memory";
 
 /** 按 env 装配会话存储（默认 memory）。summarize 可注入假实现（自检/测试离线覆盖压缩路径） */
-export function createSessionStoreFromEnv(
-  env: Record<string, string> = loadEnv(),
-): SessionStore {
+export function createSessionStoreFromEnv(env: Record<string, string> = loadEnv()): SessionStore {
   const value = (env.SESSION_STORE ?? DEFAULT_SESSION_STORE).trim().toLowerCase();
-  if (value === "redis") return createRedisSessionStore();
-  if (value !== DEFAULT_SESSION_STORE) {
-    getEngineLogger().warn(`[memory] 未认识的 SESSION_STORE=「${env.SESSION_STORE}」（可选 memory | redis），按默认 ${DEFAULT_SESSION_STORE} 处理`);
+  // 压缩水位线：MODEL_CONTEXT_TOKENS 直配或按 OPENAI_MODEL 查表（如 glm-4-flash=128K）——
+  // 都未命中返回 undefined = 走条数阈值（现状行为，离线零变化）
+  const contextTokens = modelContextTokensFromEnv(env, getConfig().model);
+  const watermark = contextTokens === undefined ? undefined : { contextTokens };
+  if (contextTokens !== undefined) {
+    getEngineLogger().info(`[memory] 压缩水位线已启用：窗口 ${contextTokens} tokens（触发 = 窗口 × 75%）`);
   }
-  return new InMemorySessionStore();
+  if (value === "redis") return createRedisSessionStore({ watermark });
+  if (value !== DEFAULT_SESSION_STORE) {
+    getEngineLogger().warn(
+      `[memory] 未认识的 SESSION_STORE=「${env.SESSION_STORE}」（可选 memory | redis），按默认 ${DEFAULT_SESSION_STORE} 处理`,
+    );
+  }
+  return new InMemorySessionStore({ watermark });
 }
 
 /** 按 env 装配偏好存储（默认 memory） */
-export function createPreferenceStoreFromEnv(
-  env: Record<string, string> = loadEnv(),
-): PreferenceStore {
+export function createPreferenceStoreFromEnv(env: Record<string, string> = loadEnv()): PreferenceStore {
   const value = (env.PREFERENCE_STORE ?? DEFAULT_PREFERENCE_STORE).trim().toLowerCase();
   if (value === "pg") return createPgPreferenceStore();
   if (value !== DEFAULT_PREFERENCE_STORE) {
-    getEngineLogger().warn(`[memory] 未认识的 PREFERENCE_STORE=「${env.PREFERENCE_STORE}」（可选 memory | pg），按默认 ${DEFAULT_PREFERENCE_STORE} 处理`);
+    getEngineLogger().warn(
+      `[memory] 未认识的 PREFERENCE_STORE=「${env.PREFERENCE_STORE}」（可选 memory | pg），按默认 ${DEFAULT_PREFERENCE_STORE} 处理`,
+    );
   }
   return new InMemoryPreferenceStore();
 }
 
 /** 按 env 装配情景记忆存储（默认 memory）。pgvector 实现懒连接：构造时不起任何连接 */
-export function createEpisodicStoreFromEnv(
-  env: Record<string, string> = loadEnv(),
-): EpisodicStore {
+export function createEpisodicStoreFromEnv(env: Record<string, string> = loadEnv()): EpisodicStore {
   const value = (env.EPISODIC_STORE ?? DEFAULT_EPISODIC_STORE).trim().toLowerCase();
   if (value === "pgvector") return createPgVectorEpisodicStore();
   if (value !== DEFAULT_EPISODIC_STORE) {
-    getEngineLogger().warn(`[memory] 未认识的 EPISODIC_STORE=「${env.EPISODIC_STORE}」（可选 memory | pgvector），按默认 ${DEFAULT_EPISODIC_STORE} 处理`);
+    getEngineLogger().warn(
+      `[memory] 未认识的 EPISODIC_STORE=「${env.EPISODIC_STORE}」（可选 memory | pgvector），按默认 ${DEFAULT_EPISODIC_STORE} 处理`,
+    );
   }
   return new InMemoryEpisodicStore();
 }

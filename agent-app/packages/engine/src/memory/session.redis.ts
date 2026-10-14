@@ -104,10 +104,7 @@ export interface SessionLock {
  * 获取会话压缩锁（best-effort）：拿不到不等待、不重试，立刻返回 acquired=false
  * 让调用方本轮跳过压缩——锁的意义是「互斥」而不是「排队」。
  */
-export async function acquireSessionLock(
-  client: SessionLockClient,
-  sessionId: string,
-): Promise<SessionLock> {
+export async function acquireSessionLock(client: SessionLockClient, sessionId: string): Promise<SessionLock> {
   const holder = randomUUID(); // 持有人令牌：释放时的比对依据
   const key = `${SESSION_LOCK_PREFIX}:${sessionId}`;
   const acquired = (await client.setNxPx(key, holder, SESSION_LOCK_TTL_MS)) === "OK";
@@ -203,12 +200,15 @@ export function createRedisSessionStore(options: RedisSessionStoreOptions = {}):
           // 拿不到锁 = 另一个进程正在压这条会话：本轮跳过压缩（RPUSH 已经落了，
           // 消息安全），只做 TTL 续期，压缩顺延到未来某次 append。刻意不等待
           // 不重试——等锁会把 append 延迟到秒级，跳过只让 list 暂时变长。
-          trace("🧠", `会话 ${sessionId} 超过 ${COMPRESS_AFTER} 条：压缩锁被其他进程持有，本轮跳过压缩（消息已落盘，压缩顺延）`);
+          trace(
+            "🧠",
+            `会话 ${sessionId} 超过 ${COMPRESS_AFTER} 条：压缩锁被其他进程持有，本轮跳过压缩（消息已落盘，压缩顺延）`,
+          );
         } else {
           try {
             // 超了：LRANGE 全量 → compressIfNeeded（阈值/滚动/降级全在共享模块）→ 原子重写
             const turns = parseTurns(await redis.lrange(k, 0, -1));
-            const compressed = await compressIfNeeded(sessionId, turns, summarize);
+            const compressed = await compressIfNeeded(sessionId, turns, summarize, options.watermark);
             if (compressed !== turns) {
               const multi = redis.multi();
               multi.del(k);

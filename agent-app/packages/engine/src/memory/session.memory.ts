@@ -7,11 +7,8 @@
 //
 // 压缩的原理、阈值与降级策略全部在 compression.ts（唯一实现），本文件只管
 // "turns 存在哪个 Map 里"这一件事——换存储不换算法，改阈值只改一处。
-import {
-  compressIfNeeded,
-  defaultSummarizer,
-} from "./compression.js";
-import type { SessionStoreOptions, Summarizer } from "./compression.js";
+import { compressIfNeeded, defaultSummarizer } from "./compression.js";
+import type { SessionStoreOptions, Summarizer, WatermarkPolicy } from "./compression.js";
 import type { ChatTurn, SessionStore, SessionSummary } from "./types.js";
 
 // 压缩阈值 / 前缀 / 摘要器类型自 compression.ts 再出口：
@@ -24,6 +21,8 @@ export class InMemorySessionStore implements SessionStore {
   /** 各会话最后活跃时间（epoch ms）：与会话 Map 平行维护，listSessions 的排序依据 */
   private readonly updatedAt = new Map<string, number>();
   private readonly summarize: Summarizer;
+  /** 压缩水位线（可选）：配置后按 token 水位触发压缩，未配置走条数阈值（现状行为） */
+  private readonly watermark?: WatermarkPolicy;
 
   // ── 为什么 append 必须按会话串行（生产缺陷：并发 append 丢消息）──────────
   // 旧实现是「读 Map → await compressIfNeeded（内部是 LLM 调用，秒级）→ 写回 Map」，
@@ -51,6 +50,7 @@ export class InMemorySessionStore implements SessionStore {
 
   constructor(options: SessionStoreOptions = {}) {
     this.summarize = options.summarize ?? defaultSummarizer;
+    this.watermark = options.watermark;
   }
 
   async append(sessionId: string, turn: ChatTurn): Promise<void> {
@@ -78,7 +78,7 @@ export class InMemorySessionStore implements SessionStore {
     const turns = this.sessions.get(sessionId) ?? [];
     turns.push({ ...turn });
     // 写入即压缩（超过阈值才真正动手）；压缩算法在 compression.ts，两行接上
-    this.sessions.set(sessionId, await compressIfNeeded(sessionId, turns, this.summarize));
+    this.sessions.set(sessionId, await compressIfNeeded(sessionId, turns, this.summarize, this.watermark));
     this.updatedAt.set(sessionId, Date.now());
   }
 
