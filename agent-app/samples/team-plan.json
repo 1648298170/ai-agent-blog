@@ -10,10 +10,10 @@
     },
     {
       "id": "chase-ticket",
-      "title": "创建催发工单",
-      "goal": "基于上一步的订单状态：若尚未签收，调用 createTicket 创建催发工单（subject=催发订单A-1024）；若已签收则说明无需建单",
+      "title": "按需创建催发工单",
+      "goal": "基于上一步的订单状态：若尚未签收，调用 createTicket 创建催发工单（subject=催发订单A-1024）；若已签收则明确说明无需建单及原因",
       "dependsOn": ["check-order"],
-      "acceptance": { "type": "contains", "anyOf": ["TK-"] }
+      "acceptance": { "type": "contains", "anyOf": ["TK-", "无需", "不需要"] }
     }
   ]
 }

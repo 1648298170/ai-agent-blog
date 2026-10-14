@@ -105,6 +105,18 @@ describe("mapEventToTrace", () => {
       "编排中止（软着陆）：已完成 2，剩余 1",
     ]);
   });
+
+  it("降级占位的 task-completed → ⚠ 展示（不误读为真完成）", () => {
+    expect(
+      mapEventToTrace({
+        type: "task-completed",
+        ...base,
+        taskId: "t2",
+        text: "（降级跳过）",
+        tokensUsed: 0,
+      }),
+    ).toEqual(["⚠", "子任务 t2 降级跳过（重试耗尽或验收未过，占位产出续链）"]);
+  });
 });
 
 // ── 桩角色全链路：CLI 装配层把「角色 + 编排器」接对 ──

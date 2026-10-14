@@ -120,6 +120,10 @@ export function mapEventToTrace(event: OrchestrationEvent): [string, string] | n
     case "state-changed":
       return ["🧭", `编排 ${event.id} 状态：${event.from} → ${event.to}`];
     case "task-completed":
+      // 降级占位（「（降级跳过）」）不是真完成——用 ⚠ 而非 ✓，避免观察者误读
+      if (event.text.includes("（降级跳过）")) {
+        return ["⚠", `子任务 ${event.taskId} 降级跳过（重试耗尽或验收未过，占位产出续链）`];
+      }
       return [
         "✓",
         `子任务 ${event.taskId} 完成（产出 ${event.text.length} 字，消耗 ${event.tokensUsed} tokens）`,
