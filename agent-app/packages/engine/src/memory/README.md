@@ -39,7 +39,7 @@
 | `preference.memory.ts` | 长期记忆·内存版：两层 Map + 限长护栏                                                                                          |
 | `preference.pg.ts`     | 长期记忆·PG 版：`user_preferences` 行级 upsert                                                                                |
 | `episodic.memory.ts`   | 情景记忆·内存版：摘要向量 + 余弦 top-3 召回                                                                                   |
-| `episodic.pgvector.ts` | 情景记忆·pgvector 版：`episodic_memories` 表 + `<=>` 余弦 top-k（同分按入库顺序稳定；HNSW 索引仅 ≤2000 维）                   |
+| `episodic.pgvector.ts` | 情景记忆·pgvector 版：`episodic_memories` 表 + `<=>` 余弦 top-k（同分按入库顺序稳定；halfvec HNSW 上限 4000 维）              |
 | `compression.ts`       | **压缩算法唯一实现**（40 阈值/20 保留/滚动摘要/离线降级），内存版与 Redis 版共用                                              |
 | `token-estimate.ts`    | token 估算层：`estimateTokens()`（tiktoken 精确编码 / chars 系数兜底，`AGENT_TOKEN_ESTIMATOR` 切换）——水位线压缩的度量地基    |
 | `factory.ts`           | **env 工厂总开关**：`SESSION_STORE=memory\|redis`、`PREFERENCE_STORE=memory\|pg`、`EPISODIC_STORE=memory\|pgvector`，默认内存 |
@@ -167,10 +167,10 @@
 
 ## 七、扩展路线（接口已留缝；三项 ✅ 全部落地）
 
-| 现在                     | 教程主线                                               | 状态                                                                                                                                                                                                                                      |
-| ------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SessionStore` 内存版    | **Redis**（`EX` TTL 天然匹配会话生命周期，多实例共享） | ✅ **已实现**：`session.redis.ts`（`agent:sess:{id}` list，TTL 24h 续期，与内存版共用 `compression.ts` 压缩算法；`SESSION_STORE=redis` 切换，默认 memory）                                                                                |
-| `PreferenceStore` 内存版 | **PG 长表**（行级 upsert、永不丢）                     | ✅ **已实现**：`preference.pg.ts`（`user_preferences` 表，`(user_id, key)` 主键 upsert；`PREFERENCE_STORE=pg` 切换，默认 memory）                                                                                                         |
-| `EpisodicStore` 内存版   | **pgvector**（万级历史也不怕，ANN 索引）               | ✅ **已实现**：`episodic.pgvector.ts`（`episodic_memories` 表，`<=>` 余弦 top-k、同分按入库顺序稳定排序，追加式归档同内存版语义；HNSW 索引仅 ≤2000 维，与 `rag/store.pgvector.ts` 同一限制；`EPISODIC_STORE=pgvector` 切换，默认 memory） |
+| 现在                     | 教程主线                                               | 状态                                                                                                                                                                                                                                                                                    |
+| ------------------------ | ------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SessionStore` 内存版    | **Redis**（`EX` TTL 天然匹配会话生命周期，多实例共享） | ✅ **已实现**：`session.redis.ts`（`agent:sess:{id}` list，TTL 24h 续期，与内存版共用 `compression.ts` 压缩算法；`SESSION_STORE=redis` 切换，默认 memory）                                                                                                                              |
+| `PreferenceStore` 内存版 | **PG 长表**（行级 upsert、永不丢）                     | ✅ **已实现**：`preference.pg.ts`（`user_preferences` 表，`(user_id, key)` 主键 upsert；`PREFERENCE_STORE=pg` 切换，默认 memory）                                                                                                                                                       |
+| `EpisodicStore` 内存版   | **pgvector**（万级历史也不怕，ANN 索引）               | ✅ **已实现**：`episodic.pgvector.ts`（`episodic_memories` 表，`<=>` 余弦 top-k、同分按入库顺序稳定排序，追加式归档同内存版语义；halfvec 半精度列 + HNSW 上限 4000 维，与 `rag/store.pgvector.ts` 同构（旧 vector 表首次使用时自动迁移）；`EPISODIC_STORE=pgvector` 切换，默认 memory） |
 
 三个接口都没动过签名——这就是 `types.ts` 存在的意义。真实持久化的启动方式（Docker）与切换开关见根 README「真实持久化（Docker）」一节。

@@ -217,15 +217,15 @@ pnpm infra:down    # 用完关掉（数据卷保留；docker compose down -v 才
 
 ### 2. 切换存储（env 开关，默认 = 改造前的离线行为）
 
-| 环境变量               | 可选值                         | 默认                                          | 说明                                                                                                                                                            |
-| ---------------------- | ------------------------------ | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RAG_STORE`            | `memory` / `json` / `pgvector` | `json`                                        | 知识库：内存 / `.data/kb-store.json` 快照 / PostgreSQL+pgvector（HNSW 余弦检索）                                                                                |
-| `SESSION_STORE`        | `memory` / `redis`             | `memory`                                      | 会话窗口：内存 Map / Redis list（`agent:sess:{id}`，TTL 24h 续期，跨进程共享）                                                                                  |
-| `PREFERENCE_STORE`     | `memory` / `pg`                | `memory`                                      | 用户偏好：内存 Map / PG `user_preferences` 表（行级 upsert）                                                                                                    |
-| `EPISODIC_STORE`       | `memory` / `pgvector`          | `memory`                                      | 情景记忆：内存数组 / PG `episodic_memories` 表（`<=>` 余弦 top-k 召回历史会话摘要）                                                                             |
-| `PG_CONNECTION_STRING` | 连接串                         | `postgres://agent:agent@localhost:5433/agent` | 三个 PG 实现共用（pgvector 两个表 + 偏好长表）                                                                                                                  |
-| `REDIS_URL`            | 连接串                         | `redis://localhost:6379`                      | Redis 会话存储用                                                                                                                                                |
-| `EMBEDDING_DIM`        | 整数 1~16000                   | `2048`                                        | 建表时固定（GLM embedding-3 = 2048 维）。换维度模型须 `DROP TABLE kb_chunks` 全库重嵌；另 ANN 索引（HNSW/IVFFlat）只支持 ≤2000 维，超限时检索自动走精确顺序扫描 |
+| 环境变量               | 可选值                         | 默认                                          | 说明                                                                                                                                                                                       |
+| ---------------------- | ------------------------------ | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `RAG_STORE`            | `memory` / `json` / `pgvector` | `json`                                        | 知识库：内存 / `.data/kb-store.json` 快照 / PostgreSQL+pgvector（HNSW 余弦检索）                                                                                                           |
+| `SESSION_STORE`        | `memory` / `redis`             | `memory`                                      | 会话窗口：内存 Map / Redis list（`agent:sess:{id}`，TTL 24h 续期，跨进程共享）                                                                                                             |
+| `PREFERENCE_STORE`     | `memory` / `pg`                | `memory`                                      | 用户偏好：内存 Map / PG `user_preferences` 表（行级 upsert）                                                                                                                               |
+| `EPISODIC_STORE`       | `memory` / `pgvector`          | `memory`                                      | 情景记忆：内存数组 / PG `episodic_memories` 表（`<=>` 余弦 top-k 召回历史会话摘要）                                                                                                        |
+| `PG_CONNECTION_STRING` | 连接串                         | `postgres://agent:agent@localhost:5433/agent` | 三个 PG 实现共用（pgvector 两个表 + 偏好长表）                                                                                                                                             |
+| `REDIS_URL`            | 连接串                         | `redis://localhost:6379`                      | Redis 会话存储用                                                                                                                                                                           |
+| `EMBEDDING_DIM`        | 整数 1~4000                    | `2048`                                        | 建表时固定（GLM embedding-3 = 2048 维）。换维度模型须 `DROP TABLE kb_chunks` 全库重嵌。列类型为 halfvec 半精度（pgvector ≥0.7），HNSW 上限 4000 维——2048 默认即走 HNSW（不再降级顺序扫描） |
 
 写进 `.env` 或临时环境变量都行（环境变量优先）。示例——CLI 切 pgvector + Redis：
 

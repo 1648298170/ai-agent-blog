@@ -11,7 +11,7 @@
 //
 // ── 与内存版的对照（数学相同，引擎不同）────────────────────────────────
 //   内存版：cosineSimilarity() 手算 + 全库扫 + sort（同分按入库顺序稳定）
-//   本文件：embedding <=> $1::vector 交给 pgvector（HNSW 近似最近邻，≤2000 维时），
+//   本文件：embedding <=> $1::halfvec 交给 pgvector（halfvec HNSW 近似最近邻），
 //           外层再按 score DESC, seq 排——保住「同分按入库先后」的稳定语义
 //
 // ── 为什么 remember 不做 upsert ────────────────────────────────────────
@@ -19,7 +19,7 @@
 //   多次归档（会话中途存档一次、结束再存档一次都是合法情景）。本文件如实
 //   镜像：纯 INSERT 追加，永不覆盖；createdAt 非法时兜底当前时间（同内存版）。
 //
-// 维度铁律 / 懒连接单例 / HNSW ≤2000 维限制：与 rag/store.pgvector.ts 同一套
+// 维度铁律 / 懒连接单例 / halfvec 半精度列（HNSW 上限 4000 维）+ 旧 vector 表自动迁移：与 rag/store.pgvector.ts 同一套
 // 模式的两处实例化（连接参数、错误礼仪逐字对齐，详见那边的完整注释）。
 import postgres from "postgres";
 import { loadEnv } from "../config.js";
@@ -60,11 +60,10 @@ function toIsoDate(raw: string): string {
  * seq（bigserial）即入库顺序：recall 并列分数时按它稳定排序，
  * 对齐内存版「同分按入库先后」的可复现语义。
  */
-export function createPgVectorEpisodicStore(
-  options: PgVectorEpisodicStoreOptions = {},
-): EpisodicStore {
+export function createPgVectorEpisodicStore(options: PgVectorEpisodicStoreOptions = {}): EpisodicStore {
   const env = loadEnv();
-  const connectionString = options.connectionString ?? env.PG_CONNECTION_STRING ?? DEFAULT_PG_CONNECTION_STRING;
+  const connectionString =
+    options.connectionString ?? env.PG_CONNECTION_STRING ?? DEFAULT_PG_CONNECTION_STRING;
   const dim = options.dim ?? embeddingDimFromEnv(env);
 
   let client: ReturnType<typeof postgres> | undefined;
@@ -82,33 +81,39 @@ export function createPgVectorEpisodicStore(
     return client;
   }
 
-  /** 幂等建表建索引：所有方法首次调用前跑一次（ready ??= 同 rag/store.pgvector.ts 的懒加载门道） */
+  /** 幂等建表建索引 + 旧表列类型迁移：所有方法首次调用前跑一次（ready ??= 同 rag/store.pgvector.ts 的懒加载门道） */
   function ensureSchema(): Promise<void> {
     const sql = getClient();
     const run = (async () => {
       try {
         await sql`CREATE EXTENSION IF NOT EXISTS vector`;
-        // 建表用 unsafe + 字面量拼接：vector(维度) 是 DDL 类型修饰，不能参数化；
-        // dim 已在 embeddingDimFromEnv 校验为 1~16000 的纯整数，无注入面
+        // 建表用 unsafe + 字面量拼接：halfvec(维度) 是 DDL 类型修饰，不能参数化；
+        // dim 已在 embeddingDimFromEnv 校验为 1~4000 的纯整数，无注入面
         await sql.unsafe(`CREATE TABLE IF NOT EXISTS episodic_memories (
             seq        bigserial PRIMARY KEY,
             session_id text NOT NULL,
             summary    text NOT NULL,
-            embedding  vector(${dim}) NOT NULL,
+            embedding  halfvec(${dim}) NOT NULL,
             created_at timestamptz NOT NULL
           )`);
+        // 旧表迁移（vector → halfvec）：与 rag/store.pgvector.ts 同款自动迁移——
+        // ALTER TYPE ... USING 原地转换数据保留，旧 HNSW 索引随 ALTER 自动删除
+        const col = await sql<{ udtName: string }[]>`
+          SELECT udt_name AS "udtName"
+          FROM information_schema.columns
+          WHERE table_name = 'episodic_memories' AND column_name = 'embedding'`;
+        if (col[0]?.udtName === "vector") {
+          await sql.unsafe(
+            `ALTER TABLE episodic_memories ALTER COLUMN embedding TYPE halfvec(${dim}) USING embedding::halfvec(${dim})`,
+          );
+        }
         // HNSW 近似最近邻（教程 week14 Day 5/6）：不精确但近似最快，万级历史摘要仍毫秒级；
         // 空表建索引也合法，随数据增长增量维护。
-        // pgvector 硬限制：HNSW / IVFFlat 索引都只支持 ≤2000 维，而本项目默认
-        // EMBEDDING_DIM=2048（GLM embedding-3）——超限时跳过 ANN 索引，检索退化为
-        // 精确顺序扫描（ORDER BY embedding <=> $1 语法不变）。教程规模（几百~几千条）
-        // 顺序扫描本身毫秒级，与内存暴力扫同量级，无功能损失；未来把维度降到 ≤2000
-        // （如换 1536/1024 维模型）后重跑 ensureSchema 即自动补上索引。
-        if (dim <= 2000) {
-          await sql`
-            CREATE INDEX IF NOT EXISTS episodic_memories_embedding_hnsw
-            ON episodic_memories USING hnsw (embedding vector_cosine_ops)`;
-        }
+        // halfvec 的 HNSW 上限 4000 维——dim 已在校验层保证 ≤4000，2048 默认全绿，
+        // 不再有「超限跳过索引退化为顺序扫描」的分支（BACKLOG #4 已销）。
+        await sql`
+          CREATE INDEX IF NOT EXISTS episodic_memories_embedding_hnsw
+          ON episodic_memories USING hnsw (embedding halfvec_cosine_ops)`;
       } catch (err) {
         throw connectionError(connectionString, err instanceof Error ? err.message : String(err));
       }
@@ -131,7 +136,7 @@ export function createPgVectorEpisodicStore(
         // '[1,2,…]' 文本参数显式转 vector（同 rag/store.pgvector.ts 的 upsert 写法）
         await sql`
           INSERT INTO episodic_memories (session_id, summary, embedding, created_at)
-          VALUES (${record.sessionId}, ${record.summary}, ${JSON.stringify(record.embedding)}::vector,
+          VALUES (${record.sessionId}, ${record.summary}, ${JSON.stringify(record.embedding)}::halfvec,
                   ${createdAt}::timestamptz)`;
       } catch (err) {
         throw connectionError(connectionString, err instanceof Error ? err.message : String(err));
@@ -157,9 +162,9 @@ export function createPgVectorEpisodicStore(
         const rows = await sql<{ sessionId: string; summary: string; score: number }[]>`
           SELECT "sessionId", summary, score FROM (
             SELECT session_id AS "sessionId", summary, seq,
-                   1 - (embedding <=> ${vec}::vector) AS score
+                   1 - (embedding <=> ${vec}::halfvec) AS score
             FROM episodic_memories
-            ORDER BY embedding <=> ${vec}::vector
+            ORDER BY embedding <=> ${vec}::halfvec
             LIMIT ${limit}
           ) top
           ORDER BY score DESC, seq ASC`;

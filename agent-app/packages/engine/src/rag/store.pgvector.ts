@@ -13,13 +13,30 @@
 // 换 embedding 模型（维度变化）必须先 DROP TABLE kb_chunks 再重建全库重嵌：
 // 不同维度的向量没法比夹角，这与「查询与入库必须同一模型」是同一条铁律。
 //
+// ── halfvec 半精度（2026-10，销 BACKLOG #4）────────────────────────────
+// 列类型用 halfvec(dim)（pgvector ≥0.7 的半精度向量，每维 2 字节）而不是 vector(dim)：
+// - vector 类型的 HNSW/IVFFlat 索引硬上限 2000 维，而本项目默认 EMBEDDING_DIM=2048
+//   （GLM embedding-3）——超限时 ANN 索引建不出来，检索退化为全表顺序扫描（BACKLOG #4）；
+// - halfvec 的 HNSW 上限 4000 维，2048 维默认即走 HNSW；
+// - 代价：存储与距离计算是 float16 半精度——score 有第 3 位小数级的漂移（ANN 本身
+//   就是近似，可接受），返回给调用方的 embedding 数组同为半精度数值；
+// - 旧库迁移：ensureSchema 检测列类型是 vector 时自动 ALTER TYPE ... USING ::halfvec
+//   （数据原地转换，不需要全库重嵌；旧 HNSW 索引随 ALTER 自动删除后按新算子重建）。
+//
 // ── 连接与建表 ────────────────────────────────────────────────────────
 // postgres.js（v3）单一懒连接客户端；ensureSchema() 幂等建表建索引
-// （CREATE IF NOT EXISTS），首次调用时跑一次，之后所有方法复用同一个 ready Promise。
+// （CREATE IF NOT EXISTS + 旧列类型自动迁移），首次调用时跑一次，之后所有方法复用同一个 ready Promise。
 // 连不上时抛带修复指引的中文错误（错误礼仪同 embedder.ts：告诉用户怎么修，不甩英文堆栈）。
 import postgres from "postgres";
 import { loadEnv } from "../config.js";
-import type { Chunk, DocumentContent, DocumentSummary, RagFilter, RagStore, RetrievedChunk } from "./types.js";
+import type {
+  Chunk,
+  DocumentContent,
+  DocumentSummary,
+  RagFilter,
+  RagStore,
+  RetrievedChunk,
+} from "./types.js";
 
 /** 默认连接串：本仓 docker-compose.yml 的 postgres（宿主机 5433 → 容器 5432，见 compose 注释） */
 export const DEFAULT_PG_CONNECTION_STRING = "postgres://agent:agent@localhost:5433/agent";
@@ -43,16 +60,16 @@ type KbRow = {
   score: number;
 };
 
-/** 从环境变量读向量维度：必须是 1~16000 的整数（pgvector vector 类型上限），否则中文报错 */
+/** 从环境变量读向量维度：必须是 1~4000 的整数（halfvec 半精度向量类型上限），否则中文报错 */
 export function embeddingDimFromEnv(env: Record<string, string> = loadEnv()): number {
   const raw = env.EMBEDDING_DIM ?? "2048";
   const dim = Number.parseInt(raw, 10);
-  if (!Number.isInteger(dim) || dim <= 0 || dim > 16000) {
-  throw new Error(
-    `EMBEDDING_DIM 配置非法：「${raw}」必须是 1~16000 的整数（pgvector 向量维度上限）。` +
-      "注意：维度在建表时固定，换 embedding 模型需要 DROP TABLE kb_chunks 后全库重嵌；" +
-      "另 pgvector 的 ANN 索引（HNSW/IVFFlat）只支持 ≤2000 维，超过时检索走精确顺序扫描。",
-  );
+  if (!Number.isInteger(dim) || dim <= 0 || dim > 4000) {
+    throw new Error(
+      `EMBEDDING_DIM 配置非法：「${raw}」必须是 1~4000 的整数（halfvec 半精度向量类型上限）。` +
+        "注意：维度在建表时固定，换 embedding 模型需要 DROP TABLE kb_chunks 后全库重嵌。" +
+        "超过 4000 维的模型（如 1536 维以上大维度模型）请换用支持全精度大维度的专用向量库。",
+    );
   }
   return dim;
 }
@@ -77,14 +94,15 @@ function parseVector(raw: string): number[] {
  * 创建 pgvector 版 RAG 存储。
  * 表结构（ensureSchema 幂等创建）：
  *   kb_chunks(id text PRIMARY KEY, doc_id text, title text, idx integer,
- *             text text, embedding vector(dim))
+ *             text text, embedding halfvec(dim))
  *   + 普通索引 kb_chunks_doc_id_idx（deleteDoc / docId 过滤走它）
- *   + HNSW 索引 kb_chunks_embedding_hnsw（embedding vector_cosine_ops，余弦检索走它；
- *     仅当 dim ≤ 2000 创建——pgvector 的 ANN 索引硬上限，2048 维默认走精确顺序扫描）
+ *   + HNSW 索引 kb_chunks_embedding_hnsw（embedding halfvec_cosine_ops，余弦检索走它；
+ *     halfvec 上限 4000 维，2048 维默认即走 HNSW）
  */
 export function createPgVectorRagStore(options: PgVectorRagStoreOptions = {}): RagStore {
   const env = loadEnv();
-  const connectionString = options.connectionString ?? env.PG_CONNECTION_STRING ?? DEFAULT_PG_CONNECTION_STRING;
+  const connectionString =
+    options.connectionString ?? env.PG_CONNECTION_STRING ?? DEFAULT_PG_CONNECTION_STRING;
   const dim = options.dim ?? embeddingDimFromEnv(env);
 
   let client: ReturnType<typeof postgres> | undefined;
@@ -102,35 +120,43 @@ export function createPgVectorRagStore(options: PgVectorRagStoreOptions = {}): R
     return client;
   }
 
-  /** 幂等建表建索引：所有方法首次调用前跑一次（ready ??= 同 persistence.ts 的懒加载门道） */
+  /** 幂等建表建索引 + 旧表列类型迁移：所有方法首次调用前跑一次（ready ??= 懒加载门道） */
   function ensureSchema(): Promise<void> {
     const sql = getClient();
     const run = (async () => {
       try {
         await sql`CREATE EXTENSION IF NOT EXISTS vector`;
-        // 建表用 unsafe + 字面量拼接：vector(维度) 是 DDL 类型修饰，不能参数化；
-        // dim 已在 embeddingDimFromEnv 校验为 1~16000 的纯整数，无注入面
+        // 建表用 unsafe + 字面量拼接：halfvec(维度) 是 DDL 类型修饰，不能参数化；
+        // dim 已在 embeddingDimFromEnv 校验为 1~4000 的纯整数，无注入面
         await sql.unsafe(`CREATE TABLE IF NOT EXISTS kb_chunks (
             id        text PRIMARY KEY,
             doc_id    text NOT NULL,
             title     text NOT NULL,
             idx       integer NOT NULL,
             text      text NOT NULL,
-            embedding vector(${dim})
+            embedding halfvec(${dim})
           )`);
+        // 旧表迁移（vector → halfvec，销 BACKLOG #4 的根源）：历史版本的列是
+        // vector 类型（HNSW 上限 2000 维，2048 默认建不出索引）。ALTER TYPE ...
+        // USING 原地转换，数据保留不需要重嵌；依赖该列的旧 HNSW 索引会被 PG
+        // 随 ALTER 自动删除，下一步按 halfvec 算子重建。
+        const col = await sql<{ udtName: string }[]>`
+          SELECT udt_name AS "udtName"
+          FROM information_schema.columns
+          WHERE table_name = 'kb_chunks' AND column_name = 'embedding'`;
+        if (col[0]?.udtName === "vector") {
+          await sql.unsafe(
+            `ALTER TABLE kb_chunks ALTER COLUMN embedding TYPE halfvec(${dim}) USING embedding::halfvec(${dim})`,
+          );
+        }
         await sql`CREATE INDEX IF NOT EXISTS kb_chunks_doc_id_idx ON kb_chunks (doc_id)`;
         // HNSW 近似最近邻（教程 week14 Day 5/6）：不精确但近似最快，十万块以上仍毫秒级；
         // 空表建索引也合法，随数据增长增量维护。
-        // pgvector 硬限制：HNSW / IVFFlat 索引都只支持 ≤2000 维，而本项目默认
-        // EMBEDDING_DIM=2048（GLM embedding-3）——超限时跳过 ANN 索引，检索退化为
-        // 精确顺序扫描（ORDER BY embedding <=> $1 语法不变）。教程规模（几百~几千块）
-        // 顺序扫描本身毫秒级，与内存暴力扫同量级，无功能损失；未来把维度降到 ≤2000
-        // （如换 1536/1024 维模型）后重跑 ensureSchema 即自动补上索引。
-        if (dim <= 2000) {
-          await sql`
-            CREATE INDEX IF NOT EXISTS kb_chunks_embedding_hnsw
-            ON kb_chunks USING hnsw (embedding vector_cosine_ops)`;
-        }
+        // halfvec 的 HNSW 上限 4000 维——dim 已在校验层保证 ≤4000，2048 默认全绿，
+        // 不再有「超限跳过索引退化为顺序扫描」的分支（BACKLOG #4 已销）。
+        await sql`
+          CREATE INDEX IF NOT EXISTS kb_chunks_embedding_hnsw
+          ON kb_chunks USING hnsw (embedding halfvec_cosine_ops)`;
       } catch (err) {
         throw connectionError(connectionString, err instanceof Error ? err.message : String(err));
       }
@@ -151,9 +177,11 @@ export function createPgVectorRagStore(options: PgVectorRagStoreOptions = {}): R
       try {
         await sql.begin(async (tx) => {
           for (const chunk of list) {
-            // embedding 为 null（未向量化的块）存 NULL 列；否则 '[1,2,…]' 文本参数显式转 vector
+            // embedding 为 null（未向量化的块）存 NULL 列；否则 '[1,2,…]' 文本参数显式转 halfvec
             const embeddingValue =
-              chunk.embedding === null ? tx`${null}::vector` : tx`${JSON.stringify(chunk.embedding)}::vector`;
+              chunk.embedding === null
+                ? tx`${null}::halfvec`
+                : tx`${JSON.stringify(chunk.embedding)}::halfvec`;
             await tx`
               INSERT INTO kb_chunks (id, doc_id, title, idx, text, embedding)
               VALUES (${chunk.id}, ${chunk.docId}, ${chunk.title}, ${chunk.index}, ${chunk.text},
@@ -235,11 +263,7 @@ export function createPgVectorRagStore(options: PgVectorRagStoreOptions = {}): R
      * NULL embedding 行（未向量化的块）不参与检索（WHERE embedding IS NOT NULL，
      * 与内存版跳过 embedding === null 的块同一语义）；docId 过滤先圈候选集再排序。
      */
-    async search(
-      queryEmbedding: number[],
-      k: number,
-      filter?: RagFilter,
-    ): Promise<RetrievedChunk[]> {
+    async search(queryEmbedding: number[], k: number, filter?: RagFilter): Promise<RetrievedChunk[]> {
       await ensureReady();
       const sql = getClient();
       const vec = JSON.stringify(queryEmbedding);
@@ -248,11 +272,11 @@ export function createPgVectorRagStore(options: PgVectorRagStoreOptions = {}): R
       try {
         const rows = await sql<KbRow[]>`
           SELECT id, doc_id AS "docId", title, idx, text, embedding,
-                 1 - (embedding <=> ${vec}::vector) AS score
+                 1 - (embedding <=> ${vec}::halfvec) AS score
           FROM kb_chunks
           WHERE embedding IS NOT NULL
             ${filter?.docId !== undefined ? sql`AND doc_id = ${filter.docId}` : sql``}
-          ORDER BY embedding <=> ${vec}::vector
+          ORDER BY embedding <=> ${vec}::halfvec
           LIMIT ${limit}`;
         return rows.map((row) => ({
           id: row.id,

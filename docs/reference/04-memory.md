@@ -16,11 +16,11 @@
 
 三种"记性"，一种存储解决不了：
 
-| 人类记忆对照 | 接口 | 存什么 | 生命周期 | 解决什么 |
-|---|---|---|---|---|
-| 工作记忆 | `SessionStore` | 逐字对话窗口 | 本会话内（Redis 版 24h TTL 跨重启） | "你刚才说什么来着？" |
-| 长期语义记忆 | `PreferenceStore` | 提炼后的事实（"回复风格→简洁"） | 跨会话、按用户 | "它还不认识我" |
-| 情景记忆 | `EpisodicStore` | 历史会话摘要 + 向量 | 跨会话、按相似度召回 | "接着昨天聊" |
+| 人类记忆对照 | 接口              | 存什么                          | 生命周期                            | 解决什么             |
+| ------------ | ----------------- | ------------------------------- | ----------------------------------- | -------------------- |
+| 工作记忆     | `SessionStore`    | 逐字对话窗口                    | 本会话内（Redis 版 24h TTL 跨重启） | "你刚才说什么来着？" |
+| 长期语义记忆 | `PreferenceStore` | 提炼后的事实（"回复风格→简洁"） | 跨会话、按用户                      | "它还不认识我"       |
+| 情景记忆     | `EpisodicStore`   | 历史会话摘要 + 向量             | 跨会话、按相似度召回                | "接着昨天聊"         |
 
 每个接口都有**两份实现**（内存版默认 / 真实存储版可切），由环境变量一键切换——
 这是本项目"依赖倒置"的实战样板：接口签名一行不改，业务代码零改动。
@@ -42,11 +42,11 @@
 
 ### ③ env 工厂：一行换实现
 
-| 环境变量 | 可选值 | 默认 |
-|---|---|---|
-| `SESSION_STORE` | `memory` / `redis` | `memory` |
-| `PREFERENCE_STORE` | `memory` / `pg` | `memory` |
-| `EPISODIC_STORE` | `memory` / `pgvector` | `memory` |
+| 环境变量           | 可选值                | 默认     |
+| ------------------ | --------------------- | -------- |
+| `SESSION_STORE`    | `memory` / `redis`    | `memory` |
+| `PREFERENCE_STORE` | `memory` / `pg`       | `memory` |
+| `EPISODIC_STORE`   | `memory` / `pgvector` | `memory` |
 
 不配置（或值不认识）一律回内存默认——**离线优先铁律**：没装 Docker 的机器行为与最初版逐字节一致。
 
@@ -56,22 +56,22 @@
 
 ### 1. `types.ts`（104 行）—— 契约（宪法，勿改签名）
 
-| 位置 | 内容 | 要点 |
-|---|---|---|
-| `ChatTurn`（L28） | 一轮对话 | `role`（user/assistant/system）+ `content` 明文 + 可选 `toolName`（标记该轮是"查完工具再回答"） |
-| `SessionStore`（L44） | 短期记忆接口 | 五个方法，粒度是 **sessionId** 不是 userId（同一用户三个会话互不串台） |
-| `SessionSummary`（L59） | 会话列表一行 | turns（压缩后条数）+ updatedAt（列表按它降序） |
-| `PreferenceStore`（L75） | 长期记忆接口 | get / set / all，粒度是 **userId** |
-| `EpisodicRecord`（L87） | 情景一条 | summary + embedding（摘要的语义向量）+ createdAt |
-| `EpisodicStore`（L101） | 情景记忆接口 | remember（归档）/ recall（向量 top-k，默认 3） |
+| 位置                     | 内容         | 要点                                                                                            |
+| ------------------------ | ------------ | ----------------------------------------------------------------------------------------------- |
+| `ChatTurn`（L28）        | 一轮对话     | `role`（user/assistant/system）+ `content` 明文 + 可选 `toolName`（标记该轮是"查完工具再回答"） |
+| `SessionStore`（L44）    | 短期记忆接口 | 五个方法，粒度是 **sessionId** 不是 userId（同一用户三个会话互不串台）                          |
+| `SessionSummary`（L59）  | 会话列表一行 | turns（压缩后条数）+ updatedAt（列表按它降序）                                                  |
+| `PreferenceStore`（L75） | 长期记忆接口 | get / set / all，粒度是 **userId**                                                              |
+| `EpisodicRecord`（L87）  | 情景一条     | summary + embedding（摘要的语义向量）+ createdAt                                                |
+| `EpisodicStore`（L101）  | 情景记忆接口 | remember（归档）/ recall（向量 top-k，默认 3）                                                  |
 
 ```ts
 export interface SessionStore {
-  append(sessionId: string, turn: ChatTurn): Promise<void>;        // 每轮写：问完写 user、答完写 assistant
+  append(sessionId: string, turn: ChatTurn): Promise<void>; // 每轮写：问完写 user、答完写 assistant
   getWindow(sessionId: string, limit?: number): Promise<ChatTurn[]>; // ★ 塞进 prompt 的部分（默认 20）
-  clear(sessionId: string): Promise<void>;                          // /new 清空
-  listSessions(): Promise<SessionSummary[]>;                        // 历史会话列表（按活跃降序）
-  getHistory(sessionId: string): Promise<ChatTurn[]>;               // 全量轮次（压缩后含摘要轮）
+  clear(sessionId: string): Promise<void>; // /new 清空
+  listSessions(): Promise<SessionSummary[]>; // 历史会话列表（按活跃降序）
+  getHistory(sessionId: string): Promise<ChatTurn[]>; // 全量轮次（压缩后含摘要轮）
 }
 ```
 
@@ -140,14 +140,14 @@ TTL    24 小时，每次 append 都 EXPIRE 续期——「活跃会话永不过
 append 主流程（`src/memory/session.redis.ts:187` 的 `doAppend`，骨架）：
 
 ```ts
-await redis.rpush(k, JSON.stringify(turn));                   // ① 消息先落袋为安（单命令原子）
-await redis.zadd(SESSION_INDEX_KEY, Date.now(), sessionId);   // ② 活跃记账
-const length = await redis.llen(k);                           // ③ 先看长度（O(1)），别每次拉全量
+await redis.rpush(k, JSON.stringify(turn)); // ① 消息先落袋为安（单命令原子）
+await redis.zadd(SESSION_INDEX_KEY, Date.now(), sessionId); // ② 活跃记账
+const length = await redis.llen(k); // ③ 先看长度（O(1)），别每次拉全量
 if (length > COMPRESS_AFTER) {
   // ④ 压缩重写是「读-改-写」，跨进程要互斥：SET NX PX 拿锁（拿不到就本轮跳过压缩，
   //    消息已落盘不丢，压缩顺延）→ LRANGE 全量 → compressIfNeeded → MULTI 原子重写
 }
-await redis.expire(k, SESSION_TTL_SECONDS);                   // ⑤ TTL 续期（未压缩路径）
+await redis.expire(k, SESSION_TTL_SECONDS); // ⑤ TTL 续期（未压缩路径）
 ```
 
 并发安全两层防线：进程内每会话 Promise 链（同内存版）+ 跨进程 best-effort 分布式锁
@@ -189,7 +189,7 @@ async recall(embedding: number[], k = 3) {
 ```
 
 pgvector 版换引擎不换数学：`ORDER BY embedding <=> $1`（余弦距离）取 top-k，
-score = 1 - distance，外层再按 seq 稳定排序；HNSW 索引仅 ≤2000 维（与 rag 同一限制）。
+score = 1 - distance，外层再按 seq 稳定排序；halfvec 半精度列 + HNSW 上限 4000 维（与 rag 同构，旧表自动迁移）。
 为什么存摘要不存逐字：摘要短（向量便宜）、天然降噪，"上次大概聊了什么"就够唤醒上下文。
 
 ### 6. `factory.ts`（70 行）—— env 工厂总开关
@@ -201,7 +201,7 @@ export function createSessionStoreFromEnv(env: Record<string, string> = loadEnv(
   if (value !== DEFAULT_SESSION_STORE) {
     console.warn(`[memory] 未认识的 SESSION_STORE=「${env.SESSION_STORE}」，按默认 memory 处理`);
   }
-  return new InMemorySessionStore();     // 铁律：不配置（或不认识）一律内存默认
+  return new InMemorySessionStore(); // 铁律：不配置（或不认识）一律内存默认
 }
 ```
 
@@ -251,15 +251,15 @@ pnpm test:infra                                 # 基础设施集成测试（RUN
 
 ## 设计取舍（面试级追问）
 
-| 追问 | 回答 |
-|---|---|
-| 窗口为什么默认 20 轮？ | 覆盖绝大多数指代消解的跨度，又不至于让每轮 prompt 成本失控；`getWindow(sessionId, limit)` 是调用方可调的参数，不是写死的真理 |
+| 追问                                                  | 回答                                                                                                                                                |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 窗口为什么默认 20 轮？                                | 覆盖绝大多数指代消解的跨度，又不至于让每轮 prompt 成本失控；`getWindow(sessionId, limit)` 是调用方可调的参数，不是写死的真理                        |
 | 压缩阈值为什么固定 40 条，不按 token 水位线动态触发？ | 简单、可预测、可测试（selftest 能逐字断言行为）。token 水位线更精细但要处理"单条消息超预算"等边角；固定条数是教学优先的取舍，水位线是自然的演进方向 |
-| 为什么压缩算法单独抽成 compression.ts？ | 内存版和 Redis 版要用**同一套**阈值/滚动/降级——算法一份、适配器两份；否则改个阈值要改两处，两版行为漂移 |
-| Redis TTL 为什么每次 append 续期？ | 会话的生命周期是"活跃"而非"创建后 24h"。续期 = 活跃会话永不过期、闲置一天自动清场——比定时扫描清理便宜且精准 |
-| 情景记忆为什么存摘要不存逐字？ | 摘要短（embedding 便宜）、天然降噪；检索目标是"唤醒上次聊了什么"，不需要逐字复刻 |
-| 偏好为什么用 KV 表而不是向量库？ | 确定性知识用确定性结构：`all()` 一把读出全量注入 prompt，不需要"相似度检索"这种概率语义——向量是给"模糊召回"用的 |
-| env 工厂的值写错了会怎样？ | console.warn 提示 + 回退内存默认（`src/memory/factory.ts:42`），绝不启动崩溃——离线优先铁律的最后一道防线 |
+| 为什么压缩算法单独抽成 compression.ts？               | 内存版和 Redis 版要用**同一套**阈值/滚动/降级——算法一份、适配器两份；否则改个阈值要改两处，两版行为漂移                                             |
+| Redis TTL 为什么每次 append 续期？                    | 会话的生命周期是"活跃"而非"创建后 24h"。续期 = 活跃会话永不过期、闲置一天自动清场——比定时扫描清理便宜且精准                                         |
+| 情景记忆为什么存摘要不存逐字？                        | 摘要短（embedding 便宜）、天然降噪；检索目标是"唤醒上次聊了什么"，不需要逐字复刻                                                                    |
+| 偏好为什么用 KV 表而不是向量库？                      | 确定性知识用确定性结构：`all()` 一把读出全量注入 prompt，不需要"相似度检索"这种概率语义——向量是给"模糊召回"用的                                     |
+| env 工厂的值写错了会怎样？                            | console.warn 提示 + 回退内存默认（`src/memory/factory.ts:42`），绝不启动崩溃——离线优先铁律的最后一道防线                                            |
 
 ---
 

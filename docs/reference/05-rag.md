@@ -49,30 +49,32 @@
 
 ## 代码走读（`src/rag/`，11 个文件）
 
-| 文件 | 职责 | 要点 |
-|---|---|---|
-| `types.ts` | 契约（宪法） | `Chunk`（id/docId/title/text/index/embedding）+ `RagStore` 六方法 = 知识库的一生：upsert / deleteDoc / listDocs / readDoc / search / count |
-| `chunker.ts` | ① 切块 | 递归三级瀑布：段落 → 句子 → 硬切，纯函数 |
-| `embedder.ts` | ② 向量化 | 批量 32 条/批 + 中文配置错误礼仪 |
-| `store.memory.ts` | ③ 存储·内存版 | Map + 余弦相似度（NaN 安全），自检与离线场景 |
-| `store.pgvector.ts` | ③ 存储·PG 版 | pgvector + `<=>` 余弦距离，HNSW 索引仅 dim ≤ 2000 |
-| `store.factory.ts` | ③ 换库总开关 | `RAG_STORE=memory\|json\|pgvector`，默认 json |
-| `persistence.ts` | ③ JSON 快照 | 装饰器：内存库检索 + `.data/kb-store.json` 落盘 |
-| `retrieve.ts` | ④ 检索总装 | `searchKnowledge` + `formatCitations` + `setRagStore` 接缝 |
-| `ingest.ts` | 入库核心 | CLI 与 HTTP API 共用：抽文本 → 切块 → 向量化 → upsert |
-| `index.ts` | 桶导出 | `@agent-app/engine/rag` 子路径的公共面 |
-| `README.md` | 原理篇 | 数学地图 + 推荐学习顺序（先读它再读代码） |
+| 文件                | 职责          | 要点                                                                                                                                       |
+| ------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `types.ts`          | 契约（宪法）  | `Chunk`（id/docId/title/text/index/embedding）+ `RagStore` 六方法 = 知识库的一生：upsert / deleteDoc / listDocs / readDoc / search / count |
+| `chunker.ts`        | ① 切块        | 递归三级瀑布：段落 → 句子 → 硬切，纯函数                                                                                                   |
+| `embedder.ts`       | ② 向量化      | 批量 32 条/批 + 中文配置错误礼仪                                                                                                           |
+| `store.memory.ts`   | ③ 存储·内存版 | Map + 余弦相似度（NaN 安全），自检与离线场景                                                                                               |
+| `store.pgvector.ts` | ③ 存储·PG 版  | pgvector + `<=>` 余弦距离，HNSW 索引仅 dim ≤ 2000                                                                                          |
+| `store.factory.ts`  | ③ 换库总开关  | `RAG_STORE=memory\|json\|pgvector`，默认 json                                                                                              |
+| `persistence.ts`    | ③ JSON 快照   | 装饰器：内存库检索 + `.data/kb-store.json` 落盘                                                                                            |
+| `retrieve.ts`       | ④ 检索总装    | `searchKnowledge` + `formatCitations` + `setRagStore` 接缝                                                                                 |
+| `ingest.ts`         | 入库核心      | CLI 与 HTTP API 共用：抽文本 → 切块 → 向量化 → upsert                                                                                      |
+| `index.ts`          | 桶导出        | `@agent-app/engine/rag` 子路径的公共面                                                                                                     |
+| `README.md`         | 原理篇        | 数学地图 + 推荐学习顺序（先读它再读代码）                                                                                                  |
 
 ### 切块的三级瀑布（`chunker.ts` L58-L109，简化到脉络）
 
 ```ts
 // chunker.ts L121 —— 入口：一篇纯文本 → 块数组（纯函数，不碰网络不碰存储）
 export function chunkText(text: string, options: ChunkOptions = {}): string[] {
-  const maxLen = Math.max(1, options.maxLen ?? 500);   // 默认每块上限 500 字
+  const maxLen = Math.max(1, options.maxLen ?? 500); // 默认每块上限 500 字
   const overlap = Math.min(options.overlap ?? 80, maxLen - 1); // 重叠 80 字（~15%）
   const chunks: string[] = [];
-  for (const para of splitParagraphs(text)) {          // 第一层：空行分段
-    if (para.length <= maxLen) chunks.push(para);      // 短段落整段成块
+  for (const para of splitParagraphs(text)) {
+    // 第一层：空行分段
+    if (para.length <= maxLen)
+      chunks.push(para); // 短段落整段成块
     else chunks.push(...splitLongParagraph(para, maxLen, overlap)); // 超长段下钻
   }
   return chunks;
@@ -103,7 +105,8 @@ export async function embed(texts: string[]): Promise<number[][]> {
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE);
     const { embeddings } = await embedMany({ model: getEmbeddingModel(), values: batch });
-    if (embeddings.length !== batch.length) {          // 防御：多退少补 = 全库语义错乱
+    if (embeddings.length !== batch.length) {
+      // 防御：多退少补 = 全库语义错乱
       throw new Error(`返回 ${embeddings.length} 条向量，与输入的 ${batch.length} 条不对齐`);
     }
     vectors.push(...embeddings); // 跨批按顺序拼接，保住「下标即对应」契约
@@ -120,10 +123,14 @@ export async function embed(texts: string[]): Promise<number[][]> {
 // L18 —— 只看方向不看模长；脏数据（NaN/零向量/维度不符）一律返回 0，检索不被单条脏数据炸掉
 export function cosineSimilarity(a: number[], b: number[]): number {
   if (a.length === 0 || a.length !== b.length) return 0;
-  let dot = 0, normA = 0, normB = 0;
+  let dot = 0,
+    normA = 0,
+    normB = 0;
   for (let i = 0; i < a.length; i++) {
     if (!Number.isFinite(a[i]) || !Number.isFinite(b[i])) return 0; // NaN 坐标当场出局
-    dot += a[i] * b[i]; normA += a[i] * a[i]; normB += b[i] * b[i];
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
   }
   const denom = Math.sqrt(normA) * Math.sqrt(normB);
   if (denom === 0) return 0; // 零向量：没有方向可言
@@ -136,7 +143,7 @@ export function cosineSimilarity(a: number[], b: number[]): number {
 ### 存储三件套与换库接缝
 
 - **`persistence.ts`（默认）**：JSON 快照装饰器。入库 CLI 与问答 CLI 是**两个进程**，快照落在 `.data/kb-store.json`（L12）让知识库跨进程存活。检索全权委托内存库（毫秒级零开销），只在 upsert/deleteDoc 后同步写盘；`ready ??= load()`（L61）保证并发下快照只读一次。
-- **`store.pgvector.ts`（真实持久化）**：`RAG_STORE=pgvector` 时启用（pg16 + `<=>` 余弦距离 + HNSW 索引）。注意 L129 的硬限制：**ANN 索引（HNSW/IVFFlat）只支持 ≤2000 维**，而 GLM embedding-3 默认 2048 维——超限时跳过 ANN 索引，检索自动走精确顺序扫描（`ORDER BY embedding <=> $1` 语法不变，几百~几千块毫秒级）。
+- **`store.pgvector.ts`（真实持久化）**：`RAG_STORE=pgvector` 时启用（pg16 + `<=>` 余弦距离 + HNSW 索引）。列类型为 **halfvec 半精度**（pgvector ≥0.7）——HNSW 上限 4000 维，2048 默认即走索引，不再降级顺序扫描；历史 vector 表首次使用时自动迁移（ALTER TYPE 原地转换，无需重嵌）。半精度使 score 有第 3 位小数级漂移（ANN 本身即近似，可接受）。
 - **`store.factory.ts` L36**：`createRagStoreFromEnv()` 一行换库，不认识的环境变量回默认 json——**离线优先**：没装 Docker 的机器行为与改造前逐字节一致。
 
 ### 检索出口与入库编排（`retrieve.ts` L52 + `ingest.ts` L53）
@@ -147,7 +154,10 @@ export async function searchKnowledge(query: string, k = 5, filter?: RagFilter) 
   const cappedK = Math.min(k, MAX_RETRIEVAL_K); // L83：k 再大也最多 50 块（红队加固，防整库拼进上下文）
   const [queryEmbedding] = await embed([query]); // 查询也要过同一个 embedding 模型！
   const hits = await store.search(queryEmbedding, cappedK, filter);
-  trace("🔎", `检索 → 「${query}」命中 ${hits.length} 块，top1：《${hits[0].title}》相似度 ${hits[0].score.toFixed(3)}`);
+  trace(
+    "🔎",
+    `检索 → 「${query}」命中 ${hits.length} 块，top1：《${hits[0].title}》相似度 ${hits[0].score.toFixed(3)}`,
+  );
   return hits;
 }
 ```
@@ -187,15 +197,15 @@ pnpm kb --trace                           # 问答 REPL，看 🔎 检索轨迹
 
 ## 设计取舍（面试级追问）
 
-| 追问 | 回答 |
-|---|---|
-| 为什么块大小 500 字 / 重叠 80 字？ | 太大则一块混多主题，向量四不像；太小则上下文断裂。300~500 字 + 10%~20% 重叠是教程实证的起点值，不是定理——该由评估集说话 |
-| 为什么查询和入库必须同一个 embedding 模型？ | 不同模型是不同坐标空间：库里的向量和查询向量不在同一空间，夹角毫无意义。同理换维度模型必须 `DROP TABLE kb_chunks` 全库重嵌 |
-| 暴力扫 O(n·d) 什么时候不够用？ | 几百块 × 微秒级 = 毫秒级，教学规模完全够。十万块以上才需要 ANN 索引（pgvector HNSW，O(log n) 近似）；但 ANN 只支持 ≤2000 维，2048 维默认走精确扫描 |
-| 引用编号为什么由后端分配？ | 来源标题在模型手里是可以编造的素材，在检索结果里才是事实。编号与命中顺序严格对号，模型编不了出处 |
-| 空结果为什么直说不知道，不硬答？ | 敢说不知道才敢信它说的知道。知识库没有的内容硬编，用户第一次发现就再也不信了 |
-| LLM 挂了怎么办？ | 降级预案：检索链路还活着就交「原文 + 出处」，不给报错页——链路上哪段活着就交哪段的产出 |
-| 内存库 + JSON 快照 vs 直接上 pgvector？ | 同一套 `RagStore` 接口三份实现，env 一键切换。默认 json = 零依赖（离线优先），教学和没装 Docker 的机器照常跑 |
+| 追问                                        | 回答                                                                                                                                                                               |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 为什么块大小 500 字 / 重叠 80 字？          | 太大则一块混多主题，向量四不像；太小则上下文断裂。300~500 字 + 10%~20% 重叠是教程实证的起点值，不是定理——该由评估集说话                                                            |
+| 为什么查询和入库必须同一个 embedding 模型？ | 不同模型是不同坐标空间：库里的向量和查询向量不在同一空间，夹角毫无意义。同理换维度模型必须 `DROP TABLE kb_chunks` 全库重嵌                                                         |
+| 暴力扫 O(n·d) 什么时候不够用？              | 几百块 × 微秒级 = 毫秒级，教学规模完全够。十万块以上才需要 ANN 索引（pgvector HNSW，O(log n) 近似）；2048 维的修复线已由 halfvec 半精度打通（HNSW 上限 4000 维），不再有维度天花板 |
+| 引用编号为什么由后端分配？                  | 来源标题在模型手里是可以编造的素材，在检索结果里才是事实。编号与命中顺序严格对号，模型编不了出处                                                                                   |
+| 空结果为什么直说不知道，不硬答？            | 敢说不知道才敢信它说的知道。知识库没有的内容硬编，用户第一次发现就再也不信了                                                                                                       |
+| LLM 挂了怎么办？                            | 降级预案：检索链路还活着就交「原文 + 出处」，不给报错页——链路上哪段活着就交哪段的产出                                                                                              |
+| 内存库 + JSON 快照 vs 直接上 pgvector？     | 同一套 `RagStore` 接口三份实现，env 一键切换。默认 json = 零依赖（离线优先），教学和没装 Docker 的机器照常跑                                                                       |
 
 ---
 
