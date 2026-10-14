@@ -51,6 +51,8 @@ const ENV_KEYS = [
   // 触发（替代固定 40 条阈值）；未配置时按 OPENAI_MODEL 查表（glm-4-flash=128K 等），
   // 查表也未命中则水位线不启用（走条数阈值现状行为）
   "MODEL_CONTEXT_TOKENS",
+  // MCP callTool 超时毫秒数（外部服务器挂起防线；0 = 关闭超时回到无限等，默认 60000）
+  "AGENT_MCP_TOOL_TIMEOUT_MS",
 ] as const;
 
 /**

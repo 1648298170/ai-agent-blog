@@ -135,9 +135,9 @@ describe("错误映射（注入手写客户端桩，零传输层）", () => {
       inputSchema: { type: "object", properties: {} },
     });
     if (adapted.execute === undefined) throw new Error("适配后的工具必须带 execute");
-    await expect(
-      adapted.execute({}, { toolCallId: "spec-err-1", messages: [] }),
-    ).rejects.toThrow(/MCP 工具 alwaysFails 返回错误：.*boom.*请修正调用参数后重试/);
+    await expect(adapted.execute({}, { toolCallId: "spec-err-1", messages: [] })).rejects.toThrow(
+      /MCP 工具 alwaysFails 返回错误：.*boom.*请修正调用参数后重试/,
+    );
   });
 
   it("传输层异常（callTool 直接 throw）→ 包装成中文连接错误，保留原始信息", async () => {
@@ -152,9 +152,43 @@ describe("错误映射（注入手写客户端桩，零传输层）", () => {
       inputSchema: { type: "object" },
     });
     if (adapted.execute === undefined) throw new Error("适配后的工具必须带 execute");
-    await expect(
-      adapted.execute({}, { toolCallId: "spec-err-3", messages: [] }),
-    ).rejects.toThrow(/MCP 工具 ghostTool 调用失败（连接或传输层）：Connection closed/);
+    await expect(adapted.execute({}, { toolCallId: "spec-err-3", messages: [] })).rejects.toThrow(
+      /MCP 工具 ghostTool 调用失败（连接或传输层）：Connection closed/,
+    );
+  });
+
+  it("调用超时：挂起的 callTool + timeoutMs=50 → 中文超时错误（不永久挂起）", async () => {
+    const hangingCaller: McpToolCaller = {
+      callTool: () => new Promise(() => {}), // 永不 resolve——模拟外部服务器挂起
+    };
+    const adapted = mcpToolToAgentTool(
+      hangingCaller,
+      { name: "hangTool", description: "挂起的服务器", inputSchema: { type: "object" } },
+      { timeoutMs: 50 },
+    );
+    if (adapted.execute === undefined) throw new Error("适配后的工具必须带 execute");
+    await expect(adapted.execute({}, { toolCallId: "spec-timeout", messages: [] })).rejects.toThrow(
+      /调用超时（50ms 无响应）/,
+    );
+  });
+
+  it("timeoutMs=0 → 显式关闭超时：挂起的 callTool 保持现状行为（无限等，不被打断）", async () => {
+    const hangingCaller: McpToolCaller = {
+      callTool: () => new Promise(() => {}), // 永不 resolve
+    };
+    const adapted = mcpToolToAgentTool(
+      hangingCaller,
+      { name: "hangTool", description: "挂起的服务器", inputSchema: { type: "object" } },
+      { timeoutMs: 0 },
+    );
+    if (adapted.execute === undefined) throw new Error("适配后的工具必须带 execute");
+    const execution = adapted.execute({}, { toolCallId: "spec-no-timeout", messages: [] });
+    // 100ms 探针：执行仍未落定 = 超时确实被关闭（现状行为），随后放弃等待避免挂死测试
+    const probe = new Promise<"still-pending">((resolve) => {
+      setTimeout(() => resolve("still-pending"), 100);
+    });
+    const outcome = await Promise.race([execution.then(() => "resolved" as const), probe]);
+    expect(outcome).toBe("still-pending");
   });
 
   it("无 structuredContent 的纯文本工具 → text 内容块拼接成字符串返回", async () => {

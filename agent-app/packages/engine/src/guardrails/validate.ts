@@ -107,3 +107,41 @@ export function isToolAllowed(name: string, allowlist: string[] | null): boolean
   if (allowlist === null) return true;
   return allowlist.includes(name);
 }
+
+// ── 可疑判定（LLM 自检分类器的第一层筛选，销审查 F3 的前置）─────────────────
+// 定位：严格黑名单是「动词 + 对象」的组合（宁可漏报不误伤）；本函数是**单词级**
+// 的宽松预筛——命中「注入高频词」但未达黑名单组合的文本标为 suspicious，
+// 交由上层（如 api 的 LLM 自检分类器）做二次语义判定。正则严格闸永远先行：
+// suspicious 只在黑名单未命中的文本上才有意义。
+
+/** 注入高频词（单词级，对规范化后的文本匹配）——宽松预筛的依据 */
+export const INJECTION_KEYWORDS: RegExp[] = [
+  /忽略|无视|disregard|[i1]gn[o0]r[e3]/,
+  /系统提示|系统指令|system\s+prompt/,
+  /越狱|jailbreak|DAN\s+mode/,
+  /角色扮演.{0,6}(没有|无视|不受).{0,6}(限制|规则)|pretend.{0,10}(no|without)\s+(rules|restrictions)/,
+];
+
+/** 可疑判定结果：suspicious=true 表示命中注入高频词但未达黑名单组合——值得二次判定 */
+export interface SuspiciousInspection {
+  suspicious: boolean;
+  keywords: string[];
+}
+
+/**
+ * 宽松预筛：命中注入高频词（单词级）但黑名单未命中的文本 → suspicious。
+ * 严格黑名单（inspectTextInput）永远先行——已命中黑名单的文本无需预筛。
+ */
+export function inspectSuspiciousKeywords(text: string): SuspiciousInspection {
+  const normalized = normalizeForInjectionScan(text);
+  const strict = inspectTextInput(text);
+  if (!strict.ok) {
+    return { suspicious: false, keywords: [] }; // 黑名单已拦，预筛无需表态
+  }
+  const keywords: string[] = [];
+  for (const pattern of INJECTION_KEYWORDS) {
+    const m = normalized.match(pattern);
+    if (m !== null) keywords.push(m[0]);
+  }
+  return { suspicious: keywords.length > 0, keywords };
+}

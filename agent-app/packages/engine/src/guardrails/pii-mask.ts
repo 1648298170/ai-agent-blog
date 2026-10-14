@@ -56,32 +56,56 @@ function maskBankCard(match: string): string {
 }
 
 /**
- * 一次脱敏扫描的完整结果：打码后的文本 + 实际命中数。
- * maskPii / countMasked 共用这一份实现，保证「计数」与「打码」永远是同一套
- * 判定口径（改边界规则只需要改上面三个常量，两个出口自动同步）。
+ * PII 识别器（可插拔扩展点）：一个识别器 = 一类 PII 的「模式 + 打码方式」。
+ * 内置三类（身份证/手机号/银行卡）；扩展新 PII 类型（邮箱/护照/工号…）=
+ * 追加一个识别器对象，不改扫描与打码的执行引擎。
  */
-function applyPiiMasks(text: string): { masked: string; hits: number } {
+export interface PiiDetector {
+  /** 识别器标识（审计与轨迹定位用） */
+  readonly name: string;
+  /** 候选模式：不带 g 标志（有状态 lastIndex 的坑见头注释），执行时按需克隆 */
+  readonly pattern: RegExp;
+  /** 打码函数：保留头尾让人工可辨认，中间遮蔽 */
+  readonly mask: (match: string) => string;
+}
+
+/** 内置识别器（顺序即执行序：身份证 → 手机号 → 银行卡，理由见头注释的歧义裁决） */
+export const DEFAULT_PII_DETECTORS: PiiDetector[] = [
+  { name: "id-card", pattern: ID_CARD_REGEX, mask: maskIdCard },
+  { name: "phone", pattern: PHONE_REGEX, mask: maskPhone },
+  { name: "bank-card", pattern: BANK_CARD_REGEX, mask: maskBankCard },
+];
+
+/**
+ * 一次脱敏扫描的完整结果：打码后的文本 + 实际命中数。
+ * 打码与计数永远同一套判定口径（识别器清单决定「什么算 PII」，两个出口自动同步）。
+ */
+function applyDetectors(text: string, detectors: readonly PiiDetector[]): { masked: string; hits: number } {
   let hits = 0;
-
-  // ① 身份证先行：18 位纯数字按身份证口径处理，末位 X 的身份证也不会被银行卡错拆
-  let out = text.replace(globalOf(ID_CARD_REGEX), (match) => {
-    hits += 1;
-    return maskIdCard(match);
-  });
-
-  // ② 手机号：独立的 11 位数字串（长串里的 11 位窗口已被边界断言排除）
-  out = out.replace(globalOf(PHONE_REGEX), (match) => {
-    hits += 1;
-    return maskPhone(match);
-  });
-
-  // ③ 银行卡兜底：13~19 位的完整数字串（前两步打码留下的 `*` 不会让它二次命中）
-  out = out.replace(globalOf(BANK_CARD_REGEX), (match) => {
-    hits += 1;
-    return maskBankCard(match);
-  });
-
+  let out = text;
+  for (const detector of detectors) {
+    // 顺序执行：已打码的文本带 `*`，数字串被切断，后续识别器不会二次命中同一位置
+    out = out.replace(globalOf(detector.pattern), (match) => {
+      hits += 1;
+      return detector.mask(match);
+    });
+  }
   return { masked: out, hits };
+}
+
+/**
+ * 按识别器清单创建一套脱敏器（可插拔扩展点）：
+ * 扩展新 PII 类型 = 追加识别器对象（如邮箱/护照/工号），不改扫描与打码引擎；
+ * 传 [] 显式关闭脱敏。数组序 = 执行序（先到的先打码）。
+ */
+export function createPiiMasker(detectors: readonly PiiDetector[]): {
+  mask: (text: string) => string;
+  count: (text: string) => number;
+} {
+  return {
+    mask: (text) => applyDetectors(text, detectors).masked,
+    count: (text) => applyDetectors(text, detectors).hits,
+  };
 }
 
 /**
@@ -89,7 +113,7 @@ function applyPiiMasks(text: string): { masked: string; hits: number } {
  * 银行卡留前 4 后 4。不含 PII 的文本原样返回（逐字符相等）。
  */
 export function maskPii(text: string): string {
-  return applyPiiMasks(text).masked;
+  return applyDetectors(text, DEFAULT_PII_DETECTORS).masked;
 }
 
 /**
@@ -97,5 +121,5 @@ export function maskPii(text: string): string {
  * 用于轨迹输出与测试断言）。嵌在更长数字串里的候选不算命中。
  */
 export function countMasked(text: string): number {
-  return applyPiiMasks(text).hits;
+  return applyDetectors(text, DEFAULT_PII_DETECTORS).hits;
 }

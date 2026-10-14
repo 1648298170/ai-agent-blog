@@ -11,9 +11,10 @@ import { streamText } from "ai";
 import type { ModelMessage } from "ai";
 import type { ChatStreamEvent } from "@agent-app/shared";
 import { DEFAULT_MAX_STEPS, runToolLoop } from "@agent-app/engine/agent-loop";
-import { auditLog, inspectTextInput } from "@agent-app/engine";
+import { auditLog, inspectSuspiciousKeywords, inspectTextInput } from "@agent-app/engine";
 import { createModel } from "@agent-app/engine/llm";
 import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
+import { llmInjectionScan, isLlmScanEnabled } from "../common/llm-injection-scan.js";
 import type { ChatTurn, SessionSummary } from "@agent-app/engine/memory";
 import { createDemoTools, createIdempotencyRegistryFromEnv } from "@agent-app/engine/tools";
 import { ApprovalUnsupportedError, NON_STREAM_APPROVAL_UNSUPPORTED } from "./errors.js";
@@ -165,6 +166,30 @@ export class ChatService {
         throw new Error(
           `输入闸拦截：消息命中提示注入黑名单（模式：${inspection.matchedPattern ?? "未知"}），已拒绝处理，不调用模型。`,
         );
+      }
+    }
+
+    // LLM 注入自检（审查建议 3，AGENT_GUARD_LLM_SCAN=1 开启）：正则未命中但命中
+    // 注入高频词的文本做二次语义判定——语义级改写是正则黑名单的盲区。flagged →
+    // 审计留痕 + 抛中文错误（与正则闸同款）；自检不可用/判定放行 → 照常继续
+    //（第一层正则的结论兜底，自检是增强不是门禁）
+    if (isInputGuardEnabled() && isLlmScanEnabled()) {
+      const { suspicious, keywords } = inspectSuspiciousKeywords(input.message);
+      if (suspicious) {
+        const verdict = await llmInjectionScan(input.message);
+        if (verdict?.flagged === true) {
+          auditLog("input.llm_scan_rejected", {
+            surface: "api.chatStream",
+            sessionId,
+            inputLength: input.message.length,
+            keywords,
+            reason: verdict.reason ?? null,
+          });
+          throw new Error(
+            `LLM 注入自检拦截：消息命中注入高频词且被语义判定为攻击意图` +
+              `（${verdict.reason ?? "无依据"}），已拒绝处理，不调用模型。`,
+          );
+        }
       }
     }
 

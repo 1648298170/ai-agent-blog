@@ -35,7 +35,7 @@ import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotoc
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AgentTool } from "../types.js";
-import { mcpToolToAgentTool } from "./adapter.js";
+import { mcpToolToAgentTool, resolveMcpCallTimeoutMs, type McpAdapterOptions } from "./adapter.js";
 
 /** 客户端桥：一次连接 + 适配好的工具表 + 关闭句柄 */
 export interface McpClientBridge {
@@ -54,17 +54,22 @@ export interface StdioMcpBridgeOptions {
   args?: string[];
   cwd?: string;
   env?: Record<string, string>;
+  /** callTool 超时毫秒数（缺省读 AGENT_MCP_TOOL_TIMEOUT_MS，再缺省 60000；0 = 关闭超时） */
+  timeoutMs?: number;
 }
 
 /** 客户端身份：与服务器端 SERVER_VERSION 同口径（升级时两处一起改） */
 const CLIENT_INFO = { name: "agent-app", version: "0.1.0" } as const;
 
-/** 连接 + listTools + 逐个适配（两条通道共用的桥装配段） */
-async function listAndAdapt(client: Client): Promise<Record<string, AgentTool>> {
+/** 连接 + listTools + 逐个适配（两条通道共用的桥装配段；adapterOptions 透传超时配置） */
+async function listAndAdapt(
+  client: Client,
+  adapterOptions?: McpAdapterOptions,
+): Promise<Record<string, AgentTool>> {
   const { tools: descriptors } = await client.listTools();
   const tools: Record<string, AgentTool> = {};
   for (const descriptor of descriptors) {
-    tools[descriptor.name] = mcpToolToAgentTool(client, descriptor);
+    tools[descriptor.name] = mcpToolToAgentTool(client, descriptor, adapterOptions);
   }
   return tools;
 }
@@ -95,7 +100,8 @@ export async function createMcpClientBridge(options: StdioMcpBridgeOptions): Pro
   const client = new Client(CLIENT_INFO);
   try {
     await client.connect(transport); // connect 内部 start()：spawn + initialize 握手
-    const tools = await listAndAdapt(client);
+    const adapterOptions: McpAdapterOptions = { timeoutMs: resolveMcpCallTimeoutMs(undefined, options) };
+    const tools = await listAndAdapt(client, adapterOptions);
     return { name, tools, close: () => client.close() };
   } catch (err) {
     // 连上但 listTools 失败：子进程已经起来了，先收掉再抛错，不留孤儿

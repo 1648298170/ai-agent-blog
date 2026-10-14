@@ -17,9 +17,17 @@
 // 适配器只依赖一个最小结构接口 McpToolCaller（能 callTool 即是"客户端"）：
 // 真实链路里传入 SDK Client 实例（结构兼容，零包装）；单元测试里传一个
 // 手写的桩对象就能测 isError / 内容映射，不需要任何传输层。
+//
+// ── 调用超时（BACKLOG：外部服务器挂起防线）──────────────────────────────
+// callTool 挂起（外部服务器无响应）时 execute 会永远等下去，循环卡死。
+// execute 内对 callTool 做超时包装：超时抛中文错误、循环的 errorOutput 通道
+// 接住它。注意 Promise.race 不会取消底层请求——SDK 的挂起请求仍在（内存中
+// 等待响应到来后被丢弃），但调用方已经解脱，循环可以继续。
+// 超时默认 60s（AGENT_MCP_TOOL_TIMEOUT_MS 可配，0 = 关闭超时回到现状）。
 import { jsonSchema, tool } from "ai";
 import type { JSONSchema7 } from "@ai-sdk/provider";
 import type { AgentTool } from "../types.js";
+import { loadEnv } from "../config.js";
 
 /**
  * 适配器愿意打交道的最小客户端面（依赖倒置的接缝）：
@@ -53,6 +61,22 @@ export interface McpToolDescriptor {
   inputSchema: JSONSchema7;
 }
 
+/** 适配选项：callTool 的超时毫秒数（缺省读 AGENT_MCP_TOOL_TIMEOUT_MS，再缺省 60000；0 = 关闭超时） */
+export interface McpAdapterOptions {
+  timeoutMs?: number;
+}
+
+/** 解析 callTool 超时：注入 > env > 默认 60s（0 显式关闭，回到「无限等」的现状行为） */
+export function resolveMcpCallTimeoutMs(
+  env: Record<string, string> = loadEnv(),
+  options?: McpAdapterOptions,
+): number {
+  if (options?.timeoutMs !== undefined) return options.timeoutMs;
+  const raw = Number.parseInt(env.AGENT_MCP_TOOL_TIMEOUT_MS ?? "", 10);
+  if (Number.isInteger(raw) && raw >= 0) return raw;
+  return 60_000;
+}
+
 /** 运行时收窄：非 null 的普通对象（structuredContent 通道只认它） */
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -80,16 +104,39 @@ function describeResult(result: McpToolCallResult): string {
   return `内容块类型：${Array.isArray(result.content) ? result.content.map((b) => (isPlainObject(b) ? String(b.type) : typeof b)).join("、") : String(result.content)}`;
 }
 
+/** callTool 超时包装：race 不取消底层请求，但调用方解脱、循环可继续 */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, toolName: string): Promise<T> {
+  if (timeoutMs <= 0) return promise; // 0 = 显式关闭超时（无限等，现状行为）
+  const timeout = new Promise<never>((_, reject) => {
+    const timer = setTimeout(() => {
+      reject(
+        new Error(
+          `MCP 工具 ${toolName} 调用超时（${timeoutMs}ms 无响应）。` +
+            "外部服务器可能已挂起：请检查服务器进程，或调整 AGENT_MCP_TOOL_TIMEOUT_MS（设 0 关闭超时）。",
+        ),
+      );
+    }, timeoutMs);
+    timer.unref(); // 不挡进程退出
+  });
+  return Promise.race([promise, timeout]);
+}
+
 /**
  * 把一个 MCP 工具描述符适配成引擎 AgentTool。
  *
  * - inputSchema：jsonSchema() 包装服务器声明的原始 JSON Schema（类型不兼容时
  *   的备选方案是宽松 z.record + 在 execute 里手工校验——本版本 ai 5.0.267
  *   的 FlexibleSchema 直接接受 Schema 对象，实测通过，备选方案未启用）
- * - execute：callTool 往返 + 结果映射（structuredContent 优先，文本块拼接兜底，
- *   isError / 传输层失败抛带修复指引的中文错误——错误礼仪同 configError 风格）
+ * - execute：callTool 往返（超时包装）+ 结果映射（structuredContent 优先，
+ *   文本块拼接兜底，isError / 传输层失败抛带修复指引的中文错误）
  */
-export function mcpToolToAgentTool(caller: McpToolCaller, descriptor: McpToolDescriptor): AgentTool {
+export function mcpToolToAgentTool(
+  caller: McpToolCaller,
+  descriptor: McpToolDescriptor,
+  options?: McpAdapterOptions,
+): AgentTool {
+  // 超时在装配期解析一次（env 一次读定，调用期零开销）
+  const timeoutMs = resolveMcpCallTimeoutMs(undefined, options);
   return tool({
     description: descriptor.description ?? descriptor.name,
     inputSchema: jsonSchema<unknown>(descriptor.inputSchema),
@@ -110,10 +157,16 @@ export function mcpToolToAgentTool(caller: McpToolCaller, descriptor: McpToolDes
 
       let result: McpToolCallResult;
       try {
-        result = await caller.callTool({ name: descriptor.name, arguments: args });
+        result = await withTimeout(
+          caller.callTool({ name: descriptor.name, arguments: args }),
+          timeoutMs,
+          descriptor.name,
+        );
       } catch (err) {
-        // 传输/连接层失败（服务器进程死了、管道断了）：原样透传会是一串英文协议栈，
+        // 超时错误已带中文指引（withTimeout 抛出），只透传不重复包装；
+        // 其余按连接/传输层失败处理：原样透传会是一串英文协议栈，
         // 换成中文并保留原始信息，让使用者知道下一步查什么。
+        if (err instanceof Error && err.message.startsWith(`MCP 工具 ${descriptor.name} 调用超时`)) throw err;
         throw new Error(
           `MCP 工具 ${descriptor.name} 调用失败（连接或传输层）：${err instanceof Error ? err.message : String(err)}。` +
             "请检查 MCP 服务器进程是否存活、--mcp 命令行是否正确（Windows 下 pnpm/npx 等 .cmd 命令需要 cmd /c 前缀）。",
