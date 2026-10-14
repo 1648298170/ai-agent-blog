@@ -90,7 +90,7 @@ agent-app/                        # pnpm workspace 根（packages/* + apps/*）
 │   └── shared/                   # @agent-app/shared：纯类型契约（SSE 事件 / 错误体 / 路由 / HandoffPack）
 ├── apps/
 │   ├── cli/                      # @agent-app/cli：tsx 直跑源码（无构建产物）
-│   │   └── src/                  # index.ts CLI 路由 + selftest.ts + apps/chat|kb|service REPL
+│   │   └── src/                  # index.ts CLI 路由 + selftest.ts + apps/chat|kb|service|team 编排
 │   ├── api/                      # @agent-app/api：NestJS 层（本文第 7 节；tsc 编译后 node dist 运行）
 │   │   └── src/                  # main / app.module / chat|kb|service 控制器与服务
 │   └── web/                      # 占位：week20 Next.js 前端（消费 @agent-app/shared 的 SSE 类型）
@@ -108,18 +108,20 @@ agent-app/                        # pnpm workspace 根（packages/* + apps/*）
 Agent 的本质就一句话：**模型说要干嘛 → 你替它干 → 把结果喂回去 → 重复，直到模型直接回答**。SDK 能帮你转，但教程坚持手写一遍，因为审计、审批、缓存、追踪都发生在这一圈的某个点上。
 
 ```ts
-for (let step = 1; step <= maxSteps; step++) {          // maxSteps 是保险丝，默认 5
+for (let step = 1; step <= maxSteps; step++) {
+  // maxSteps 是保险丝，默认 5
   const result = await generateText({ model, messages, tools: schemaTools, system });
 
   if (result.toolCalls.length === 0) {
     return { text: result.text, messages, steps: step }; // 模型开口了 → 出口
   }
 
-  messages.push(...result.response.messages);           // ① 入账：模型的调用意图
-  for (const call of result.toolCalls) {                // ② 调度：本地执行工具
+  messages.push(...result.response.messages); // ① 入账：模型的调用意图
+  for (const call of result.toolCalls) {
+    // ② 调度：本地执行工具
     const output = jsonOutput(await tool.execute(call.input, { toolCallId, messages }));
     messages.push({ role: "tool", content: [/* ③ 回灌：tool-result 消息 */] });
-    onStep?.({ step, toolCall, output });               // 观察钩子（SSE/轨迹都挂这）
+    onStep?.({ step, toolCall, output }); // 观察钩子（SSE/轨迹都挂这）
   }
 }
 throw new Error(`步数用完（${maxSteps}），模型仍在要工具`); // 防死循环
@@ -160,11 +162,11 @@ throw new Error(`步数用完（${maxSteps}），模型仍在要工具`); // 防
 
 > 🧠 **先原理后实现**：Agent 为什么没记忆、三层各自解决什么问题、压缩的取舍——单独写在 [`packages/engine/src/memory/README.md`](./packages/engine/src/memory/README.md)，读代码前先读它。
 
-| 层 | 存什么 | 键 | 本实现 | 教程对应 |
-| --- | --- | --- | --- | --- |
-| 短期 | 会话窗口（最近 20 轮） | sessionId | Map + 超限压缩 | Redis + TTL |
-| 长期 | 用户偏好（"喜欢简洁回复"） | (userId, key) | Map 长表 | PG 表 upsert |
-| 情景 | 相似历史对话 | 向量相似 | Map + 余弦 top3 | pgvector |
+| 层   | 存什么                     | 键            | 本实现          | 教程对应     |
+| ---- | -------------------------- | ------------- | --------------- | ------------ |
+| 短期 | 会话窗口（最近 20 轮）     | sessionId     | Map + 超限压缩  | Redis + TTL  |
+| 长期 | 用户偏好（"喜欢简洁回复"） | (userId, key) | Map 长表        | PG 表 upsert |
+| 情景 | 相似历史对话               | 向量相似      | Map + 余弦 top3 | pgvector     |
 
 短期记忆的**压缩**最有讲头（`session.memory.ts`）：
 
@@ -232,14 +234,14 @@ PDF 解析的坑见 8.2。`pdf-parse` 必须从 `pdf-parse/lib/pdf-parse.js` 子
 
 引擎和产品逻辑零改动，外面套一层服务壳：
 
-| 方法 | 路径 | 说明 |
-| --- | --- | --- |
-| GET | `/api/health` | 健康检查 |
-| POST | `/api/chat` | 非流式对话（runToolLoop + 会话记忆） |
-| GET | `/api/chat/stream` | SSE：`session → step(工具调用/结果) → delta(答案分片) → done` |
-| POST | `/api/kb/ingest` | multipart 上传入库（字段 `file`） |
-| POST | `/api/kb/query` | `{question, topK?}` → `{answer, citations}` |
-| POST | `/api/service/message` | `{sessionId?, message}` → `{route, reply, handoff?}` |
+| 方法 | 路径                   | 说明                                                          |
+| ---- | ---------------------- | ------------------------------------------------------------- |
+| GET  | `/api/health`          | 健康检查                                                      |
+| POST | `/api/chat`            | 非流式对话（runToolLoop + 会话记忆）                          |
+| GET  | `/api/chat/stream`     | SSE：`session → step(工具调用/结果) → delta(答案分片) → done` |
+| POST | `/api/kb/ingest`       | multipart 上传入库（字段 `file`）                             |
+| POST | `/api/kb/query`        | `{question, topK?}` → `{answer, citations}`                   |
+| POST | `/api/service/message` | `{sessionId?, message}` → `{route, reply, handoff?}`          |
 
 关键实现决策：
 
@@ -305,14 +307,14 @@ PowerShell 管道向 node stdin 写中文默认 GBK，node 按 UTF-8 读成乱�
 
 ## 10. 与教程的映射 & 扩展路线
 
-| 模块 | 教程出处 |
-| --- | --- |
-| 手写工具循环 / ToolLoopAgent / 多 Agent 模式 | week11/agent-loop-ts.md |
-| RAG 全链路（切块/嵌入/检索/引用/降级） | week11/rag-ts.md |
-| 三层记忆（窗口压缩/偏好/情景） | week11/memory-ts.md |
+| 模块                                              | 教程出处                 |
+| ------------------------------------------------- | ------------------------ |
+| 手写工具循环 / ToolLoopAgent / 多 Agent 模式      | week11/agent-loop-ts.md  |
+| RAG 全链路（切块/嵌入/检索/引用/降级）            | week11/rag-ts.md         |
+| 三层记忆（窗口压缩/偏好/情景）                    | week11/memory-ts.md      |
 | 客服 Supervisor / 硬规则 / HandoffPack / 降级链路 | docs/products/service.md |
-| 知识库引用问答 / 降级预案 | docs/products/kb.md |
-| NestJS BFF / SSE 流式 | week20 |
+| 知识库引用问答 / 降级预案                         | docs/products/kb.md      |
+| NestJS BFF / SSE 流式                             | week20                   |
 
 **扩展路线**（接口都已留好缝）：
 
@@ -323,4 +325,4 @@ PowerShell 管道向 node stdin 写中文默认 GBK，node 按 UTF-8 读成乱�
 
 ---
 
-*本文由实现过程沉淀而成；源码中文注释与本文互为对照，遇到不一致以源码为准并欢迎修正文档。*
+_本文由实现过程沉淀而成；源码中文注释与本文互为对照，遇到不一致以源码为准并欢迎修正文档。_

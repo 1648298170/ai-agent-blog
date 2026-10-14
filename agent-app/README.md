@@ -79,7 +79,7 @@ agent-app/
 │   └── shared/                      # @agent-app/shared：纯类型契约（SSE 事件 / 错误体 / 路由 / HandoffPack）
 ├── apps/
 │   ├── cli/                         # @agent-app/cli：tsx 直跑（chat / kb / service REPL + selftest）
-│   │   └── src/                     # index.ts 路由 + apps/chat|kb|service + selftest.ts
+│   │   └── src/                     # index.ts 路由 + apps/chat|kb|service|team + selftest.ts
 │   ├── api/                         # @agent-app/api：NestJS BFF（tsc 编译后 node dist 运行）
 │   │   └── src/                     # main / app.module / chat|kb|service 控制器与服务
 │   └── web/                         # 占位：week20 Next.js 前端（消费 @agent-app/shared 的 SSE 类型）
