@@ -38,8 +38,9 @@ export function checkHardRules(state: SupervisorState): RouteDecision | null {
   const request = matchAnyKeyword(state.lastUserMessage, HUMAN_REQUEST_KEYWORDS);
   if (request !== null) return { target: "human", reason: `用户明确要求转人工（关键词「${request}」）` };
   const risk = matchAnyKeyword(state.lastUserMessage, HIGH_RISK_KEYWORDS);
-  if (risk !== null) return { target: "human", reason: `命中高危业务白名单（关键词「${risk}」），必须人工处理` };
-  return null;   // 全不命中，才轮到模型
+  if (risk !== null)
+    return { target: "human", reason: `命中高危业务白名单（关键词「${risk}」），必须人工处理` };
+  return null; // 全不命中，才轮到模型
 }
 ```
 
@@ -52,9 +53,9 @@ export function checkHardRules(state: SupervisorState): RouteDecision | null {
 ```ts
 // packages/engine/src/service/workers.ts（节选）
 const WORKER_TOOLS: Record<WorkerName, AgentToolSet> = {
-  order:     { getOrderStatus },        // 只给查订单的锤子
-  refund:    { createTicket },          // 只给建工单的锤子
-  knowledge: { searchKnowledgeBase },   // 只给检索
+  order: { getOrderStatus }, // 只给查订单的锤子
+  refund: { createTicket }, // 只给建工单的锤子
+  knowledge: { searchKnowledgeBase }, // 只给检索
 };
 ```
 
@@ -86,12 +87,12 @@ REPL 里按这个顺序试五句话，正好覆盖全部路由路径：
 
 组装视角最重要的一课：**每一层挂了都有下一层接着，降级方向只有一个——转人工，绝不给报错页**：
 
-| 哪里挂了 | 用户看到 |
-|---|---|
+| 哪里挂了                                 | 用户看到                                                     |
+| ---------------------------------------- | ------------------------------------------------------------ |
 | 模型两次输出不合规 / 没配 key / 网关不通 | 转人工 + 工单（reason 写明按降级预案处理，用户侧不暴露报错） |
-| 工人执行失败（模型不可用） | 转人工 + 工单 |
-| 摘要模型挂 | 工单照出（摘要降级为原文拼接） |
-| 完全离线 | 工单本就是 mock，无网也能走完转人工 |
+| 工人执行失败（模型不可用）               | 转人工 + 工单                                                |
+| 摘要模型挂                               | 工单照出（摘要降级为原文拼接）                               |
+| 完全离线                                 | 工单本就是 mock，无网也能走完转人工                          |
 
 这不是口头承诺，是写在 catch 分支里的行为，且可测——HTTP API 侧（`POST /api/service/message`）在无 `.env` 时同样降级转人工出工单，完整可用。以用户第二次说「到底怎么办啊」为例，一条消息的完整旅程：
 
@@ -132,4 +133,5 @@ REPL 里按这个顺序试五句话，正好覆盖全部路由路径：
 - [参考库 · 客服产品线深读](/reference/09-service) —— 星型调度逐文件走读 + 上线检查清单
 - 产品页：[客服系统](/products/service) —— REPL 话术清单与设计要点
 - 归档周教程：[week13 · 产品线组装](/archive/weeks/week13/)
+- **进阶下一站**：[09b · 多 Agent 编排](/guide/09b-multi-agent) —— Supervisor 已是多 Agent 第一形态，这里学会泛化成可配置编排器
 - 下一站：[10 · Web 前端与 SSE](/guide/10-frontend) —— 给这套系统装上事件驱动的脸

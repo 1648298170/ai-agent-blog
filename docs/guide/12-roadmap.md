@@ -52,7 +52,7 @@
              · 事件流：每步广播（可接 SSE / 审计 / OTel）
 ```
 
-**编排器（✅ 已实现）**就是这三个字的代码化——`orchestrator/` 模块（8 文件 ~985 行，Effect 范式）：显式状态机 + TaskSpec 验收标准（critic 已接线）+ DAG 波次并行派发 + 失败四分支策略 + 预算控制 + 失败终态落盘 + 事件流 + 可插拔三角色（Planner / Executor / Critic）。**一键体验**：`pnpm team "查订单A-1024，未发货就建催发工单" --trace`（`--plan` 传静态任务单 / `--id` 断点续跑）。完整深读见 [参考库 · 编排器](/reference/10-orchestrator)。
+**编排器（✅ 已实现）**就是这三个字的代码化——`orchestrator/` 模块（8 文件 ~985 行，Effect 范式）：显式状态机 + TaskSpec 验收标准（critic 已接线）+ DAG 波次并行派发 + 失败四分支策略 + 预算控制 + 失败终态落盘 + 事件流 + 可插拔三角色（Planner / Executor / Critic）。**一键体验**：`pnpm team "查订单A-1024，未发货就建催发工单" --trace`（`--plan` 传静态任务单 / `--id` 断点续跑）。主线教程见 [09b · 多 Agent 编排](/guide/09b-multi-agent)，完整深读见 [参考库 · 编排器](/reference/10-orchestrator)。
 
 P2 的示例目标设计得很妙：「查订单 A-1024，未发货就建催发工单」——正好逼出拆/派/跑三分工。风险也在账上写死了：planner 的计划 JSON 不稳（宽松解析 + 重试一次 + 失败降级单步）、critic 打回死循环（重试上限 2 次，超限带「未完全达成」诚实收尾）——你看，又是熟悉的「防御先行」味道。
 

@@ -81,6 +81,7 @@ export default defineConfig({
           { text: '07 · MCP 标准插口', link: '/guide/07-mcp' },
           { text: '08 · 评估框架：跑分说话', link: '/guide/08-evals' },
           { text: '09 · 产品线组装：客服系统', link: '/guide/09-product' },
+          { text: '09b · 多 Agent 编排：拆 · 派 · 跑', link: '/guide/09b-multi-agent' },
           { text: '10 · Web 前端与 SSE 流式', link: '/guide/10-frontend' },
           { text: '11 · 生产化与成熟度', link: '/guide/11-production' },
           { text: '12 · 学完之后：演进方向', link: '/guide/12-roadmap' },
