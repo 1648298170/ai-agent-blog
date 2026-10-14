@@ -3,12 +3,9 @@
 //（真编排器 + 假角色 = 测的是「编排协议」而非角色质量，与 orchestrator.spec 的分工互补：
 // 那边测编排语义，这边测 CLI 装配层把角色和编排器接对了）。
 import { describe, expect, it } from "vitest";
-import {
-  assembleTeamOrchestrator,
-  mapEventToTrace,
-  parseArgs,
-  validatePlanFile,
-} from "../src/apps/team/cli.js";
+import { assembleTeamOrchestrator } from "@agent-app/engine/orchestrator";
+import { parseArgs, validatePlanFile } from "../src/apps/team/cli.js";
+import { mapEventToTrace } from "@agent-app/engine/orchestrator";
 import type { OrchestrationEvent, TaskOutput, TaskSpec } from "@agent-app/engine/orchestrator";
 
 // ── parseArgs ──

@@ -140,9 +140,13 @@ export class ChatService {
   async chatStream(
     input: { message: string; sessionId?: string },
     emit: (event: ChatStreamEvent) => void,
-    options?: ChatAbortOptions,
+    options?: ChatAbortOptions & {
+      /** 思考过程可见性（BACKLOG #5.1）：false 时不发 step 事件；缺省 true = 现状行为 */
+      showSteps?: boolean;
+    },
   ): Promise<void> {
     const signal = options?.signal;
+    const showSteps = options?.showSteps ?? true;
     const sessionId = input.sessionId ?? newSessionId();
     emit({ type: "session", sessionId });
 
@@ -198,14 +202,16 @@ export class ChatService {
         tools,
         maxSteps: DEFAULT_MAX_STEPS,
         signal,
-        onStep: (event) =>
+        onStep: (event) => {
+          if (!showSteps) return; // BACKLOG #5.1：开关关则不发 step 事件（事件流形状自然收窄，前端零改动）
           emit({
             type: "step",
             step: event.step,
             toolCall: event.toolCall,
             output: event.output,
             text: event.text, // 模型步间推理文本（常为 undefined——诚实透传，不造模板话）
-          }),
+          });
+        },
       });
 
       // 最终答案流式生成：messages 已含全部工具往来，streamText 只做纯文本收尾。

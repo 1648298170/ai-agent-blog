@@ -7,3 +7,4 @@ export * from "./state-store.js";
 export * from "./roles.js";
 export * from "./defaults.js";
 export * from "./orchestrator.js";
+export * from "./team-assembly.js";

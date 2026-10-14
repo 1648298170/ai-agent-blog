@@ -13,6 +13,7 @@ import { Body, Controller, Get, Param, Post, Query, Res } from "@nestjs/common";
 import { ApiBadRequestResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from "@nestjs/swagger";
 import type { Response } from "express";
 import { streamText } from "ai";
+import { resolveShowSteps } from "../common/show-steps.js";
 import type {
   RouteDecision,
   RouteTarget,
@@ -158,6 +159,7 @@ export class ServiceController {
   async stream(
     @Query("message") message: string | undefined,
     @Query("sessionId") sessionId: string | undefined,
+    @Query("steps") steps: string | undefined,
     @Res() res: Response,
   ): Promise<void> {
     // 长度闸必须在 SSE 头之前判（chat.stream 同款，H3 修 E8）：头一旦 flush，连接就
@@ -188,12 +190,15 @@ export class ServiceController {
         { message: message.trim(), sessionId: sessionId?.trim() || undefined },
         write,
         abort.signal,
+        resolveShowSteps(steps),
       );
     } catch (err) {
       if (abort.signal.aborted) return; // 客户端已断：error 事件写给谁？直接收尾
       const detail = err instanceof Error ? err.message : String(err);
       const hint = buildConfigHint(err);
-      write(hint === undefined ? { type: "error", message: detail } : { type: "error", message: detail, hint });
+      write(
+        hint === undefined ? { type: "error", message: detail } : { type: "error", message: detail, hint },
+      );
     } finally {
       res.end(); // 无论如何都收尾，不留悬空连接
     }
@@ -208,6 +213,7 @@ export class ServiceController {
     input: { message: string; sessionId?: string },
     write: (event: ServiceStreamEvent) => void,
     signal: AbortSignal,
+    showSteps: boolean,
   ): Promise<void> {
     const sessionId = input.sessionId ?? newSessionId();
     write({ type: "session", sessionId });
@@ -244,14 +250,16 @@ export class ServiceController {
         decision.target,
         { history, message: input.message },
         {
-          onStep: (event) =>
+          onStep: (event) => {
+            if (!showSteps) return; // BACKLOG #5.1：开关关则不发 step 事件（前端零改动）
             write({
               type: "step",
               step: event.step,
               toolCall: event.toolCall,
               output: event.output,
               text: event.text, // 模型步间推理文本（常为 undefined——诚实透传，不造模板话）
-            }),
+            });
+          },
           signal,
         },
       );

@@ -8,8 +8,25 @@
 // 为 false 时说明对端在响应写完之前消失了，立即 abort 生成（signal 传入服务层，
 // 引擎循环停止调用模型，token 不再白烧）。'close' 在正常收尾时也会触发，所以必须
 // 用 writableEnded 区分「写完了」与「对端消失」。
-import { BadRequestException, Body, Controller, Get, NotFoundException, Param, Post, Query, Res } from "@nestjs/common";
-import { ApiBadRequestResponse, ApiExcludeEndpoint, ApiNotFoundResponse, ApiOkResponse, ApiTags } from "@nestjs/swagger";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  Post,
+  Query,
+  Res,
+} from "@nestjs/common";
+import { resolveShowSteps } from "../common/show-steps.js";
+import {
+  ApiBadRequestResponse,
+  ApiExcludeEndpoint,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiTags,
+} from "@nestjs/swagger";
 import type { Response } from "express";
 import type { ApproveChatResponse, SessionHistoryResponse, SessionSummary } from "@agent-app/shared";
 import { buildConfigHint } from "../common/all-exceptions.filter.js";
@@ -34,7 +51,10 @@ export class ChatController {
 
   /** 非流式：跑完工具循环一次性返回（passthrough 拿到 res 接断开信号，返回值仍走 Nest 序列化） */
   @Post()
-  @ApiBadRequestResponse({ description: "请求体校验失败（缺 message / 类型不符 / 超过 8000 字符上限 / 未知字段被剥）；或该端点不支持工具审批（AGENT_CONFIRM_TOOLS 名单非空）" })
+  @ApiBadRequestResponse({
+    description:
+      "请求体校验失败（缺 message / 类型不符 / 超过 8000 字符上限 / 未知字段被剥）；或该端点不支持工具审批（AGENT_CONFIRM_TOOLS 名单非空）",
+  })
   async chat(
     @Body() dto: CreateChatDto,
     @Res({ passthrough: true }) res: Response,
@@ -85,7 +105,10 @@ export class ChatController {
    * 未知 / 已过期（超时自动拒绝）/ 已裁决过 / sessionId 不匹配 → 404 中文错误。
    */
   @Post("approve")
-  @ApiOkResponse({ description: "裁决已送达：允许 → 挂起的工具调用继续执行；拒绝 → 收到结构化拒绝值 { denied: true, reason }" })
+  @ApiOkResponse({
+    description:
+      "裁决已送达：允许 → 挂起的工具调用继续执行；拒绝 → 收到结构化拒绝值 { denied: true, reason }",
+  })
   @ApiBadRequestResponse({ description: "请求体校验失败（缺 sessionId / approvalId / approved 类型不符）" })
   @ApiNotFoundResponse({ description: "审批不存在或已过期（超时未裁决会自动拒绝）、sessionId 不匹配" })
   async approve(@Body() dto: ApproveChatDto): Promise<ApproveChatResponse> {
@@ -111,6 +134,7 @@ export class ChatController {
   async stream(
     @Query("message") message: string | undefined,
     @Query("sessionId") sessionId: string | undefined,
+    @Query("steps") steps: string | undefined,
     @Res() res: Response,
   ): Promise<void> {
     // H3 长度闸（红队加固轮，修 E8）：必须在 SSE 头之前判——头一旦 flush，连接就只能以
@@ -142,13 +166,15 @@ export class ChatController {
       await this.chatService.chatStream(
         { message: message.trim(), sessionId: sessionId?.trim() || undefined },
         write,
-        { signal: abort.signal },
+        { signal: abort.signal, showSteps: resolveShowSteps(steps) },
       );
     } catch (err) {
       if (abort.signal.aborted) return; // 客户端已断：error 事件写给谁？直接收尾
       const detail = err instanceof Error ? err.message : String(err);
       const hint = buildConfigHint(err);
-      write(hint === undefined ? { type: "error", message: detail } : { type: "error", message: detail, hint });
+      write(
+        hint === undefined ? { type: "error", message: detail } : { type: "error", message: detail, hint },
+      );
     } finally {
       res.end(); // 无论如何都收尾，不留悬空连接
     }

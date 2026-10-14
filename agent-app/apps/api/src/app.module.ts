@@ -7,6 +7,7 @@ import { ThrottlerGuard, ThrottlerModule, seconds } from "@nestjs/throttler";
 import { ChatModule } from "./chat/chat.module.js";
 import { KbModule } from "./kb/kb.module.js";
 import { ServiceModule } from "./service/service.module.js";
+import { TeamModule } from "./team/team.module.js";
 
 /** 限流阈值默认值：100 次/分钟，对正常用户（含现有 e2e 测试）不可见，只拦滥用 */
 const THROTTLE_LIMIT_DEFAULT = 100;
@@ -49,6 +50,7 @@ class HealthController {
     ChatModule,
     KbModule,
     ServiceModule,
+    TeamModule,
   ],
   controllers: [HealthController],
   providers: [

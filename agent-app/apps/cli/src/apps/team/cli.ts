@@ -6,26 +6,14 @@
 //   静态：pnpm team --plan samples/team-plan.json
 //         → 跳过规划，按任务单执行（拆单结果可预期，适合演示与回归）
 //
-// 角色 = engine 默认三件套（LlmPlanner / LoopExecutor / AcceptanceCritic，依赖倒置——
-// 测试可注入桩实现）。工具表 = demo 三件套 + 知识库检索过幂等壳（写操作防重）。
+// 编排器装配（demo 工具 + 幂等壳 + 默认三角色）上移在 engine 的
+// orchestrator/team-assembly.ts——cli 与 api 的 /api/team/stream 共用同一份，
+// 本文件只做「入口的事」：参数解析、plan 文件校验、轨迹输出、结果打印。
+//
 // 两种模式都需要 LLM key：执行器的工具循环本身要模型「点名」（demo 数据免的是
 // 工具侧网络，不是模型侧）。无 key → 中文配置提示后退出（同 chat 的模式）。
-//
-// 观测：OrchestrationEvent → trace 图标流（--trace 开关，⚠⏸ 为编排新增图标）。
 import { readFileSync } from "node:fs";
-import {
-  AcceptanceCritic,
-  LlmPlanner,
-  LoopExecutor,
-  MemoryStateStore,
-  Orchestrator,
-} from "@agent-app/engine/orchestrator";
-import {
-  createDemoTools,
-  searchKnowledgeBase,
-  createIdempotencyRegistryFromEnv,
-  wrapToolsWithIdempotencyAuto,
-} from "@agent-app/engine/tools";
+import { assembleTeamOrchestrator, mapEventToTrace } from "@agent-app/engine/orchestrator";
 import { loadEnv } from "@agent-app/engine/config";
 import { enableTrace, trace } from "@agent-app/engine/trace";
 import type { OrchestrationEvent, OrchestrationResult, TaskSpec } from "@agent-app/engine/orchestrator";
@@ -85,7 +73,6 @@ export function validatePlanFile(raw: unknown): { goal: string; tasks: TaskSpec[
   if (typeof raw !== "object" || raw === null) throw fail("根必须是 JSON 对象");
   const obj = raw as Record<string, unknown>;
   if (typeof obj.goal !== "string" || obj.goal.trim() === "") throw fail("缺少 goal（总目标描述）");
-  const goalText: string = obj.goal;
   if (!Array.isArray(obj.tasks) || obj.tasks.length === 0) throw fail("缺少非空 tasks 数组");
 
   const tasks = obj.tasks.map((item: unknown, i: number): TaskSpec => {
@@ -109,80 +96,7 @@ export function validatePlanFile(raw: unknown): { goal: string; tasks: TaskSpec[
     }
     return t as unknown as TaskSpec;
   });
-  return { goal: goalText, tasks };
-}
-
-// ── 事件 → trace 映射（纯函数，可测）──────────────────────────────────────
-
-/** 编排事件 → [图标, 文本]；返回 null = 该事件不进 trace */
-export function mapEventToTrace(event: OrchestrationEvent): [string, string] | null {
-  switch (event.type) {
-    case "state-changed":
-      return ["🧭", `编排 ${event.id} 状态：${event.from} → ${event.to}`];
-    case "task-completed":
-      // 降级占位（「（降级跳过）」）不是真完成——用 ⚠ 而非 ✓，避免观察者误读
-      if (event.text.includes("（降级跳过）")) {
-        return ["⚠", `子任务 ${event.taskId} 降级跳过（重试耗尽或验收未过，占位产出续链）`];
-      }
-      return [
-        "✓",
-        `子任务 ${event.taskId} 完成（产出 ${event.text.length} 字，消耗 ${event.tokensUsed} tokens）`,
-      ];
-    case "task-failed":
-      return ["✗", `子任务 ${event.taskId} 失败：${event.message}`];
-    case "escalated":
-      return ["⚠", `升级人工：${event.reason}`];
-    case "interrupted":
-      return ["⏸", `编排中止（软着陆）：已完成 ${event.completedCount}，剩余 ${event.remainingCount}`];
-    default:
-      return null;
-  }
-}
-
-// ── 装配（可注入：测试注桩角色，生产走 LLM 默认三件套）────────────────────
-
-/** Orchestrator 构造参数里可被测试覆盖的角色位 */
-export interface TeamOverrides {
-  planner?: NonNullable<ConstructorParameters<typeof Orchestrator>[0]>["planner"];
-  executor?: NonNullable<ConstructorParameters<typeof Orchestrator>[0]>["executor"];
-  critic?: NonNullable<ConstructorParameters<typeof Orchestrator>[0]>["critic"];
-  stateStore?: NonNullable<ConstructorParameters<typeof Orchestrator>[0]>["stateStore"];
-}
-
-export interface TeamAssembly {
-  orchestrator: Orchestrator;
-}
-
-/** 装配编排器：demo 工具 + 知识库检索过幂等壳，角色用 engine 默认三件套（可注入覆盖） */
-export function assembleTeamOrchestrator(options: {
-  traceSink?: (event: OrchestrationEvent) => void;
-  overrides?: TeamOverrides;
-}): TeamAssembly {
-  const overrides = options.overrides ?? {};
-  // 工具表：demo 三件套 + 知识库检索，全过幂等壳。scope 固定 "team" 的语义取舍：
-  // 幂等键 = scope + 工具 + 参数指纹——固定 scope 让「10 分钟窗口内跨编排的同参
-  // 调用」直接命中缓存（如两次编排都查 A-1024、同 subject 建单），防重复写正是
-  // 幂等的本意；要按编排隔离时把 scope 换成编排 id（读操作更省，写操作防重变弱）
-  const tools = { ...createDemoTools(), searchKnowledgeBase };
-  const idempotency = createIdempotencyRegistryFromEnv();
-  const wrapped = wrapToolsWithIdempotencyAuto(tools, idempotency, { scope: "team" });
-
-  const orchestrator = new Orchestrator({
-    planner: overrides.planner ?? new LlmPlanner(),
-    executor:
-      overrides.executor ??
-      new LoopExecutor({
-        tools: wrapped,
-        systemPrompt:
-          "你是任务执行者。按子任务目标调用可用工具完成它，产出具体结果；" +
-          "目标里引用了前置产出时直接基于它推进，不要重复执行前置任务。",
-        maxSteps: 5,
-      }),
-    critic: overrides.critic ?? new AcceptanceCritic(),
-    stateStore: overrides.stateStore ?? new MemoryStateStore(),
-    onEvent: options.traceSink,
-  });
-  return { orchestrator };
+  return { goal: obj.goal, tasks };
 }
 
 // ── 主流程 ──────────────────────────────────────────────────────────────────
