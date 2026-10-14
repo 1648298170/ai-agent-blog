@@ -1,5 +1,14 @@
 # 读代码前先读这篇：AI 客服的路由——什么交给规则，什么交给模型，什么交还给人
 
+> **你已经站在多 Agent 的门口**：本目录的 Supervisor 就是多 Agent 的第一个形态——
+> supervisor 是路由 Agent（判不准的事问模型），workers 是三个专家 Agent（独立职责 +
+> 最小权限工具表：order 工人只拿 `getOrderStatus`，refund 工人只拿 `createTicket`），
+> HandoffPack 就是 Agent 间的上下文交接。对照业界：LangGraph 的 supervisor 模式、
+> CrewAI 的 manager+crew——同一思想，不同皮肤。当单 Agent 出现「工具表超载 /
+> 上下文打架 / 职责冲突 / 并行机会」四个信号时，就从这里进化到编排器
+> （`../orchestrator/`）：`pnpm team "目标"` 一条命令体验 LLM 拆单 → DAG 并行派发 →
+> 逐任务验收的完整编排，深讲见 [reference · 编排器](../../../../../docs/reference/10-orchestrator.md)。
+
 > 本目录解决客服系统的"分诊"问题：一条用户消息进来，先由**确定性硬规则**把关，
 > 全不命中才交给 **LLM 三分类**，两者都接不住就**体面地转人工**——退路本身是产品的一部分。
 > 配合教程 [products · 客服系统](../../../../../docs/products/service.md)（Supervisor 星型 / 硬规则 / HandoffPack / 上线检查清单）
@@ -39,31 +48,31 @@
   getOrderStatus createTicket searchKnowledgeBase
 ```
 
-| 角色 | 文件 | 一句话职责 |
-| --- | --- | --- |
-| 分诊台 | `supervisor.ts` | 三组关键词常量 + 硬规则纯函数 + 模型三分类 + `supervise` 总入口 |
-| 三个专科工人 | `workers.ts` | order / refund / knowledge 各配职责提示词与**裁剪过的工具表** |
-| 转诊单 | `handoff.ts` | 建工单 + HandoffPack 上下文包（摘要失败有降级） |
-| 总装（消费者） | `apps/cli/src/apps/service/cli.ts` | REPL 循环：维护计数、降级链路、会话回写 |
+| 角色           | 文件                               | 一句话职责                                                      |
+| -------------- | ---------------------------------- | --------------------------------------------------------------- |
+| 分诊台         | `supervisor.ts`                    | 三组关键词常量 + 硬规则纯函数 + 模型三分类 + `supervise` 总入口 |
+| 三个专科工人   | `workers.ts`                       | order / refund / knowledge 各配职责提示词与**裁剪过的工具表**   |
+| 转诊单         | `handoff.ts`                       | 建工单 + HandoffPack 上下文包（摘要失败有降级）                 |
+| 总装（消费者） | `apps/cli/src/apps/service/cli.ts` | REPL 循环：维护计数、降级链路、会话回写                         |
 
 ### 本目录文件地图（5 个文件）
 
-| 文件 | 职责 |
-| --- | --- |
+| 文件            | 职责                                                                                                                                                                                                                                                                          |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `supervisor.ts` | 路由核心：`HUMAN_REQUEST_KEYWORDS` / `HIGH_RISK_KEYWORDS` / `UNRESOLVED_SIGNALS` 三组常量；`matchAnyKeyword` / `isUnresolvedSignal` / `checkHardRules` 纯函数；`classifyWithLlm` 模型兜底；`supervise` 总入口（按契约再出口 `RouteDecision` / `RouteTarget` / `WorkerRoute`） |
-| `workers.ts` | 三个业务工人：`WORKER_PROMPTS` 职责提示词 + `WORKER_TOOLS` 最小工具表 + `runWorker`（复用引擎的手写工具循环） |
-| `handoff.ts` | 转人工：`formatTranscript` 文稿 → `buildHandoffPack` 组装（LLM 摘要 + 降级 + mock 工单）→ `formatHandoffPack` 打印块 + `handoffReply` 用户告知 |
-| `index.ts` | 桶导出（`@agent-app/engine/service` 子路径的公共面，CLI 与 HTTP API 共用） |
-| `README.md` | 本文 |
+| `workers.ts`    | 三个业务工人：`WORKER_PROMPTS` 职责提示词 + `WORKER_TOOLS` 最小工具表 + `runWorker`（复用引擎的手写工具循环）                                                                                                                                                                 |
+| `handoff.ts`    | 转人工：`formatTranscript` 文稿 → `buildHandoffPack` 组装（LLM 摘要 + 降级 + mock 工单）→ `formatHandoffPack` 打印块 + `handoffReply` 用户告知                                                                                                                                |
+| `index.ts`      | 桶导出（`@agent-app/engine/service` 子路径的公共面，CLI 与 HTTP API 共用）                                                                                                                                                                                                    |
+| `README.md`     | 本文                                                                                                                                                                                                                                                                          |
 
 ### 数据契约（住在 `@agent-app/shared`，CLI 与 HTTP API 的响应形状同源）
 
-| 契约 | 形状 | 为什么存在 |
-| --- | --- | --- |
-| `WorkerRoute` | `"order" \| "refund" \| "knowledge"` | 三分类能**枚举**——枚举得了的就别用自由文本 |
-| `RouteTarget` | `WorkerRoute \| "human"` | human 与工人并列：路由是四路分支，不是 try/catch |
-| `RouteDecision` | `{ target, reason }` | reason 转人工时写进工单，是接手人的第一眼信息 |
-| `ServiceHandoffPack` | `{ ticketId, reason, userSummary, recentTranscript, createdAt }` | 转人工上下文包：接手人不用用户复述 |
+| 契约                 | 形状                                                             | 为什么存在                                       |
+| -------------------- | ---------------------------------------------------------------- | ------------------------------------------------ |
+| `WorkerRoute`        | `"order" \| "refund" \| "knowledge"`                             | 三分类能**枚举**——枚举得了的就别用自由文本       |
+| `RouteTarget`        | `WorkerRoute \| "human"`                                         | human 与工人并列：路由是四路分支，不是 try/catch |
+| `RouteDecision`      | `{ target, reason }`                                             | reason 转人工时写进工单，是接手人的第一眼信息    |
+| `ServiceHandoffPack` | `{ ticketId, reason, userSummary, recentTranscript, createdAt }` | 转人工上下文包：接手人不用用户复述               |
 
 ## 三、各部分原理
 
@@ -71,11 +80,11 @@
 
 三组**导出的**关键词常量，各兜一类"必须转"的场景：
 
-| 常量 | 关键词（代码原文） | 兜的是什么 |
-| --- | --- | --- |
-| `HUMAN_REQUEST_KEYWORDS` | 转人工 / 找真人 / 换人工 / 人工客服 / 换个人 | 用户明确要求——"这三个字出现之前，用户通常已经忍了一阵" |
-| `HIGH_RISK_KEYWORDS` | 退款争议 / 投诉 / 起诉 / 律师 / 法院 / 媒体 | 高危业务——"答错一个字的代价远高于转一百单人工" |
-| `UNRESOLVED_SIGNALS` | 不是这个 / 答非所问 / 没解决 / 没帮我 / 到底 / 还是不行 / 你没听懂 / 我问的 | 追问未解决的**计数原料**——命中说明 AI 在原地打转 |
+| 常量                     | 关键词（代码原文）                                                          | 兜的是什么                                             |
+| ------------------------ | --------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `HUMAN_REQUEST_KEYWORDS` | 转人工 / 找真人 / 换人工 / 人工客服 / 换个人                                | 用户明确要求——"这三个字出现之前，用户通常已经忍了一阵" |
+| `HIGH_RISK_KEYWORDS`     | 退款争议 / 投诉 / 起诉 / 律师 / 法院 / 媒体                                 | 高危业务——"答错一个字的代价远高于转一百单人工"         |
+| `UNRESOLVED_SIGNALS`     | 不是这个 / 答非所问 / 没解决 / 没帮我 / 到底 / 还是不行 / 你没听懂 / 我问的 | 追问未解决的**计数原料**——命中说明 AI 在原地打转       |
 
 三个纯函数构成判定链：`matchAnyKeyword`（消息含任一关键词则返回该词，否则 null）→
 `isUnresolvedSignal`（这条算不算一次"追问未解决"）→ `checkHardRules`（总判定）。
@@ -114,10 +123,10 @@ reason 报的是未解决轮数。
 
 每个工人 = **一份职责提示词 + 一张最小工具表**，跑在引擎第 1 阶段备好的 `runToolLoop` 上：
 
-| 工人 | 工具表（全部家当） | 职责提示词里的边界与出口 |
-| --- | --- | --- |
-| order | `getOrderStatus` | 只处理订单/物流/发货；查不到如实告知，**禁止编造订单信息** |
-| refund | `createTicket` | 只处理退款退货售后；争议无法判定时**建议用户转人工，不要自行承诺** |
+| 工人      | 工具表（全部家当）    | 职责提示词里的边界与出口                                                        |
+| --------- | --------------------- | ------------------------------------------------------------------------------- |
+| order     | `getOrderStatus`      | 只处理订单/物流/发货；查不到如实告知，**禁止编造订单信息**                      |
+| refund    | `createTicket`        | 只处理退款退货售后；争议无法判定时**建议用户转人工，不要自行承诺**              |
 | knowledge | `searchKnowledgeBase` | 回答前**先检索**，只依据检索结果作答，句末标 `[1][2]`；检索不到**老实说不知道** |
 
 **最小权限原则**：order 工人建不了工单——不是提示词求它别建，是它手里根本没有这个工具。
@@ -149,13 +158,13 @@ reason 报的是未解决轮数。
 
 降级方向只有一个——**转人工，绝不给报错页**。用户侧看到的永远是业务动作，不是技术故障：
 
-| 哪里挂了 | 降级动作（代码位置） | 用户看到 |
-| --- | --- | --- |
-| 模型两次输出不合规 | `classifyWithLlm` 抛错 → CLI catch → decision 直接判 human | 转人工 + 工单 |
-| 没配 key / 网关不通（supervise 抛错） | 同上，reason 写明"按降级预案直接转人工（用户侧不暴露报错）" | 转人工 + 工单 |
-| 工人执行失败（模型不可用） | CLI catch → `doHandoff`，reason 写明工人处理失败 | 转人工 + 工单 |
-| 摘要模型挂 | `buildHandoffPack` catch → `fallbackSummary` 原文拼接 | 工单照出（摘要变拼接） |
-| 完全离线 | 工单本就是 mock，无网也能走完转人工 | 完整转人工流程 |
+| 哪里挂了                              | 降级动作（代码位置）                                        | 用户看到               |
+| ------------------------------------- | ----------------------------------------------------------- | ---------------------- |
+| 模型两次输出不合规                    | `classifyWithLlm` 抛错 → CLI catch → decision 直接判 human  | 转人工 + 工单          |
+| 没配 key / 网关不通（supervise 抛错） | 同上，reason 写明"按降级预案直接转人工（用户侧不暴露报错）" | 转人工 + 工单          |
+| 工人执行失败（模型不可用）            | CLI catch → `doHandoff`，reason 写明工人处理失败            | 转人工 + 工单          |
+| 摘要模型挂                            | `buildHandoffPack` catch → `fallbackSummary` 原文拼接       | 工单照出（摘要变拼接） |
+| 完全离线                              | 工单本就是 mock，无网也能走完转人工                         | 完整转人工流程         |
 
 这正是 service.md 上线检查清单的第 8 条：**降级链路必须在上线前演练**——"模型挂了直接
 转人工而不是报错"不是口头承诺，是写在 catch 分支里的行为，且可测。
@@ -180,19 +189,19 @@ HTTP API（`apps/api` 的 `/api/service`）复用同一套 `supervise` / `runWor
 
 ## 四、原理 → 代码对照表（学习自测清单）
 
-| 你应该能回答 | 对应实现 |
-| --- | --- |
-| 为什么硬规则必须排在 LLM 分类前面？ | `supervisor.ts` 头注释：确定性 / 零成本零延迟 / 可测，容不得模型偶尔判漏 |
-| 三条硬规则的优先级？为什么未解决计数排最前？ | `checkHardRules` 判定顺序 + 注释"最需要兜底的排最前"；`__tests__.ts` 双命中用例 |
-| "连续未解决"的计数存在哪、谁维护？ | `SupervisorState` 纯数据入参；`cli.ts` 每轮 `isUnresolvedSignal(input) ? +1 : 0` |
-| 路由为什么用 generateText 而不是 generateObject？ | `json-utils.ts` 头注释：glm-4-flash 等静默无视 response_format；格式写进提示词 |
-| 模型输出不合规怎么办？重试时提示词怎么变？ | `classifyWithLlm` 两次循环：第二次 system 追加"只输出 JSON 对象本身" |
-| order 工人为什么建不了工单？ | `WORKER_TOOLS` 按工人裁剪：误伤面从工具表上掐掉（最小权限） |
-| knowledge 工人的 `[1][2]` 引用编号谁分配？ | `tools/kb-search.ts`：编号由后端分配，模型只负责回标 |
-| 转人工后接手人靠什么不用用户复述？ | `buildHandoffPack`：工单号 / 原因 / 用户摘要 / 最近对话四件套 |
-| 摘要模型挂了，转人工还能完成吗？ | `fallbackSummary`（最近 3 条用户消息拼接）+ createTicket 为 mock，离线可用 |
-| supervise 抛错（没配 key）用户会看到报错页吗？ | `cli.ts` catch → decision human，"用户侧不暴露报错" |
-| CLI 与 HTTP API 为什么能共用这套逻辑？ | `index.ts` 头注释：公共核心进引擎包；契约在 `@agent-app/shared` 同源 |
+| 你应该能回答                                      | 对应实现                                                                         |
+| ------------------------------------------------- | -------------------------------------------------------------------------------- |
+| 为什么硬规则必须排在 LLM 分类前面？               | `supervisor.ts` 头注释：确定性 / 零成本零延迟 / 可测，容不得模型偶尔判漏         |
+| 三条硬规则的优先级？为什么未解决计数排最前？      | `checkHardRules` 判定顺序 + 注释"最需要兜底的排最前"；`__tests__.ts` 双命中用例  |
+| "连续未解决"的计数存在哪、谁维护？                | `SupervisorState` 纯数据入参；`cli.ts` 每轮 `isUnresolvedSignal(input) ? +1 : 0` |
+| 路由为什么用 generateText 而不是 generateObject？ | `json-utils.ts` 头注释：glm-4-flash 等静默无视 response_format；格式写进提示词   |
+| 模型输出不合规怎么办？重试时提示词怎么变？        | `classifyWithLlm` 两次循环：第二次 system 追加"只输出 JSON 对象本身"             |
+| order 工人为什么建不了工单？                      | `WORKER_TOOLS` 按工人裁剪：误伤面从工具表上掐掉（最小权限）                      |
+| knowledge 工人的 `[1][2]` 引用编号谁分配？        | `tools/kb-search.ts`：编号由后端分配，模型只负责回标                             |
+| 转人工后接手人靠什么不用用户复述？                | `buildHandoffPack`：工单号 / 原因 / 用户摘要 / 最近对话四件套                    |
+| 摘要模型挂了，转人工还能完成吗？                  | `fallbackSummary`（最近 3 条用户消息拼接）+ createTicket 为 mock，离线可用       |
+| supervise 抛错（没配 key）用户会看到报错页吗？    | `cli.ts` catch → decision human，"用户侧不暴露报错"                              |
+| CLI 与 HTTP API 为什么能共用这套逻辑？            | `index.ts` 头注释：公共核心进引擎包；契约在 `@agent-app/shared` 同源             |
 
 能全答上来，再往下读实现代码；答不上来，回到对应章节。
 
@@ -205,16 +214,16 @@ HTTP API（`apps/api` 的 `/api/service`）复用同一套 `supervise` / `runWor
 原理 → 纯函数（离线）→ 自测 → 模型侧 → 工人 → 转人工 → 总装 → 实战
 ```
 
-| 步骤 | 文件 | 学什么 | 通关标准（能做到才往下走） | 时间 |
-| --- | --- | --- | --- | --- |
-| **0** | 本文（原理篇） | 星型调度 + 三堵墙 + 降级链路 | 能回答第四节 11 问 | 20min |
-| **1** | `supervisor.ts` 前半 | 三组常量 + `matchAnyKeyword` / `isUnresolvedSignal` / `checkHardRules` | 能说出三条硬规则的优先级与各自兜底的场景 | 25min |
-| **2** | ✋ 动手验证 | 硬规则离线全测 | `pnpm test:service` 全绿，且能说出 5 组测试各在测什么（无任何网络请求） | 10min |
-| **3** | `supervisor.ts` 后半 | `routeSchema` / `ROUTER_PROMPT` / `classifyWithLlm` / `supervise` | 能解释为什么不用 generateObject、重试时提示词加了什么 | 25min |
-| **4** | `workers.ts` | 职责提示词三要素 + 最小工具表 + `runWorker` | 能画出 order 工人收到的 messages 长什么样（去尾 20 轮 + 本轮） | 20min |
-| **5** | `handoff.ts` | 四件套 + 摘要降级 + 工单流水线 | 能说出摘要失败后，包里的 userSummary 装的是什么 | 25min |
-| **6** | `apps/cli/src/apps/service/cli.ts` | 总装：计数维护 / 两条降级 catch / 会话回写 | 能复述一条"转人工"消息从输入到工单打印的完整旅程（本文 3.6） | 20min |
-| **7** | 🚀 全链路实战 | 真实路由流动 | `pnpm service --trace` 跑通，亲眼看 🧭 路由行 | 20min |
+| 步骤  | 文件                               | 学什么                                                                 | 通关标准（能做到才往下走）                                              | 时间  |
+| ----- | ---------------------------------- | ---------------------------------------------------------------------- | ----------------------------------------------------------------------- | ----- |
+| **0** | 本文（原理篇）                     | 星型调度 + 三堵墙 + 降级链路                                           | 能回答第四节 11 问                                                      | 20min |
+| **1** | `supervisor.ts` 前半               | 三组常量 + `matchAnyKeyword` / `isUnresolvedSignal` / `checkHardRules` | 能说出三条硬规则的优先级与各自兜底的场景                                | 25min |
+| **2** | ✋ 动手验证                        | 硬规则离线全测                                                         | `pnpm test:service` 全绿，且能说出 5 组测试各在测什么（无任何网络请求） | 10min |
+| **3** | `supervisor.ts` 后半               | `routeSchema` / `ROUTER_PROMPT` / `classifyWithLlm` / `supervise`      | 能解释为什么不用 generateObject、重试时提示词加了什么                   | 25min |
+| **4** | `workers.ts`                       | 职责提示词三要素 + 最小工具表 + `runWorker`                            | 能画出 order 工人收到的 messages 长什么样（去尾 20 轮 + 本轮）          | 20min |
+| **5** | `handoff.ts`                       | 四件套 + 摘要降级 + 工单流水线                                         | 能说出摘要失败后，包里的 userSummary 装的是什么                         | 25min |
+| **6** | `apps/cli/src/apps/service/cli.ts` | 总装：计数维护 / 两条降级 catch / 会话回写                             | 能复述一条"转人工"消息从输入到工单打印的完整旅程（本文 3.6）            | 20min |
+| **7** | 🚀 全链路实战                      | 真实路由流动                                                           | `pnpm service --trace` 跑通，亲眼看 🧭 路由行                           | 20min |
 
 ### 第 7 步实战命令（最有体感的一步）
 
@@ -237,11 +246,11 @@ trace 里"硬规则命中（不问模型）"这一行，就是第 1 步学的优
 
 ## 七、扩展路线
 
-| 现在 | 可去的方向 | 依据（都已在代码里留了缝） |
-| --- | --- | --- |
-| 关键词写死在三组导出常量 | 规则配置化：运营改关键词 / 阈值不用重新发版 | 常量已导出，`checkHardRules` 只吃 `SupervisorState`，替换数据源不动判定逻辑 |
-| `createTicket` 为 mock 工单 | 接真实工单系统 | `handoff.ts` 注释原话：`formatHandoffPack` 这份打印块"接真实工单系统时就是 payload"；`ServiceHandoffPack` 契约在 shared，web 端 `/service` 页已在渲染工单卡片 |
-| 路由与工人共用一个模型 | 大小模型分工：路由这种轻任务用小模型省钱 | `llm.ts` 的 `createModel(modelId?)` 参数注释点名"路由场景里大小模型分工" |
-| 三个工人 | 加第四个工人（如物流异常专席） | `WORKER_PROMPTS` / `WORKER_TOOLS` 都是 `Record<WorkerName, …>`：加一个键 + 一张提示词 + 一张工具表，路由 schema 加一个枚举值即可 |
+| 现在                        | 可去的方向                                  | 依据（都已在代码里留了缝）                                                                                                                                    |
+| --------------------------- | ------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 关键词写死在三组导出常量    | 规则配置化：运营改关键词 / 阈值不用重新发版 | 常量已导出，`checkHardRules` 只吃 `SupervisorState`，替换数据源不动判定逻辑                                                                                   |
+| `createTicket` 为 mock 工单 | 接真实工单系统                              | `handoff.ts` 注释原话：`formatHandoffPack` 这份打印块"接真实工单系统时就是 payload"；`ServiceHandoffPack` 契约在 shared，web 端 `/service` 页已在渲染工单卡片 |
+| 路由与工人共用一个模型      | 大小模型分工：路由这种轻任务用小模型省钱    | `llm.ts` 的 `createModel(modelId?)` 参数注释点名"路由场景里大小模型分工"                                                                                      |
+| 三个工人                    | 加第四个工人（如物流异常专席）              | `WORKER_PROMPTS` / `WORKER_TOOLS` 都是 `Record<WorkerName, …>`：加一个键 + 一张提示词 + 一张工具表，路由 schema 加一个枚举值即可                              |
 
 走完这条线，再回看第一节的三堵墙：调度、确定性、退路——每堵墙都对应一段你能亲手改的代码，这就是"读得懂"和"改得动"之间的距离。

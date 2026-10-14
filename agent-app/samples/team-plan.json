@@ -1,0 +1,19 @@
+{
+  "id": "demo-order-chase",
+  "goal": "查订单 A-1024 的物流状态，若尚未签收就创建催发工单",
+  "tasks": [
+    {
+      "id": "check-order",
+      "title": "查询订单状态",
+      "goal": "调用 getOrderStatus 工具查询订单 A-1024 的物流状态，如实转述返回结果",
+      "acceptance": { "type": "contains", "anyOf": ["已发货", "未发货", "仓库", "签收"] }
+    },
+    {
+      "id": "chase-ticket",
+      "title": "创建催发工单",
+      "goal": "基于上一步的订单状态：若尚未签收，调用 createTicket 创建催发工单（subject=催发订单A-1024）；若已签收则说明无需建单",
+      "dependsOn": ["check-order"],
+      "acceptance": { "type": "contains", "anyOf": ["TK-"] }
+    }
+  ]
+}

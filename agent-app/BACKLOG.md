@@ -60,7 +60,7 @@
 
 **仍挂账的子项**：
 
-- `pnpm team "目标"` CLI 入口（apps/cli 加编排命令，消费 Orchestrator）
+- ~~`pnpm team "目标"` CLI 入口~~ ✅ **已落地（2026-10-13）**：`pnpm team "目标"`（动态）/ `pnpm team --plan plan.json`（静态）/ `--trace --id --max-tokens`；demo 工具过幂等壳；真实动态冒烟 3 任务全链路通过（含 critic 拒绝→打回→降级的完整验收链）；顺带修掉 extractJson 不支持 JSON 数组的引擎 bug（LlmPlanner 任务单解析必挂）
 - P1 升格叙事（半小时，零代码）：`service/README.md` 增补「你就是多 Agent：Supervisor 模式」——supervisor = 路由 Agent，workers = 三个专家 Agent（独立 system prompt + 最小权限工具表），HandoffPack = Agent 间上下文交接；对照 LangGraph supervisor / CrewAI manager+crew
 - P3 A2A 落地（week19 Day 4 的代码化）：`GET /.well-known/agent-card.json` + `POST /a2a/tasks`（接收外部 Agent 委托 → 路由到 worker 或编排流水线）；狗粮：双实例互调
 - 在线观测档位：编排事件流接 SSE（前端看拆/派/跑实时轨迹）、token 成本聚合（与 #10 共享基建）

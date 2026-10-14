@@ -5,15 +5,24 @@
 // 换任何 OpenAI 兼容网关（GLM / Qwen / DeepSeek）行为一致。
 
 /**
- * 从模型回复里抠出第一个 JSON 对象。
- * 容忍 ```json 围栏与前后废话：取第一个 { 到最后一个 } 之间的内容再解析；
+ * 从模型回复里抠出第一个 JSON 值（对象或数组）。
+ * 容忍 ```json 围栏与前后废话：取第一个 { 或 [ 到最后一个 } 或 ] 之间的内容再解析；
  * 解析失败抛带原文摘录的中文错误（上层决定重试还是降级）。
+ *
+ * 为什么数组也要支持：LlmPlanner 的任务单就是 JSON 数组——此前只找 {..}，
+ * 模型回 ```json [...] ``` 时会截出「首对象的 { 到末对象的 }」的非法片段
+ * （两个对象用逗号连着），JSON.parse 必挂（team CLI 真实冒烟抓到）。
  */
 export function extractJson(text: string): unknown {
   const trimmed = text.trim();
-  const start = trimmed.indexOf("{");
-  const end = trimmed.lastIndexOf("}");
-  const candidate = start >= 0 && end > start ? trimmed.slice(start, end + 1) : trimmed;
+  const open = [trimmed.indexOf("{"), trimmed.indexOf("[")].filter((i) => i >= 0);
+  const close = [trimmed.lastIndexOf("}"), trimmed.lastIndexOf("]")].filter((i) => i >= 0);
+  let candidate = trimmed;
+  if (open.length > 0 && close.length > 0) {
+    const start = Math.min(...open);
+    const end = Math.max(...close);
+    if (end > start) candidate = trimmed.slice(start, end + 1);
+  }
   try {
     return JSON.parse(candidate);
   } catch {

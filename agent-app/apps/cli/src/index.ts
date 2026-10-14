@@ -19,8 +19,11 @@ if (cmd === "chat") {
 } else if (cmd === "mcp-server") {
   const { main } = await import("./apps/mcp-server/cli.js");
   await main(rest);
+} else if (cmd === "team") {
+  const { main } = await import("./apps/team/cli.js");
+  await main(rest);
 } else {
-  console.log("用法：pnpm cli chat | kb | service | eval | mcp-server");
+  console.log("用法：pnpm cli chat | kb | service | eval | mcp-server | team");
   if (cmd !== undefined) {
     console.error(`未知命令：${cmd}`);
     process.exitCode = 1;
