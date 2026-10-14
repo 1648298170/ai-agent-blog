@@ -38,8 +38,9 @@ export const DEFAULT_EPISODIC_STORE: EpisodicStoreKind = "memory";
 /** 按 env 装配会话存储（默认 memory）。summarize 可注入假实现（自检/测试离线覆盖压缩路径） */
 export function createSessionStoreFromEnv(env: Record<string, string> = loadEnv()): SessionStore {
   const value = (env.SESSION_STORE ?? DEFAULT_SESSION_STORE).trim().toLowerCase();
-  // 压缩水位线：MODEL_CONTEXT_TOKENS 直配或按 OPENAI_MODEL 查表（如 glm-4-flash=128K）——
-  // 都未命中返回 undefined = 走条数阈值（现状行为，离线零变化）
+  // 压缩水位线：MODEL_CONTEXT_TOKENS 直配 / 显式 off 关闭 / 按 OPENAI_MODEL 查表
+  // （默认模型 glm-4-flash 命中查表——开箱即启用，触发 = 窗口×75%；仅查表未命中
+  // 且未直配时才走条数阈值旧路径）
   const contextTokens = modelContextTokensFromEnv(env, getConfig().model);
   const watermark = contextTokens === undefined ? undefined : { contextTokens };
   if (contextTokens !== undefined) {

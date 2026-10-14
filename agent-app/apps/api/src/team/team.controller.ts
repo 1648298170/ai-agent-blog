@@ -40,6 +40,13 @@ export class TeamController {
     res.setHeader("X-Accel-Buffering", "no");
     res.flushHeaders();
 
+    // SSE 断连中止（chat.stream 同款骨架）：客户端消失后编排软着陆——
+    // 波次间检查 aborted 不再派发后续子任务，不再烧剩余的模型调用
+    const abort = new AbortController();
+    res.on("close", () => {
+      if (!res.writableEnded) abort.abort();
+    });
+
     const write = (payload: unknown): void => {
       res.write(`data: ${JSON.stringify(payload)}\n\n`);
     };
@@ -53,7 +60,8 @@ export class TeamController {
     write({ type: "session", orchestrationId });
 
     // 事件透传：engine 的 OrchestrationEvent 原样出站（不做二次包装——web 端
-    // 拿到的是编排器的一手事件流）
+    // 拿到的是编排器的一手事件流；断连后的 interrupted 软着陆事件照发，
+    // 响应已销毁时 write 是安全的 no-op）
     const sink = (event: OrchestrationEvent): void => write(event);
 
     const { orchestrator } = assembleTeamOrchestrator({ traceSink: sink });
@@ -66,10 +74,11 @@ export class TeamController {
           tasks: [],
           maxTokens: parseMaxTokens(maxTokens),
         },
-        undefined,
+        abort.signal,
       );
       write({ type: "done", orchestrationId });
     } catch (err) {
+      if (abort.signal.aborted) return; // 客户端已断：error 事件写给谁？直接收尾
       // 编排失败（验收不达标 / 预算超支 / 升级人工等）——终态已由编排器落盘，
       // 同 id 重入可断点续跑；这里把失败原因带给前端（中文错误礼仪）
       write({

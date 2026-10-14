@@ -14,7 +14,7 @@ import { MemoryStateStore } from "./state-store.js";
 import { createDemoTools, searchKnowledgeBase } from "../tools/index.js";
 import { createIdempotencyRegistryFromEnv, wrapToolsWithIdempotencyAuto } from "../tools/index.js";
 import type { AgentToolSet } from "../types.js";
-import type { OrchestratorOptions, OrchestrationEvent, OrchestrationResult } from "./orchestrator.js";
+import type { OrchestratorOptions, OrchestrationEvent } from "./orchestrator.js";
 
 /** 编排事件 → [图标, 文本]（cli/api 共用的展示映射；返回 null = 不展示） */
 export function mapEventToTrace(event: OrchestrationEvent): [string, string] | null {
@@ -62,7 +62,8 @@ export const TEAM_IDEMPOTENCY_SCOPE = "team";
 export function assembleTeamOrchestrator(options: {
   traceSink?: (event: OrchestrationEvent) => void;
   overrides?: TeamOverrides;
-  /** 工具表覆盖（测试可注空表；默认 demo 三件套 + 知识库检索） */
+  /** 工具表覆盖：与默认表（demo 三件套 + 知识库检索）展开合并、同键覆盖——
+   *  传 {} 即默认表；要「零工具」需经 overrides.executor 注入自定义执行器 */
   tools?: AgentToolSet;
 }): TeamAssembly {
   const overrides = options.overrides ?? {};
@@ -86,12 +87,4 @@ export function assembleTeamOrchestrator(options: {
     onEvent: options.traceSink,
   });
   return { orchestrator };
-}
-
-/** 编排结果 → 汇总文本（CLI 打印与 API done 事件共用） */
-export function summarizeTeamResult(result: OrchestrationResult): string {
-  return (
-    result.outputs.map((o) => `—— ${o.taskId} ——\n${o.text.trim() || "（无产出）"}`).join("\n\n") ||
-    "（无子任务产出）"
-  );
 }
