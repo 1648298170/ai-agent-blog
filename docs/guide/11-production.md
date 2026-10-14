@@ -14,11 +14,11 @@
 
 [how-to · MATURITY](/how-to/MATURITY) 把答案整理成三档：
 
-| 档 | 定义 | 本项目对应 |
-|---|---|---|
-| **Demo** | 跑通概念，重启丢状态，单进程 | 内存存储默认值、零配置可跑 |
-| **单实例** | 单机可长期跑（持久化/容错有了） | pgvector + Redis + 契约测试 |
-| **生产前置** | 上生产前还差什么 | 重试退避 / RBAC / 限流 / OTel……（见第六节） |
+| 档           | 定义                            | 本项目对应                                  |
+| ------------ | ------------------------------- | ------------------------------------------- |
+| **Demo**     | 跑通概念，重启丢状态，单进程    | 内存存储默认值、零配置可跑                  |
+| **单实例**   | 单机可长期跑（持久化/容错有了） | pgvector + Redis + 契约测试                 |
+| **生产前置** | 上生产前还差什么                | 重试退避 / RBAC / 限流 / OTel……（见第六节） |
 
 教学价值恰恰在最后一张表：**「诚实边界」比「什么都能」更值钱**——知道差几步，比以为没有差距安全得多。
 
@@ -80,15 +80,15 @@ api 容器内：  PG_CONNECTION_STRING=postgres://agent:agent@postgres:5432/agen
 
 这张表每一条都能在 [how-to · MATURITY](/how-to/MATURITY) 与 [BACKLOG](https://github.com/1648298170/ai-agent-blog/blob/main/agent-app/BACKLOG.md) 里找到出处：
 
-| 未做项 | 差在哪 | 挂账 |
-|---|---|---|
-| 重试与退避 | 模型调用失败即失败，无 429/5xx 指数退避 | BACKLOG #3 |
-| 认证 / RBAC 多租户 / 限流 | web/api 对公网是裸奔 | BACKLOG #5 |
-| 幂等缓存跨实例 | 进程内存版，重启即清（接口已留 Redis SETNX 缝） | MATURITY |
-| 审批登记簿跨实例 | 进程内存，多实例需共享 | MATURITY |
-| 在线评估 | 76 例是离线考卷，真实流量未回流 | BACKLOG |
-| OTel / 结构化日志 | trace 是 stderr 图标流，无 trace-id 贯穿 | BACKLOG #6 |
-| 语义缓存 / 成本面板 | 见第五节 | BACKLOG #10 |
+| 未做项                    | 差在哪                                          | 挂账        |
+| ------------------------- | ----------------------------------------------- | ----------- |
+| 重试与退避                | 模型调用失败即失败，无 429/5xx 指数退避         | BACKLOG #3  |
+| 认证 / RBAC 多租户 / 限流 | web/api 对公网是裸奔                            | BACKLOG #5  |
+| 幂等缓存跨实例            | 进程内存版，重启即清（接口已留 Redis SETNX 缝） | MATURITY    |
+| 审批登记簿跨实例          | 进程内存，多实例需共享                          | MATURITY    |
+| 在线评估                  | 76 例是离线考卷，真实流量未回流                 | BACKLOG     |
+| OTel / 结构化日志         | trace 是 stderr 图标流，无 trace-id 贯穿        | BACKLOG #6  |
+| 语义缓存 / 成本面板       | 见第五节                                        | BACKLOG #10 |
 
 ## 七、跑起来（生产化全流程）
 
@@ -130,4 +130,4 @@ pnpm stack:down                                     # ⑤ 只撤 api+web，pg/re
 - [how-to · MATURITY](/how-to/MATURITY) —— 每个模块的档位与生产前置项（本章诚实清单的全文版）
 - [参考库 · 三层记忆](/reference/04-memory) —— 存储接口契约与契约测试挂法
 - 归档周教程：[week14 · pgvector](/archive/weeks/week14/) · [week17 · Redis 记忆](/archive/weeks/week17/) · [week21 · 可观测与成本](/archive/weeks/week21/) · [week22 · 系统设计](/archive/weeks/week22/)
-- 下一站：[12 · 学完之后：演进方向](/guide/12-roadmap) —— 十二站走完，这张诚实清单就是你的下一份地图
+- 下一站：[12 · 学完之后：演进方向](/guide/12-roadmap) —— 十三站走完，这张诚实清单就是你的下一份地图
