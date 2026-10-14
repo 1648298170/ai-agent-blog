@@ -54,8 +54,14 @@ export type Summarizer = (prompt: string) => Promise<string>;
 export interface WatermarkPolicy {
   /** 模型上下文窗口（token 数）——通常来自 MODEL_CONTEXT_TOKENS 或按模型名查表 */
   readonly contextTokens: number;
-  /** 预留比例：触发水位 = 窗口 × (1 − buffer)，默认 0.25（留给回答与压缩调用本身） */
+  /** 触发线 buffer：触发水位 = 窗口 × (1 − buffer)，默认 0.25（触发于 75% 窗口） */
   readonly bufferRatio?: number;
+  /**
+   * 压缩目标水位占比：保留量贪心至 ≤ 窗口 × targetRatio（默认 0.5，对齐
+   * BACKLOG ①「压到窗口 50% 水位」——此前实现误用 bufferRatio 致目标为 25%，
+   * 比 spec 激进一倍，审查纠正）
+   */
+  readonly targetRatio?: number;
   /** 估算函数（默认 estimateTokens）；测试注假函数精确控制水位 */
   readonly estimate?: (text: string) => number;
 }
@@ -128,14 +134,15 @@ export async function compressIfNeeded(
   let older: ChatTurn[];
   let recent: ChatTurn[];
   if (watermark !== undefined && turns.length > 1) {
-    const { contextTokens, bufferRatio = 0.25, estimate = estimateTokens } = watermark;
+    const { contextTokens, bufferRatio = 0.25, targetRatio = 0.5, estimate = estimateTokens } = watermark;
     const totalTokens = turns.reduce((sum, t) => sum + estimate(t.content), 0);
     const trigger = contextTokens * (1 - bufferRatio);
     if (totalTokens <= trigger) return turns; // 水位未到：不压缩（水位模式下条数不触发）
 
-    // 压缩目标：从尾部贪心保留至 ≤ 窗口 × buffer（约 50% 水位）。
-    // 至少保 1 条——单条超预算的消息也保留（摘要它毫无意义，让上层护栏处理）
-    const budget = contextTokens * bufferRatio;
+    // 压缩目标：从尾部贪心保留至 ≤ 窗口 × targetRatio（对齐 BACKLOG ①「压到
+    // 窗口 50% 水位」）。至少保 1 条——单条超预算的消息也保留（摘要它毫无意义，
+    // 让上层护栏处理）
+    const budget = contextTokens * targetRatio;
     let keptTokens = 0;
     let keepCount = 0;
     for (let i = turns.length - 1; i >= 0; i--) {

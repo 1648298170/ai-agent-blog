@@ -116,14 +116,17 @@ export async function createMcpClientBridge(options: StdioMcpBridgeOptions): Pro
  * close 同时关两端（Client 与传入的 Server）——内存传输不像 stdio 有进程退出
  * 兜底，不显式关掉 server 它会一直挂在已死的传输上。
  */
-export async function createInMemoryMcpClientBridge(server: McpServer): Promise<McpClientBridge> {
+export async function createInMemoryMcpClientBridge(
+  server: McpServer,
+  adapterOptions?: McpAdapterOptions,
+): Promise<McpClientBridge> {
   const client = new Client(CLIENT_INFO);
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   // 顺序铁律：server 先 connect（P1 实证），client 后 connect（发 initialize）
   await server.connect(serverTransport);
   try {
     await client.connect(clientTransport);
-    const tools = await listAndAdapt(client);
+    const tools = await listAndAdapt(client, adapterOptions);
     return {
       name: "in-memory",
       tools,

@@ -53,6 +53,9 @@ const ENV_KEYS = [
   "MODEL_CONTEXT_TOKENS",
   // MCP callTool 超时毫秒数（外部服务器挂起防线；0 = 关闭超时回到无限等，默认 60000）
   "AGENT_MCP_TOOL_TIMEOUT_MS",
+  // LLM 注入自检开关（=1 开启）：api 层语义二道防线。教训（同 EPISODIC_STORE 补遗）：
+  // 键不在本清单时 process.env 值不进合并表——.env/环境变量写法都会静默失效
+  "AGENT_GUARD_LLM_SCAN",
 ] as const;
 
 /**
