@@ -197,7 +197,23 @@ pnpm --filter @agent-app/engine exec vitest run test/orchestrator.spec.ts
 # 断点续跑（含动态规划任务单复用）/ DAG 顺序 / 事件断言 / TestClock 虚拟时钟——全部离线零网络
 ```
 
-编排器默认不参与产品线（客服 / kb 均为单 Agent）——它是一个**可用的基建件**，消费方（api/cli）按需组装。
+**真模型体感（需 .env 配好 key）**——`pnpm team` 一条命令体验完整拆·派·跑：
+
+```powershell
+# 动态模式：LLM 把目标拆成子任务单（演示规划/执行/验收三分工）
+pnpm team "查订单A-1024的物流状态，如果还没签收就建一个催发工单" --trace
+
+# 静态模式：跳过规划按任务单执行（samples/team-plan.json，拆单结果可预期）
+pnpm team --plan samples/team-plan.json --trace --id demo-run-1
+
+# 断点续跑：同 --id 重入，已完成子任务自动跳过
+pnpm team --plan samples/team-plan.json --id demo-run-1
+```
+
+`--trace` 下可看到：🧭 状态迁移（pending→planning→executing→reviewing→done）、
+✓ 子任务完成、⚠ 升级人工、⏸ 中止——编排器的五类事件全部可观测。
+
+编排器默认不参与产品线（客服 / kb 均为单 Agent）——它是一个**可用的基建件**，消费方（api/cli 的 `pnpm team`）按需组装。
 
 ---
 

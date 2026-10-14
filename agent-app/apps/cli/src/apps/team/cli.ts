@@ -155,8 +155,10 @@ export function assembleTeamOrchestrator(options: {
   overrides?: TeamOverrides;
 }): TeamAssembly {
   const overrides = options.overrides ?? {};
-  // 工具表：demo 三件套 + 知识库检索，全过幂等壳（写操作 TTL 窗口防重——
-  // 编排重试/断点续跑场景下「同参重放」直接命中，不会重复建工单）
+  // 工具表：demo 三件套 + 知识库检索，全过幂等壳。scope 固定 "team" 的语义取舍：
+  // 幂等键 = scope + 工具 + 参数指纹——固定 scope 让「10 分钟窗口内跨编排的同参
+  // 调用」直接命中缓存（如两次编排都查 A-1024、同 subject 建单），防重复写正是
+  // 幂等的本意；要按编排隔离时把 scope 换成编排 id（读操作更省，写操作防重变弱）
   const tools = { ...createDemoTools(), searchKnowledgeBase };
   const idempotency = createIdempotencyRegistryFromEnv();
   const wrapped = wrapToolsWithIdempotencyAuto(tools, idempotency, { scope: "team" });

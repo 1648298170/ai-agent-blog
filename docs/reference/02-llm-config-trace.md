@@ -21,12 +21,12 @@ runToolLoop({ model, messages, tools, ... })
 
 拆成四个具体问题，对应四个文件：
 
-| 问题 | 文件 | 一句话答案 |
-|---|---|---|
-| 模型实例从哪来？换厂商疼不疼？ | `src/llm.ts` | 工厂函数包一层，三家网关都是 OpenAI 兼容协议，**换厂商 = 只改 env** |
-| key / 网关地址 / 存储开关谁管？ | `src/config.ts` | 手动解析 .env + 类型化出口，业务代码**永不直接碰 `process.env`** |
-| Agent 黑盒怎么调？ | `src/trace.ts` | 一个 `trace(icon, msg)` 函数，图标约定打到 stderr |
-| 模型不守 JSON 约定怎么办？ | `src/json-utils.ts` | 宽松抽取 + 失败抛带原文的中文错误（glm-4-flash 踩坑的解法） |
+| 问题                            | 文件                | 一句话答案                                                          |
+| ------------------------------- | ------------------- | ------------------------------------------------------------------- |
+| 模型实例从哪来？换厂商疼不疼？  | `src/llm.ts`        | 工厂函数包一层，三家网关都是 OpenAI 兼容协议，**换厂商 = 只改 env** |
+| key / 网关地址 / 存储开关谁管？ | `src/config.ts`     | 手动解析 .env + 类型化出口，业务代码**永不直接碰 `process.env`**    |
+| Agent 黑盒怎么调？              | `src/trace.ts`      | 一个 `trace(icon, msg)` 函数，图标约定打到 stderr                   |
+| 模型不守 JSON 约定怎么办？      | `src/json-utils.ts` | 宽松抽取 + 失败抛带原文的中文错误（glm-4-flash 踩坑的解法）         |
 
 ---
 
@@ -38,11 +38,11 @@ runToolLoop({ model, messages, tools, ... })
 本项目默认接智谱 GLM（`https://open.bigmodel.cn/api/paas/v4`），但 DeepSeek、通义千问
 的兼容模式端点也是同一个协议形状——所以"换厂商"只是换三个环境变量：
 
-| 厂商 | baseURL | 聊天模型示例 | embedding 模型 |
-| --- | --- | --- | --- |
-| 智谱 GLM（默认） | `https://open.bigmodel.cn/api/paas/v4` | `glm-4-flash` | `embedding-3` |
-| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` | ❌ 无 embeddings 接口 |
-| 通义千问 | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-plus` | `text-embedding-v3` |
+| 厂商             | baseURL                                             | 聊天模型示例    | embedding 模型        |
+| ---------------- | --------------------------------------------------- | --------------- | --------------------- |
+| 智谱 GLM（默认） | `https://open.bigmodel.cn/api/paas/v4`              | `glm-4-flash`   | `embedding-3`         |
+| DeepSeek         | `https://api.deepseek.com/v1`                       | `deepseek-chat` | ❌ 无 embeddings 接口 |
+| 通义千问         | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-plus`     | `text-embedding-v3`   |
 
 > 选型核心：**"都兼容 OpenAI 协议"是零代码换厂商的前提**。业务代码只认
 > `LanguageModelV2` 这个接口，根本不知道背后是哪家网关。
@@ -78,14 +78,14 @@ config.ts 只有 ~110 行，却立了三条规矩：
 
 ### 1. `src/config.ts`（112 行）—— 一切的地基
 
-| 位置 | 内容 | 要点 |
-|---|---|---|
-| `AppConfig`（L11） | 类型化配置接口 | apiKey / baseURL / model / embeddingModel 四件套 |
-| `ENV_KEYS`（L24） | 环境变量白名单 | LLM 网关四件套 + 持久化基座开关（`*_STORE` / 连接串 / 维度）|
-| `parseEnvFile`（L45） | 手动解析 .env | 只认 `KEY=VALUE`，`#` 注释，成对引号剥掉；文件不存在返回空表**不抛错** |
-| `findEnvDir`（L71） | 逐级向上找 .env | 从 cwd 和模块目录两路起找——换个目录启动也能定位到项目根 |
-| `loadEnv`（L85） | 合并文件与进程 env | 先找到的 .env 生效；**进程环境变量覆盖 .env**（只读白名单键） |
-| `getConfig`（L104） | 类型化出口 | 默认值兜底：GLM 网关 + `glm-4-flash` + `embedding-3` |
+| 位置                  | 内容               | 要点                                                                   |
+| --------------------- | ------------------ | ---------------------------------------------------------------------- |
+| `AppConfig`（L11）    | 类型化配置接口     | apiKey / baseURL / model / embeddingModel 四件套                       |
+| `ENV_KEYS`（L24）     | 环境变量白名单     | LLM 网关四件套 + 持久化基座开关（`*_STORE` / 连接串 / 维度）           |
+| `parseEnvFile`（L45） | 手动解析 .env      | 只认 `KEY=VALUE`，`#` 注释，成对引号剥掉；文件不存在返回空表**不抛错** |
+| `findEnvDir`（L71）   | 逐级向上找 .env    | 从 cwd 和模块目录两路起找——换个目录启动也能定位到项目根                |
+| `loadEnv`（L85）      | 合并文件与进程 env | 先找到的 .env 生效；**进程环境变量覆盖 .env**（只读白名单键）          |
+| `getConfig`（L104）   | 类型化出口         | 默认值兜底：GLM 网关 + `glm-4-flash` + `embedding-3`                   |
 
 合并逻辑的骨架（`src/config.ts:85`）：
 
@@ -95,12 +95,16 @@ export function loadEnv(): Record<string, string> {
   let fileVars: Record<string, string> = {};
   for (const start of candidates) {
     const dir = findEnvDir(start);
-    if (dir) { fileVars = parseEnvFile(dir); break; }   // 先找到的 .env 生效
+    if (dir) {
+      fileVars = parseEnvFile(dir);
+      break;
+    } // 先找到的 .env 生效
   }
   const merged = { ...fileVars };
-  for (const key of ENV_KEYS) {                          // 白名单：清单外的键不读
+  for (const key of ENV_KEYS) {
+    // 白名单：清单外的键不读
     const v = process.env[key];
-    if (v !== undefined && v !== "") merged[key] = v;    // 进程环境变量优先
+    if (v !== undefined && v !== "") merged[key] = v; // 进程环境变量优先
   }
   return merged;
 }
@@ -112,53 +116,53 @@ export function loadEnv(): Record<string, string> {
 
 ### 2. `src/llm.ts`（40 行）—— 模型工厂
 
-| 位置 | 内容 | 要点 |
-|---|---|---|
-| `createModel(modelId?)`（L14） | 造一个 chat 模型 | `createOpenAI({ apiKey, baseURL })` → `openai.chat(modelId ?? model)`；可传 modelId 做大小模型分工 |
-| `getModel()`（L24） | 默认 chat 模型单例 | `cachedModel ??= createModel()`，环境变量一次读定 |
-| `createEmbeddingModel`（L30） | 造 embedding 模型（内部函数） | 入库与检索必须同一个模型，混用则向量坐标系不同 |
-| `getEmbeddingModel()`（L37） | embedding 模型单例 | 默认 `embedding-3`（2048 维），RAG 零件全靠它 |
+| 位置                           | 内容                          | 要点                                                                                               |
+| ------------------------------ | ----------------------------- | -------------------------------------------------------------------------------------------------- |
+| `createModel(modelId?)`（L14） | 造一个 chat 模型              | `createOpenAI({ apiKey, baseURL })` → `openai.chat(modelId ?? model)`；可传 modelId 做大小模型分工 |
+| `getModel()`（L24）            | 默认 chat 模型单例            | `cachedModel ??= createModel()`，环境变量一次读定                                                  |
+| `createEmbeddingModel`（L30）  | 造 embedding 模型（内部函数） | 入库与检索必须同一个模型，混用则向量坐标系不同                                                     |
+| `getEmbeddingModel()`（L37）   | embedding 模型单例            | 默认 `embedding-3`（2048 维），RAG 零件全靠它                                                      |
 
 ```ts
 export function createModel(modelId?: string): LanguageModelV2 {
   const { apiKey, baseURL, model } = getConfig();
-  const openai = createOpenAI({ apiKey, baseURL });      // OpenAI 兼容插座
-  return openai.chat(modelId ?? model);                  // 缺 key 不在此抛错（懒创建）
+  const openai = createOpenAI({ apiKey, baseURL }); // OpenAI 兼容插座
+  return openai.chat(modelId ?? model); // 缺 key 不在此抛错（懒创建）
 }
 
 export function getModel(): LanguageModelV2 {
-  cachedModel ??= createModel();                         // 进程内单例
+  cachedModel ??= createModel(); // 进程内单例
   return cachedModel;
 }
 ```
 
 ### 3. `src/trace.ts`（51 行）—— 行车记录仪
 
-| 位置 | 内容 | 要点 |
-|---|---|---|
-| `isTraceEnabled()`（L13） | 开关判定 | `AGENT_TRACE` 为 `"1"` 或 `"true"` 才开 |
-| `enableTrace()`（L19） | 强制开启 | CLI 的 `--trace` 参数走这里（改 env 再判定） |
+| 位置                             | 内容         | 要点                                                           |
+| -------------------------------- | ------------ | -------------------------------------------------------------- |
+| `isTraceEnabled()`（L13）        | 开关判定     | `AGENT_TRACE` 为 `"1"` 或 `"true"` 才开                        |
+| `enableTrace()`（L19）           | 强制开启     | CLI 的 `--trace` 参数走这里（改 env 再判定）                   |
 | `preview(value, max=200)`（L28） | 长值截断预览 | 轨迹是给人扫读的：字符串原样、对象 JSON 化、超长截断并标注总长 |
-| `trace(icon, message)`（L48） | 打一条轨迹 | 未开启直接 return；开启写 **stderr** |
+| `trace(icon, message)`（L48）    | 打一条轨迹   | 未开启直接 return；开启写 **stderr**                           |
 
 ```ts
 export function trace(icon: string, message: string): void {
-  if (!isTraceEnabled()) return;                         // 热路径：一行布尔判断
-  process.stderr.write(`${icon} ${message}\n`);          // stdout 保持干净
+  if (!isTraceEnabled()) return; // 热路径：一行布尔判断
+  process.stderr.write(`${icon} ${message}\n`); // stdout 保持干净
 }
 ```
 
 全项目共用的图标约定（`src/trace.ts:45` 注释 + 各消费方）：
 
-| 图标 | 含义 | 谁在打 |
-|---|---|---|
-| ▶ | 思考（调用模型） | agent-loop |
-| ⚙ | 行动（要调工具） | agent-loop |
-| ✓ / ✗ | 观察（工具返回 / 失败） | agent-loop |
-| ◆ | 完成（最终回答） | agent-loop |
-| 🧭 | 路由判定 | service/supervisor |
-| 🔎 | 检索命中 | rag |
-| 🧠 | 记忆压缩事件 | memory/compression |
+| 图标  | 含义                    | 谁在打             |
+| ----- | ----------------------- | ------------------ |
+| ▶     | 思考（调用模型）        | agent-loop         |
+| ⚙     | 行动（要调工具）        | agent-loop         |
+| ✓ / ✗ | 观察（工具返回 / 失败） | agent-loop         |
+| ◆     | 完成（最终回答）        | agent-loop         |
+| 🧭    | 路由判定                | service/supervisor |
+| 🔎    | 检索命中                | rag                |
+| 🧠    | 记忆压缩事件            | memory/compression |
 
 ### 4. `src/json-utils.ts`（22 行）—— 踩坑故事的产品
 
@@ -168,30 +172,45 @@ export function trace(icon: string, message: string): void {
 
 **解法**（换任何 OpenAI 兼容网关行为一致）：
 
-```text
+````text
 generateText + prompt 里写严格 JSON 指令
    → 拿到文本后 extractJson 宽松抽取（容忍 ```json 围栏与前后废话）
    → zod schema 校验（不合规自动重试一次）
-```
+````
 
-抽取逻辑本体（`src/json-utils.ts:12`）：
+抽取逻辑本体（`src/json-utils.ts`——括号配对扫描，支持对象与数组）：
 
 ```ts
 export function extractJson(text: string): unknown {
   const trimmed = text.trim();
-  const start = trimmed.indexOf("{");                    // 首个 {
-  const end = trimmed.lastIndexOf("}");                  // 最后一个 }
-  const candidate = start >= 0 && end > start ? trimmed.slice(start, end + 1) : trimmed;
-  try {
-    return JSON.parse(candidate);
-  } catch {
-    throw new Error(`模型未按 JSON 约定回复，无法解析。原文摘录：${trimmed.slice(0, 120)}`);
+  // 收集所有 { / [ 开括号，按位置顺序对每个做「字符串感知」的配对扫描
+  //（引号内的括号不计深度），取第一个语法完整的候选尝试解析；
+  // 解析失败换下一个开括号——返回 = 文本中第一个可解析的完整 JSON 结构
+  for (let i = 0; i < trimmed.length; i++) {
+    const open = trimmed[i];
+    if (open !== "{" && open !== "[") continue;
+    const close = open === "{" ? "}" : "]";
+    let depth = 0,
+      inString = false,
+      escaped = false;
+    for (let j = i; j < trimmed.length; j++) {
+      /* …配对扫描：转义/引号态处理 + 深度计数，depth 归零即完整结构… */
+      const candidate = trimmed.slice(i, j + 1);
+      try {
+        return JSON.parse(candidate);
+      } catch {
+        break;
+      } // 瞎写的结构 → 下一个
+    }
   }
+  throw new Error(`模型未按 JSON 约定回复，无法解析。原文摘录：${trimmed.slice(0, 120)}`);
 }
 ```
 
-现役消费方：`src/service/supervisor.ts:122`（三分类 `routeSchema.parse(extractJson(text))`）
-与 `src/evals/scorers/judge.ts:105`（裁判模型打分的宽松解析）。
+现役消费方：`src/service/supervisor.ts`（三分类）、`src/evals/scorers/judge.ts`
+（裁判打分）、`src/service/handoff.ts`（转人工摘要）、
+`src/orchestrator/defaults.ts`（LlmPlanner 拆**数组**任务单 / AcceptanceCritic 验收）——
+对象与数组都是一等公民。
 
 ---
 
@@ -228,14 +247,14 @@ Remove-Item Env:AGENT_TRACE             # 用完关掉
 
 ## 设计取舍（面试级追问）
 
-| 追问 | 回答 |
-|---|---|
-| 为什么手动解析 .env 而不引 dotenv？ | 少一个依赖、~60 行全透明；两路向上查找是 monorepo 刚需（换目录启动不丢 .env）。教学项目里"看得见"本身就是价值 |
-| 为什么要 ENV_KEYS 白名单？ | 缩小注入面：进程环境里可能有几十个无关变量（CI 注入的 secret、路径……），只读清单内的 11 个键，其余一概不碰 |
-| 为什么模型单例缓存（`??=`）？ | 环境变量进程内不变，每次调用重新 createOpenAI 没有意义；单例还保证"一次读定"——不会出现同一进程里两个行为不一致的模型实例 |
-| 为什么轨迹打 stderr？ | stdout 是数据流：管道/重定向给下游程序用时不被轨迹污染；终端上两者都可见，人眼零损失 |
-| 为什么不用 generateObject 一劳永逸？ | 实测 glm-4-flash 静默无视 response_format。`generateText + 宽松抽取 + zod 校验`在任何 OpenAI 兼容网关上行为一致——把不可靠的协议依赖换成自己可控的解析纪律 |
-| extractJson 为什么取"首个 { 到最后一个 }"？ | 模型爱加围栏（```json）和前后客套话。首尾截取是最宽容的启发式；代价是嵌套多对象时会截到废话——所以截完必须 zod 校验兜底 |
+| 追问                                             | 回答                                                                                                                                                                                                                                                                                                    |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 为什么手动解析 .env 而不引 dotenv？              | 少一个依赖、~60 行全透明；两路向上查找是 monorepo 刚需（换目录启动不丢 .env）。教学项目里"看得见"本身就是价值                                                                                                                                                                                           |
+| 为什么要 ENV_KEYS 白名单？                       | 缩小注入面：进程环境里可能有几十个无关变量（CI 注入的 secret、路径……），只读清单内的 11 个键，其余一概不碰                                                                                                                                                                                              |
+| 为什么模型单例缓存（`??=`）？                    | 环境变量进程内不变，每次调用重新 createOpenAI 没有意义；单例还保证"一次读定"——不会出现同一进程里两个行为不一致的模型实例                                                                                                                                                                                |
+| 为什么轨迹打 stderr？                            | stdout 是数据流：管道/重定向给下游程序用时不被轨迹污染；终端上两者都可见，人眼零损失                                                                                                                                                                                                                    |
+| 为什么不用 generateObject 一劳永逸？             | 实测 glm-4-flash 静默无视 response_format。`generateText + 宽松抽取 + zod 校验`在任何 OpenAI 兼容网关上行为一致——把不可靠的协议依赖换成自己可控的解析纪律                                                                                                                                               |
+| extractJson 为什么用括号配对扫描而不是首尾截取？ | 模型爱加围栏（`json）和前后客套话。首尾截取（首 { 到末 }）有两个被实战打穿的坑：①数组任务单（`json [...] ```）会截出首对象 { 到末对象 } 的非法片段；②「对象/数组谁优先」在混排文本里必有一边误吸。配对扫描返回**文本中第一个语法完整的 JSON 结构**——语义忠实且对所有消费方一致；截完仍必须 zod 校验兜底 |
 
 ---
 
