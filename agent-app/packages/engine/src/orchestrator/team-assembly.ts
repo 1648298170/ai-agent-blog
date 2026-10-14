@@ -14,7 +14,7 @@ import { MemoryStateStore } from "./state-store.js";
 import { createDemoTools, searchKnowledgeBase } from "../tools/index.js";
 import { createIdempotencyRegistryFromEnv, wrapToolsWithIdempotencyAuto } from "../tools/index.js";
 import type { AgentToolSet } from "../types.js";
-import type { OrchestratorOptions, OrchestrationEvent, OrchestrationResult } from "./index.js";
+import type { OrchestratorOptions, OrchestrationEvent, OrchestrationResult } from "./orchestrator.js";
 
 /** 编排事件 → [图标, 文本]（cli/api 共用的展示映射；返回 null = 不展示） */
 export function mapEventToTrace(event: OrchestrationEvent): [string, string] | null {
