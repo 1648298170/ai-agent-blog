@@ -159,9 +159,9 @@
 
 **30 秒答案**：至少三种——**Supervisor 星型**（一个路由 Agent 分发给专职工人，本项目 09 站已实现：硬规则+三分类路由三工人）；**流水线**（planner → executor → critic 的规划-执行-批判闭环）；**A2A 对等**（Agent Card 互相发现）。多 Agent 引入三个新问题：任务分工、共享状态、质量闭环——每个都是真问题，别为拆而拆。
 
-**项目证据**：单 Agent（09 站客服）已覆盖单机场景；多 Agent 三阶段方案在 `BACKLOG.md` 挂账（P1 supervisor 升格 → P2 流水线 → P3 A2A），有真实触发条件才开工。
+**项目证据**：单 Agent（09 站客服）已覆盖单机场景；多 Agent 已由编排器落地（`pnpm team "目标"` 可跑：LLM 拆单 → DAG 并行派发 → 逐任务验收，深讲见 [reference/10](/reference/10-orchestrator)）——A2A 对等与在线观测仍在 `BACKLOG.md` 挂账。
 
-**追问链**：什么时候才需要多 Agent？→ 单 Agent 工具表超过职责承载/上下文需要隔离时 → 你的项目到了吗？→ 没有——BACKLOG 写明触发条件，不为拆而拆。
+**追问链**：什么时候才需要多 Agent？→ 单 Agent 工具表超过职责承载/上下文需要隔离时 → 你的项目到了吗？→ 编排器已建好待命（`pnpm team` 可跑），但两条产品线仍是单 Agent——**不为拆而拆**的原则不变，触发条件到了才把编排器接进业务。
 
 ### Q15b · Agent 和 Workflow 的区别？（Anthropic 必考 framing）
 
