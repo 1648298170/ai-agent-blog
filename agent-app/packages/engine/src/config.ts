@@ -169,3 +169,42 @@ export function getLlmPolicy(): LlmPolicy {
     timeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : 60_000,
   };
 }
+
+// ── 护栏家族（AGENT_GUARD_*）的 .env 回填 ─────────────────────────────────
+// 背景：这六个开关的读取点（chat CLI / kb-search / chat.service / llm-injection-scan）
+// 全部裸读 process.env，而 loadEnv() 只返回合并表、从不写回 process.env——
+// 结果是「.env 里写 AGENT_GUARD_* 静默不生效」，与其他走 loadEnv 的开关行为不一致。
+// hydrateGuardEnv 在每个读取点先回填一次：.env 只补缺，真实环境变量永远优先，
+// 空串视同未设——三条规则与 loadEnv() 的合并循环（130-136 行）完全同款。
+
+/** 护栏家族的环境变量清单：读取点散落 CLI/API/引擎三层，靠回填统一拿到 .env 默认值 */
+export const GUARD_ENV_KEYS = [
+  "AGENT_GUARD_PII",
+  "AGENT_GUARD_ALLOWLIST",
+  "AGENT_GUARD_CONFIRM",
+  "AGENT_GUARD_INPUT",
+  "AGENT_GUARD_MCP_STRICT",
+  "AGENT_GUARD_LLM_SCAN",
+] as const;
+
+/** 把 .env 解析结果回填进 process.env（只碰 GUARD_ENV_KEYS；可变函数，测试负责快照恢复） */
+export function fillGuardEnvKeys(fileVars: Record<string, string>): void {
+  for (const key of GUARD_ENV_KEYS) {
+    const current = process.env[key];
+    if (current !== undefined && current !== "") continue; // 真实环境变量已设（非空）→ 不动
+    const fromFile = fileVars[key];
+    if (fromFile !== undefined && fromFile !== "") process.env[key] = fromFile;
+  }
+}
+
+let guardEnvHydrated = false;
+
+/**
+ * 回填护栏开关（进程内幂等一次）。测试环境跳过：单测用真实环境变量控制开关，
+ * 若本机 .env 的私有值渗进测试会造成本地与 CI 行为分叉（vitest 设 NODE_ENV=test）。
+ */
+export function hydrateGuardEnv(): void {
+  if (guardEnvHydrated || process.env.NODE_ENV === "test") return;
+  guardEnvHydrated = true;
+  fillGuardEnvKeys(loadEnv());
+}
