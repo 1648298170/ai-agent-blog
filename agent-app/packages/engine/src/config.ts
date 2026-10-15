@@ -56,6 +56,9 @@ const ENV_KEYS = [
   // LLM 注入自检开关（=1 开启）：api 层语义二道防线。教训（同 EPISODIC_STORE 补遗）：
   // 键不在本清单时 process.env 值不进合并表——.env/环境变量写法都会静默失效
   "AGENT_GUARD_LLM_SCAN",
+  // Skills 技能目录（agent 的「知识扩展」——与 MCP 的「能力扩展」互补，见 engine/skills/）：
+  // 配置后 chat 启动扫描目录下 */SKILL.md，全量注入 system prompt；未配置 = 默认 .agent-skills
+  "SKILLS_DIR",
 ] as const;
 
 /**

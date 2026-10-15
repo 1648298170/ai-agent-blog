@@ -10,6 +10,8 @@
 // 红队加固轮（SECURITY.md 第五节）：H3 消息长度上限 / H4 步数保险丝专门话术 /
 // H6 用户消息输入闸（AGENT_GUARD_INPUT，灰度默认关）/ H7 系统提示词数据性声明 /
 // H9 MCP 重名合并 strict 模式（AGENT_GUARD_MCP_STRICT，默认关）。
+// --skills <目录>：加载 SKILL.md 技能（agent 的「知识扩展」，与 MCP 的「能力扩展」互补），
+// 全量注入 system prompt；默认目录 .agent-skills（可用 SKILLS_DIR env 覆盖），见 engine/skills/。
 import readline from "node:readline/promises";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
 import { pathToFileURL } from "node:url";
@@ -28,6 +30,8 @@ import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
 import type { ChatTurn } from "@agent-app/engine/memory";
 import { createMcpClientBridge } from "@agent-app/engine/mcp";
 import type { McpClientBridge } from "@agent-app/engine/mcp";
+import { loadSkillsFromDir, renderSkillsPrompt } from "@agent-app/engine/skills";
+import type { SkillDefinition } from "@agent-app/engine/skills";
 import { createRagStoreFromEnv, RAG_GROUNDING_RULE, setRagStore } from "@agent-app/engine/rag";
 import { enableTrace, preview } from "@agent-app/engine/trace";
 import {
@@ -122,6 +126,24 @@ function parseMcpOption(args: string[]): string {
   const value = args[index + 1];
   if (value === undefined || value.startsWith("--")) {
     throw new Error('--mcp 需要跟一个完整命令行，例如：pnpm chat --mcp "cmd /c pnpm mcp:server"');
+  }
+  return value;
+}
+
+/**
+ * 取 --skills 的值（技能目录路径）。约定：
+ * - 未传 --skills 时回落 SKILLS_DIR env（写 .env 同样生效——键在 engine config 白名单内），
+ *   两者都没有则用默认目录 .agent-skills（相对进程 cwd）。
+ * - 显式传了 --skills 却缺值时当场报错，不静默忽略（与 --mcp 同款纪律）。
+ */
+function parseSkillsOption(args: string[]): string {
+  const index = args.indexOf("--skills");
+  if (index === -1) {
+    return process.env.SKILLS_DIR?.trim() || ".agent-skills";
+  }
+  const value = args[index + 1];
+  if (value === undefined || value.startsWith("--")) {
+    throw new Error("--skills 需要跟一个技能目录路径，例如：pnpm chat --skills .agent-skills");
   }
   return value;
 }
@@ -339,6 +361,27 @@ export async function main(args: string[] = []): Promise<void> {
     }
   }
 
+  // --skills：加载 SKILL.md 技能（agent 的「知识扩展」，与 MCP 的「能力扩展」互补）。
+  // 加载失败的单技能降级为告警不中断；目录不存在/为空 → 零技能，system prompt 与从前逐字节一致。
+  // 显式 --skills 指向不存在的目录视为配置错误（告警提示），默认目录不存在则静默（用户没配置=正常）。
+  let skills: SkillDefinition[] = [];
+  const skillsDir = parseSkillsOption(args);
+  try {
+    const loaded = loadSkillsFromDir(skillsDir);
+    skills = loaded.skills;
+    for (const warning of loaded.warnings) {
+      console.warn(`[skills] ${warning}`);
+    }
+    const explicitlyRequested = args.includes("--skills") || Boolean(process.env.SKILLS_DIR?.trim());
+    if (skills.length === 0 && explicitlyRequested && loaded.warnings.length === 0) {
+      console.warn(`[skills] 技能目录不存在或为空：${skillsDir}（显式配置却无技能，请检查路径）`);
+    }
+  } catch (err) {
+    console.error(
+      `[skills] 技能加载失败（继续以无技能模式启动）：${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
   // 工具表定稿：无 --mcp 时与从前逐字节一致；有 --mcp 时 MCP 工具合并进来
   // （默认重名 MCP 胜出；AGENT_GUARD_MCP_STRICT=1 时重名跳过、本地胜出——H9）
   const mcpStrict =
@@ -353,6 +396,9 @@ export async function main(args: string[] = []): Promise<void> {
   if (mcpBridge !== undefined) {
     const names = Object.keys(mcpBridge.tools);
     console.log(`已接入 MCP 服务（${names.length} 个工具：${names.join(", ")}）`);
+  }
+  if (skills.length > 0) {
+    console.log(`已加载技能（${skills.length} 个：${skills.map((s) => s.name).join("、")}）`);
   }
 
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
@@ -418,7 +464,7 @@ export async function main(args: string[] = []): Promise<void> {
       const result = await runToolLoop({
         model: createModel(),
         messages: toModelMessages(history),
-        system: SYSTEM_PROMPT,
+        system: SYSTEM_PROMPT + renderSkillsPrompt(skills),
         // 工具执行幂等壳（scope=当前会话）：模型重试/重复提问不再重复建工单。
         // 请求级包装（/new 换会话后 scope 随之切换，旧会话的缓存天然隔离）。
         tools: composeToolShells(tools, [
