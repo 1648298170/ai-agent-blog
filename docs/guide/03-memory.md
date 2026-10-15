@@ -39,7 +39,7 @@
 ```text
 触发：会话累计超过 40 条（COMPRESS_AFTER = 40）
 
-> 📈 **演进**：条数不是 token 的合格代理变量——配置 MODEL_CONTEXT_TOKENS（或按模型自动查表）后，压缩改按 **token 水位**触发（窗口 ×75% 触发、压到 ×25%），估算走 memory/token-estimate.ts。详见 memory/compression.ts 头注释与 BACKLOG ①。
+> 📈 **演进**：条数不是 token 的合格代理变量——配置 MODEL_CONTEXT_TOKENS（或按模型自动查表）后，压缩改按 **token 水位**触发（窗口 ×75% 触发、压到 ×50% 水位），估算走 memory/token-estimate.ts。详见 memory/compression.ts 头注释与 BACKLOG ①。
         │
         ▼
 拆分：旧消息（溢出部分） + 最近 20 条（KEEP_RECENT = 20，原样保留）

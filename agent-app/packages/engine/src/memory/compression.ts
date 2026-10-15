@@ -25,11 +25,12 @@
 // 条数阈值（40 条）不是 token 的合格代理变量：40 条"你好"与 40 条 10KB 日志
 // 天差地别。满足任一条件即改为按 token 水位触发：
 //   配置 MODEL_CONTEXT_TOKENS，或 OPENAI_MODEL 命中下方查表（如 glm-4-flash=128K）
-//   触发 = 全窗口估算 token > 窗口 × (1 − buffer)    （buffer 默认 25%，留给回答）
-//   压缩目标 = 从尾部贪心保留，直到 ≤ 窗口 × buffer（约 50% 窗口水位）
+//   触发 = 全窗口估算 token > 窗口 × (1 − buffer)      （buffer 默认 25%，留给回答）
+//   压缩目标 = 从尾部贪心保留，直到 ≤ 窗口 × targetRatio（默认 0.5，压到 50% 水位）
 // 注意：默认模型 glm-4-flash 命中查表——开箱即用水位线已启用（触发阈值远高于
 // 旧 40 条，短会话行为不变，长会话不再过早压缩）。显式关闭：MODEL_CONTEXT_TOKENS=off。
-// 两者都未命中（或显式关闭）→ 条数阈值路径，与引入前行为一致。
+// 两者都未命中（或显式关闭）→ 条数阈值路径，与引入前行为一致（未命中会打告警，
+// 不静默——换表外模型时能察觉水位线退回了条数阈值）。
 // 估算走 token-estimate 的 estimateTokens（tiktoken 精确 / chars 兜底，env 可切）；
 // WatermarkPolicy.estimate 可注入——测试注假函数精确控制水位。
 import { generateText } from "ai";
@@ -136,7 +137,7 @@ export interface SessionStoreOptions {
  *
  * 触发判定（二选一，由 watermark 决定）：
  * - 传了 watermark → token 水位：全窗口估算 > 窗口 × (1 − buffer) 触发；
- *   保留量 = 从尾部贪心保留至 ≤ 窗口 × buffer（约 50% 水位），不再固定 20 条
+ *   保留量 = 从尾部贪心保留至 ≤ 窗口 × targetRatio（默认 0.5，压到 50% 水位），不再固定 20 条
  * - 未传 → 条数阈值（turns.length > COMPRESS_AFTER，现状行为逐字节不变）
  *
  * 返回值约定：

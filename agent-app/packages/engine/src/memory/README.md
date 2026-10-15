@@ -31,20 +31,20 @@
 
 ### 本目录文件地图（12 个文件）
 
-| 文件                   | 职责                                                                                                                          |
-| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `types.ts`             | 契约：三接口 + `ChatTurn` + `SessionSummary`（含 listSessions/getHistory，勿改签名）                                          |
-| `session.memory.ts`    | 短期记忆·内存版：窗口截断 + 超限滚动压缩                                                                                      |
-| `session.redis.ts`     | 短期记忆·Redis 版：`agent:sess:{id}` list + 24h TTL 续期 + ZSET 会话索引（多实例共享）                                        |
-| `preference.memory.ts` | 长期记忆·内存版：两层 Map + 限长护栏                                                                                          |
-| `preference.pg.ts`     | 长期记忆·PG 版：`user_preferences` 行级 upsert                                                                                |
-| `episodic.memory.ts`   | 情景记忆·内存版：摘要向量 + 余弦 top-3 召回                                                                                   |
-| `episodic.pgvector.ts` | 情景记忆·pgvector 版：`episodic_memories` 表 + `<=>` 余弦 top-k（同分按入库顺序稳定；halfvec HNSW 上限 4000 维）              |
-| `compression.ts`       | **压缩算法唯一实现**（40 阈值/20 保留/滚动摘要/离线降级），内存版与 Redis 版共用                                              |
-| `token-estimate.ts`    | token 估算层：`estimateTokens()`（tiktoken 精确编码 / chars 系数兜底，`AGENT_TOKEN_ESTIMATOR` 切换）——水位线压缩的度量地基    |
-| `factory.ts`           | **env 工厂总开关**：`SESSION_STORE=memory\|redis`、`PREFERENCE_STORE=memory\|pg`、`EPISODIC_STORE=memory\|pgvector`，默认内存 |
-| `index.ts`             | 桶导出（`@agent-app/engine/memory` 子路径的公共面）                                                                           |
-| `README.md`            | 本文                                                                                                                          |
+| 文件                   | 职责                                                                                                                                                                               |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `types.ts`             | 契约：三接口 + `ChatTurn` + `SessionSummary`（含 listSessions/getHistory，勿改签名）                                                                                               |
+| `session.memory.ts`    | 短期记忆·内存版：窗口截断 + 超限滚动压缩                                                                                                                                           |
+| `session.redis.ts`     | 短期记忆·Redis 版：`agent:sess:{id}` list + 24h TTL 续期 + ZSET 会话索引（多实例共享）                                                                                             |
+| `preference.memory.ts` | 长期记忆·内存版：两层 Map + 限长护栏                                                                                                                                               |
+| `preference.pg.ts`     | 长期记忆·PG 版：`user_preferences` 行级 upsert                                                                                                                                     |
+| `episodic.memory.ts`   | 情景记忆·内存版：摘要向量 + 余弦 top-3 召回                                                                                                                                        |
+| `episodic.pgvector.ts` | 情景记忆·pgvector 版：`episodic_memories` 表 + `<=>` 余弦 top-k（同分按入库顺序稳定；halfvec HNSW 上限 4000 维）                                                                   |
+| `compression.ts`       | **压缩算法唯一实现**（条数模式 40 阈值/20 保留 + 水位模式：MODEL_CONTEXT_TOKENS 或模型查表启用后按 token 触发、压到 50% 水位；滚动摘要/离线降级两模式共用），内存版与 Redis 版共用 |
+| `token-estimate.ts`    | token 估算层：`estimateTokens()`（tiktoken 精确编码 / chars 系数兜底，`AGENT_TOKEN_ESTIMATOR` 切换）——水位线压缩的度量地基                                                         |
+| `factory.ts`           | **env 工厂总开关**：`SESSION_STORE=memory\|redis`、`PREFERENCE_STORE=memory\|pg`、`EPISODIC_STORE=memory\|pgvector`，默认内存                                                      |
+| `index.ts`             | 桶导出（`@agent-app/engine/memory` 子路径的公共面）                                                                                                                                |
+| `README.md`            | 本文                                                                                                                                                                               |
 
 典型组合：不设环境变量 = 全内存（离线优先，行为与最初版一致）；`SESSION_STORE=redis` + `PREFERENCE_STORE=pg`（`pnpm infra:up` 起库后切换）= 跨重启、跨进程的真实持久化；`EPISODIC_STORE=pgvector` 一并切上则情景记忆也跨重启（与偏好共用同一个 PG 实例，`EMBEDDING_DIM` 口径也同 `rag/`）。
 
@@ -83,6 +83,8 @@
 
 - **滚动**：下次再超 40，旧摘要并入新摘要一起压——事实不因多轮压缩断档
 - **降级**：压缩本身要调 LLM。没配 key / 网关不通 → 退回纯窗口截断，主对话零感知（离线优先原则）
+
+> 📈 **演进（水位线模式）**：条数不是 token 的合格代理——配置 `MODEL_CONTEXT_TOKENS`（或 `OPENAI_MODEL` 命中内置查表，默认 glm-4-flash 即命中）后，压缩改按 **token 水位**触发（窗口 ×75% 触发、压到 ×50% 水位），估算走 `token-estimate.ts`；查表未命中有告警不静默，显式关闭 `MODEL_CONTEXT_TOKENS=off`。实现与取舍详见 `compression.ts` 头注释。
 
 没有复杂数学，核心是**信息压缩的取舍**：事实保留、token 归零。
 

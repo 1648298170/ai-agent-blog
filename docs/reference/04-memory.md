@@ -103,7 +103,7 @@ private async doAppend(sessionId: string, turn: ChatTurn): Promise<void> {
 export async function compressIfNeeded(sessionId, turns, summarize) {
   if (turns.length <= COMPRESS_AFTER) return turns;      // 40 条以内：原样返回同一引用（零开销）
 
-> 📈 **演进**：条数不是 token 的合格代理变量——配置 MODEL_CONTEXT_TOKENS（或按模型自动查表）后，压缩改按 **token 水位**触发（窗口 ×75% 触发、压到 ×25%），估算走 memory/token-estimate.ts。详见 memory/compression.ts 头注释与 BACKLOG ①。
+> 📈 **演进**：条数不是 token 的合格代理变量——配置 MODEL_CONTEXT_TOKENS（或按模型自动查表）后，压缩改按 **token 水位**触发（窗口 ×75% 触发、压到 ×50% 水位），估算走 memory/token-estimate.ts。详见 memory/compression.ts 头注释与 BACKLOG ①。
 
   const older = turns.slice(0, -KEEP_RECENT);            // 溢出的旧消息（压掉）
   const recent = turns.slice(-KEEP_RECENT);              // 最近 20 条原样保留
