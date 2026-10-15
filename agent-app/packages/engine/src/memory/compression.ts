@@ -35,6 +35,7 @@
 import { generateText } from "ai";
 import { getConfig } from "../config.js";
 import { getModel, llmCallPolicy } from "../llm.js";
+import { getEngineLogger } from "../logger.js";
 import { trace } from "../trace.js";
 import { estimateTokens } from "./token-estimate.js";
 import type { ChatTurn } from "./types.js";
@@ -66,12 +67,23 @@ export interface WatermarkPolicy {
   readonly estimate?: (text: string) => number;
 }
 
-/** 常见模型上下文窗口查表（token 数）——MODEL_CONTEXT_TOKENS 未配置时按模型名兜底 */
+/**
+ * 常见模型上下文窗口查表（token 数）——MODEL_CONTEXT_TOKENS 未配置时按模型名兜底。
+ * 只收录官方文档可确认的数值（宁少勿错：表值偏低只影响压缩时机，表值虚高才有溢出风险）；
+ * 表外模型 → 查表未命中告警 + 水位线不启用（走条数阈值），可用 MODEL_CONTEXT_TOKENS 兜底。
+ */
 const MODEL_CONTEXT_TABLE: Record<string, number> = {
   "glm-4-flash": 128_000,
   "glm-4-air": 128_000,
   "glm-4-plus": 128_000,
+  "glm-4.5": 128_000,
+  "glm-4.5-air": 128_000,
+  "glm-4.6": 200_000,
   "deepseek-chat": 64_000,
+  "deepseek-reasoner": 64_000,
+  "moonshot-v1-8k": 8_192,
+  "moonshot-v1-32k": 32_768,
+  "moonshot-v1-128k": 131_072,
   "qwen-plus": 131_072,
 };
 
@@ -80,6 +92,9 @@ const MODEL_CONTEXT_TABLE: Record<string, number> = {
  * 返回 undefined = 水位线未启用（或显式关闭），压缩走条数阈值（现状行为）。
  * 放在 compression.ts 而非 config.ts：查表是「压缩策略」的领域知识，
  * config 只管网关四件套的装配。
+ *
+ * 查表未命中且模型名非空时打 warn（EPISODIC_STORE 同款教训：配置静默失效
+ * 是坑，第三次发生——把「水位线悄悄退回条数阈值」变成可观测）。
  */
 export function modelContextTokensFromEnv(env: Record<string, string>, modelId: string): number | undefined {
   const raw = (env.MODEL_CONTEXT_TOKENS ?? "").trim().toLowerCase();
@@ -88,7 +103,15 @@ export function modelContextTokensFromEnv(env: Record<string, string>, modelId: 
   if (raw === "off" || raw === "0" || raw === "false") return undefined;
   const direct = Number.parseInt(raw, 10);
   if (Number.isInteger(direct) && direct > 0) return direct;
-  return MODEL_CONTEXT_TABLE[modelId?.trim().toLowerCase() ?? ""];
+  const modelKey = modelId?.trim().toLowerCase() ?? "";
+  const hit = modelKey === "" ? undefined : MODEL_CONTEXT_TABLE[modelKey];
+  if (hit === undefined && modelKey !== "") {
+    getEngineLogger().warn(
+      `[memory] 模型「${modelId}」未命中上下文窗口查表，压缩水位线未启用（走条数阈值）。` +
+        "可配置 MODEL_CONTEXT_TOKENS 显式指定窗口大小；或向 MODEL_CONTEXT_TABLE 补充该模型。",
+    );
+  }
+  return hit;
 }
 
 /** 默认摘要器：真实调用 getModel()；缺 key 时当场抛错（不发起任何网络请求），交给上层降级 */
