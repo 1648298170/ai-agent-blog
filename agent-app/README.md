@@ -38,23 +38,24 @@ pnpm typecheck
 
 ## 命令与教程周次映射
 
-| 命令                                       | 作用                                                                                                            | 对应教程                                                                                                                           |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm chat`                                | readline 聊天 REPL：会话窗口 + 手写工具循环 + 演示工具                                                          | [week11 主线补篇 · Agent 循环 TS 深入](../docs/archive/weeks/week11/agent-loop-ts.md)                                              |
-| `pnpm chat --selftest` / `pnpm selftest`   | 无网络自检（切块 / 余弦检索 / 会话存储）                                                                        | [week11 · RAG TS 全链路](../docs/archive/weeks/week11/rag-ts.md)、[week11 · 记忆 TS 版](../docs/archive/weeks/week11/memory-ts.md) |
-| `pnpm chat --mcp "cmd /c pnpm mcp:server"` | 聊天 REPL 接入外部 MCP 服务器（spawn stdio 子进程，工具表自动合并）                                             | —（MCP 专题教程规划中）                                                                                                            |
-| `pnpm cli chat`                            | 入口路由：聊天                                                                                                  | 同 `pnpm chat`                                                                                                                     |
-| `pnpm cli kb` / `pnpm kb`                  | 知识库问答 REPL：检索 top5 → 带引用回答                                                                         | [products · 知识库问答](../docs/products/kb.md)、[week11 · RAG TS](../docs/archive/weeks/week11/rag-ts.md)                         |
-| `pnpm kb:ingest <文件>`                    | 知识库入库：切块 → 向量化 → 快照落盘（.txt / .md / .pdf）                                                       | [week11 · RAG TS](../docs/archive/weeks/week11/rag-ts.md)                                                                          |
-| `pnpm cli service` / `pnpm service`        | 智能客服 REPL：硬规则 + 三分类路由 + 三工人 + 转人工                                                            | [products · 客服系统](../docs/products/service.md)                                                                                 |
-| `pnpm team "目标"` / `pnpm cli team`       | 多 Agent 编排：LLM 拆单 → DAG 并行派发 → 逐任务验收（`--plan` 静态任务单 / `--trace` 全轨迹 / `--id` 断点续跑） | [reference · 编排器](../docs/reference/10-orchestrator.md)                                                                         |
-| `pnpm test:service`                        | 客服硬规则离线自测（纯函数断言，无网络）                                                                        | [products · 客服系统](../docs/products/service.md)                                                                                 |
-| `pnpm infra:up` / `pnpm infra:down`        | 真实持久化基座：pgvector(pg16) + redis(7) 容器起停                                                              | [week14](../docs/archive/weeks/week14/index.md)、[week17](../docs/archive/weeks/week17/index.md)                                   |
-| `pnpm test:infra`                          | 基础设施集成测试（RUN_INFRA_TESTS=1，需先 `infra:up`）                                                          | week14 / week17 实战                                                                                                               |
-| `pnpm typecheck`                           | `tsc --noEmit` 零错误检查                                                                                       | —                                                                                                                                  |
-| `pnpm verify`                              | 聚合自检一条命令：typecheck → engine/api 测试 → selftest → examples 类型检查 → 架构红线                         | —                                                                                                                                  |
-| `pnpm examples`                            | 跑两个最小可运行示例（最小 Agent / 自定义工具，需先 `pnpm build` + 配好 key）                                   | [EXTENDING 扩展指南](../docs/how-to/EXTENDING.md)                                                                                  |
-| `pnpm eval`                                | 跑评测考卷（76 例三档判分，无 key 自动跳过需网关的档位）                                                        | [week16/evals-ts.md](../docs/archive/weeks/week16/evals-ts.md)                                                                     |
+| 命令                                       | 作用                                                                                                               | 对应教程                                                                                                                           |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm chat`                                | readline 聊天 REPL：会话窗口 + 手写工具循环 + 演示工具                                                             | [week11 主线补篇 · Agent 循环 TS 深入](../docs/archive/weeks/week11/agent-loop-ts.md)                                              |
+| `pnpm chat --selftest` / `pnpm selftest`   | 无网络自检（切块 / 余弦检索 / 会话存储）                                                                           | [week11 · RAG TS 全链路](../docs/archive/weeks/week11/rag-ts.md)、[week11 · 记忆 TS 版](../docs/archive/weeks/week11/memory-ts.md) |
+| `pnpm chat --mcp "cmd /c pnpm mcp:server"` | 聊天 REPL 接入外部 MCP 服务器（spawn stdio 子进程，工具表自动合并）                                                | —（MCP 专题教程规划中）                                                                                                            |
+| `pnpm chat --skills .agent-skills`         | 聊天 REPL 加载 SKILL.md 技能（agent 的「知识扩展」，与 MCP 的「能力扩展」互补；默认目录 `.agent-skills` 自动加载） | —（Skills 专题教程规划中）                                                                                                         |
+| `pnpm cli chat`                            | 入口路由：聊天                                                                                                     | 同 `pnpm chat`                                                                                                                     |
+| `pnpm cli kb` / `pnpm kb`                  | 知识库问答 REPL：检索 top5 → 带引用回答                                                                            | [products · 知识库问答](../docs/products/kb.md)、[week11 · RAG TS](../docs/archive/weeks/week11/rag-ts.md)                         |
+| `pnpm kb:ingest <文件>`                    | 知识库入库：切块 → 向量化 → 快照落盘（.txt / .md / .pdf）                                                          | [week11 · RAG TS](../docs/archive/weeks/week11/rag-ts.md)                                                                          |
+| `pnpm cli service` / `pnpm service`        | 智能客服 REPL：硬规则 + 三分类路由 + 三工人 + 转人工                                                               | [products · 客服系统](../docs/products/service.md)                                                                                 |
+| `pnpm team "目标"` / `pnpm cli team`       | 多 Agent 编排：LLM 拆单 → DAG 并行派发 → 逐任务验收（`--plan` 静态任务单 / `--trace` 全轨迹 / `--id` 断点续跑）    | [reference · 编排器](../docs/reference/10-orchestrator.md)                                                                         |
+| `pnpm test:service`                        | 客服硬规则离线自测（纯函数断言，无网络）                                                                           | [products · 客服系统](../docs/products/service.md)                                                                                 |
+| `pnpm infra:up` / `pnpm infra:down`        | 真实持久化基座：pgvector(pg16) + redis(7) 容器起停                                                                 | [week14](../docs/archive/weeks/week14/index.md)、[week17](../docs/archive/weeks/week17/index.md)                                   |
+| `pnpm test:infra`                          | 基础设施集成测试（RUN_INFRA_TESTS=1，需先 `infra:up`）                                                             | week14 / week17 实战                                                                                                               |
+| `pnpm typecheck`                           | `tsc --noEmit` 零错误检查                                                                                          | —                                                                                                                                  |
+| `pnpm verify`                              | 聚合自检一条命令：typecheck → engine/api 测试 → selftest → examples 类型检查 → 架构红线                            | —                                                                                                                                  |
+| `pnpm examples`                            | 跑两个最小可运行示例（最小 Agent / 自定义工具，需先 `pnpm build` + 配好 key）                                      | [EXTENDING 扩展指南](../docs/how-to/EXTENDING.md)                                                                                  |
+| `pnpm eval`                                | 跑评测考卷（76 例三档判分，无 key 自动跳过需网关的档位）                                                           | [week16/evals-ts.md](../docs/archive/weeks/week16/evals-ts.md)                                                                     |
 
 ## 目录结构（pnpm workspace 单仓）
 
@@ -71,7 +72,7 @@ agent-app/
 │   │   │   ├── rag/                 # RAG 零件：types / chunker / embedder / 内存库 / retrieve / persistence / ingest（入库核心）
 │   │   │   ├── memory/              # 三层记忆：session / preference / episodic（内存版）
 │   │   │   ├── tools/               # registry / demo-tools / kb-search / idempotency（幂等）/ compose（壳组合器）
-│   │   │   ├── mcp/  guardrails/  evals/   # 标准插口 / 安全员 / 考试系统（各自带 README）
+│   │   │   ├── mcp/  guardrails/  evals/  skills/   # 标准插口 / 安全员 / 考试系统 / 技能加载（各自带 README）
 │   │   │   ├── service/             # 客服产品核心：supervisor / workers / handoff（CLI 与 API 共用）
 │   │   │   └── orchestrator/        # 多 Agent 编排器（Effect 版）：拆·派·跑 / 验收闭环 / 失败终态（带 README）
 │   │   ├── examples/                # 最小可运行示例（minimal-agent / custom-tool），pnpm examples 一键跑
@@ -193,14 +194,15 @@ pnpm chat --mcp "cmd /c pnpm mcp:server" --trace   # 狗粮：接我们自己的
 
 ### 运行策略开关（全部有安全默认值，不配置 = 默认行为）
 
-| 环境变量                                                                     | 默认            | 说明                                                                                                                                                                  |
-| ---------------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `AGENT_LLM_MAX_RETRIES` / `AGENT_LLM_TIMEOUT_MS`                             | `2` / `60000`   | 模型调用传输层重试（AI SDK 内置指数退避，429/5xx 自动重试）与单次调用超时——全部模型调用点统一生效                                                                     |
-| `AGENT_TOKEN_ESTIMATOR`                                                      | `tiktoken`      | token 估算口径：`tiktoken`（cl100k_base 精确编码）/ `chars`（字符系数兜底，中文1/字 英文0.25/字符）                                                                   |
-| `AGENT_LOG_FORMAT` / `AGENT_LOG_LEVEL`                                       | `text` / `info` | 日志形态：`json` 时 logger 切 pino 结构化行（stdout）、trace 出 JSON 行（stderr）；默认 text 逐字节不变                                                               |
-| `IDEMPOTENCY_STORE`                                                          | `memory`        | 工具幂等层存储：`redis` 切 SET NX PX 抢锁版（多实例/重启共享幂等窗口，需 `REDIS_URL`）                                                                                |
-| `AGENT_THROTTLE_LIMIT` / `THROTTLE_DISABLED`                                 | `100` / 未设    | API 全局限流（次/分钟 per IP）；`THROTTLE_DISABLED=1` 整体关闭（测试用）。API 还默认挂 helmet 安全头（CSP 关闭以保 Swagger UI）                                       |
-| `AGENT_GUARD_*`（PII / ALLOWLIST / CONFIRM / INPUT / MCP_STRICT / LLM_SCAN） | 全关            | 安全护栏开关（MCP 工具三闸 / 本地检索输出 PII 脱敏 / 用户消息输入闸 / API 模型输出自检，详见 SECURITY.md 第五节）；写进 `.env` 同样生效——启动期回填，真实环境变量优先 |
+| 环境变量                                                                     | 默认            | 说明                                                                                                                                                                                    |
+| ---------------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENT_LLM_MAX_RETRIES` / `AGENT_LLM_TIMEOUT_MS`                             | `2` / `60000`   | 模型调用传输层重试（AI SDK 内置指数退避，429/5xx 自动重试）与单次调用超时——全部模型调用点统一生效                                                                                       |
+| `AGENT_TOKEN_ESTIMATOR`                                                      | `tiktoken`      | token 估算口径：`tiktoken`（cl100k_base 精确编码）/ `chars`（字符系数兜底，中文1/字 英文0.25/字符）                                                                                     |
+| `AGENT_LOG_FORMAT` / `AGENT_LOG_LEVEL`                                       | `text` / `info` | 日志形态：`json` 时 logger 切 pino 结构化行（stdout）、trace 出 JSON 行（stderr）；默认 text 逐字节不变                                                                                 |
+| `IDEMPOTENCY_STORE`                                                          | `memory`        | 工具幂等层存储：`redis` 切 SET NX PX 抢锁版（多实例/重启共享幂等窗口，需 `REDIS_URL`）                                                                                                  |
+| `AGENT_THROTTLE_LIMIT` / `THROTTLE_DISABLED`                                 | `100` / 未设    | API 全局限流（次/分钟 per IP）；`THROTTLE_DISABLED=1` 整体关闭（测试用）。API 还默认挂 helmet 安全头（CSP 关闭以保 Swagger UI）                                                         |
+| `AGENT_GUARD_*`（PII / ALLOWLIST / CONFIRM / INPUT / MCP_STRICT / LLM_SCAN） | 全关            | 安全护栏开关（MCP 工具三闸 / 本地检索输出 PII 脱敏 / 用户消息输入闸 / API 模型输出自检，详见 SECURITY.md 第五节）；写进 `.env` 同样生效——启动期回填，真实环境变量优先                   |
+| `SKILLS_DIR`                                                                 | `.agent-skills` | Skills 技能目录（agent 的「知识扩展」，与 MCP 的「能力扩展」互补）：chat 启动加载 `*/SKILL.md` 全量注入 system prompt；写 `.env` 或 `--skills` 传参均可，详见 `engine/skills/README.md` |
 
 ## 真实持久化（Docker）
 

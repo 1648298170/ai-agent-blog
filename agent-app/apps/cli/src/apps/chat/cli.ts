@@ -20,6 +20,7 @@ import {
   auditLog,
   hydrateGuardEnv,
   inspectTextInput,
+  loadEnv,
   resolveToolAllowlist,
   wrapToolWithGate,
 } from "@agent-app/engine";
@@ -132,14 +133,16 @@ function parseMcpOption(args: string[]): string {
 
 /**
  * 取 --skills 的值（技能目录路径）。约定：
- * - 未传 --skills 时回落 SKILLS_DIR env（写 .env 同样生效——键在 engine config 白名单内），
- *   两者都没有则用默认目录 .agent-skills（相对进程 cwd）。
+ * - 优先级：CLI --skills > SKILLS_DIR（loadEnv 合并表：真实环境变量 > .env）> 默认 .agent-skills。
+ *   注意必须走 loadEnv 合并表而非直接读 process.env——loadEnv 从不回填 process.env
+ *   （fillGuardEnvKeys 只管 AGENT_GUARD_* 家族），直接读 process.env 会让 .env 里的
+ *   SKILLS_DIR 静默失效（EPISODIC_STORE 同款教训：键的读取通道必须与宣传口径一致）。
  * - 显式传了 --skills 却缺值时当场报错，不静默忽略（与 --mcp 同款纪律）。
  */
-function parseSkillsOption(args: string[]): string {
+function parseSkillsOption(args: string[], env: Record<string, string>): string {
   const index = args.indexOf("--skills");
   if (index === -1) {
-    return process.env.SKILLS_DIR?.trim() || ".agent-skills";
+    return env.SKILLS_DIR?.trim() || ".agent-skills";
   }
   const value = args[index + 1];
   if (value === undefined || value.startsWith("--")) {
@@ -363,17 +366,19 @@ export async function main(args: string[] = []): Promise<void> {
 
   // --skills：加载 SKILL.md 技能（agent 的「知识扩展」，与 MCP 的「能力扩展」互补）。
   // 加载失败的单技能降级为告警不中断；目录不存在/为空 → 零技能，system prompt 与从前逐字节一致。
-  // 显式 --skills 指向不存在的目录视为配置错误（告警提示），默认目录不存在则静默（用户没配置=正常）。
+  // 显式 --skills（或 SKILLS_DIR 配置）指向不存在的目录视为配置错误（告警提示），
+  // 默认目录不存在则静默（用户没配置=正常）。
   let skills: SkillDefinition[] = [];
-  const skillsDir = parseSkillsOption(args);
+  const mergedEnv = loadEnv();
+  const skillsExplicitlyRequested = args.includes("--skills") || Boolean(mergedEnv.SKILLS_DIR?.trim());
+  const skillsDir = parseSkillsOption(args, mergedEnv);
   try {
     const loaded = loadSkillsFromDir(skillsDir);
     skills = loaded.skills;
     for (const warning of loaded.warnings) {
       console.warn(`[skills] ${warning}`);
     }
-    const explicitlyRequested = args.includes("--skills") || Boolean(process.env.SKILLS_DIR?.trim());
-    if (skills.length === 0 && explicitlyRequested && loaded.warnings.length === 0) {
+    if (skills.length === 0 && skillsExplicitlyRequested && loaded.warnings.length === 0) {
       console.warn(`[skills] 技能目录不存在或为空：${skillsDir}（显式配置却无技能，请检查路径）`);
     }
   } catch (err) {
