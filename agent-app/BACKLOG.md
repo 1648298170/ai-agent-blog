@@ -67,6 +67,27 @@
 - P3 A2A 落地（week19 Day 4 的代码化）：`GET /.well-known/agent-card.json` + `POST /a2a/tasks`（接收外部 Agent 委托 → 路由到 worker 或编排流水线）；狗粮：双实例互调
 - 在线观测档位：编排事件流接 SSE（前端看拆/派/跑实时轨迹）、token 成本聚合（与 #10 共享基建）
 
+## ③ 输出质量闸：Reflection / 生成-评审循环（待立项，2026-10-13 调研入账）
+
+> **缺口**：三条输出路径中 kb/service/chat 的「模型输出即结束」，无质量判定（编排器的 Critic 闭环只覆盖 `pnpm team`）。业界主流 = 分层质量闸光谱：**确定性代码校验（零成本）> 级联 judge（小模型）> Reflexion 循环（1.5-1.9x token）**，按「错误的代价」选闸门高度，而非在线全量 judge。
+>
+> **关键调研数据**（2026-10，来源：LangGraph/OpenAI Agents SDK/ADK 官方文档 + niteagent/solana.garden 生产复盘 + MS Foundry 评估体系）：级联触发省 20% token、质量仅 -2%；单 judge 精度 82%、3-judge 投票 91%（成本×3）；Reflexion 生产案例一次成功率 38%→71%（token 1.9x）；多 Agent 辩论式 3x 成本慎用；**质量退化检测**（重试后分数下降回退首轮）是生产复盘反复强调的保护。
+
+**触发条件**：kb/service 上线后有真实质量反馈；或水位线基建（已备：estimateTokens） wanting 应用。
+
+**分层设计**（按错误的代价选闸门高度，全部 opt-in 默认关——离线优先）：
+
+- 第一批（确定性闸，零 LLM 成本，**建议必做**）：kb citation 校验——引用编号真实存在、命中分数 ≥ 阈值、空检索时拒答的诚实性校验（业界共识：确定性代码 > LLM judge，LitRAG 幻觉召回 1.000 的做法）
+- 第二批（llm-judge 级联）：轻量打分 < 阈值才触发完整 judge（judge 用 glm-4-flash 自身，成本 ≈ 主回答 1/10）；**质量退化回退**（重试后分数下降则保留首轮——防越改越差）；judge 用合并维度单次调用（MS Foundry 模式：多维打包 1 次 judge 降成本）
+- 第三批：SSE `reflection` 事件（判定结果 + 反馈，前端可折叠展示——对齐 #5.1 可见性哲学）
+- 后置（挂账）：Reflexion 反思记忆——失败经验按 task family 持久化、锚定确定性评估信号、人工可删（依赖 #10）
+
+**已有地基**：estimateTokens（水位线估算）、编排器 Critic 三实现（contains/llm-judge/manual 判定骨架可复用）、AGENT_GUARD_* env 开关模式、SSE 骨架三端同款。
+
+**明确不做**：chat 自由对话不接反思（无客观验收标准，judge 误判率高于收益）；guardrails 模块保持零网络零 key 纪律（LLM 自检放 api 层，与 `AGENT_GUARD_LLM_SCAN` 同款分层）。
+
+**验收（预设）**：kb citation 闸为纯函数零成本；llm-judge 级联可控（抽样/阈值可配）；reflection 事件进 SSE 合同；全部开关关闭时与现状逐字节一致；judge 误判有回退（质量退化检测）。
+
 ## ② 其他挂账（按 SECURITY.md / README 既有记录）
 
 | 项                                                                                                | 来源                     | 触发条件                                           |
