@@ -2,7 +2,8 @@ import { defineConfig } from 'vitepress'
 
 export default defineConfig({
   lang: 'zh-CN',
-  base: '/ai-agent-blog/',
+  // 自定义域名根路径部署（rayjay.is-a.dev，2026-10-15 起；此前 GitHub Pages 子路径 /ai-agent-blog/）
+  base: '/',
   title: 'AI Agent 全栈工程师',
   description:
     '从 0 基础到落地到精通的 AI Agent 全栈教程：Node + TS 主线，覆盖 LLM API → Agent 循环 → RAG → MCP → 三大产品落地',
