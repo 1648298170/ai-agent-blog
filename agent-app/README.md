@@ -193,13 +193,14 @@ pnpm chat --mcp "cmd /c pnpm mcp:server" --trace   # 狗粮：接我们自己的
 
 ### 运行策略开关（全部有安全默认值，不配置 = 默认行为）
 
-| 环境变量                                         | 默认            | 说明                                                                                                                            |
-| ------------------------------------------------ | --------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `AGENT_LLM_MAX_RETRIES` / `AGENT_LLM_TIMEOUT_MS` | `2` / `60000`   | 模型调用传输层重试（AI SDK 内置指数退避，429/5xx 自动重试）与单次调用超时——全部模型调用点统一生效                               |
-| `AGENT_TOKEN_ESTIMATOR`                          | `tiktoken`      | token 估算口径：`tiktoken`（cl100k_base 精确编码）/ `chars`（字符系数兜底，中文1/字 英文0.25/字符）                             |
-| `AGENT_LOG_FORMAT` / `AGENT_LOG_LEVEL`           | `text` / `info` | 日志形态：`json` 时 logger 切 pino 结构化行（stdout）、trace 出 JSON 行（stderr）；默认 text 逐字节不变                         |
-| `IDEMPOTENCY_STORE`                              | `memory`        | 工具幂等层存储：`redis` 切 SET NX PX 抢锁版（多实例/重启共享幂等窗口，需 `REDIS_URL`）                                          |
-| `AGENT_THROTTLE_LIMIT` / `THROTTLE_DISABLED`     | `100` / 未设    | API 全局限流（次/分钟 per IP）；`THROTTLE_DISABLED=1` 整体关闭（测试用）。API 还默认挂 helmet 安全头（CSP 关闭以保 Swagger UI） |
+| 环境变量                                                                     | 默认            | 说明                                                                                                                                                                  |
+| ---------------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENT_LLM_MAX_RETRIES` / `AGENT_LLM_TIMEOUT_MS`                             | `2` / `60000`   | 模型调用传输层重试（AI SDK 内置指数退避，429/5xx 自动重试）与单次调用超时——全部模型调用点统一生效                                                                     |
+| `AGENT_TOKEN_ESTIMATOR`                                                      | `tiktoken`      | token 估算口径：`tiktoken`（cl100k_base 精确编码）/ `chars`（字符系数兜底，中文1/字 英文0.25/字符）                                                                   |
+| `AGENT_LOG_FORMAT` / `AGENT_LOG_LEVEL`                                       | `text` / `info` | 日志形态：`json` 时 logger 切 pino 结构化行（stdout）、trace 出 JSON 行（stderr）；默认 text 逐字节不变                                                               |
+| `IDEMPOTENCY_STORE`                                                          | `memory`        | 工具幂等层存储：`redis` 切 SET NX PX 抢锁版（多实例/重启共享幂等窗口，需 `REDIS_URL`）                                                                                |
+| `AGENT_THROTTLE_LIMIT` / `THROTTLE_DISABLED`                                 | `100` / 未设    | API 全局限流（次/分钟 per IP）；`THROTTLE_DISABLED=1` 整体关闭（测试用）。API 还默认挂 helmet 安全头（CSP 关闭以保 Swagger UI）                                       |
+| `AGENT_GUARD_*`（PII / ALLOWLIST / CONFIRM / INPUT / MCP_STRICT / LLM_SCAN） | 全关            | 安全护栏开关（MCP 工具三闸 / 本地检索输出 PII 脱敏 / 用户消息输入闸 / API 模型输出自检，详见 SECURITY.md 第五节）；写进 `.env` 同样生效——启动期回填，真实环境变量优先 |
 
 ## 真实持久化（Docker）
 
