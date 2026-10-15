@@ -406,6 +406,9 @@ export async function main(args: string[] = []): Promise<void> {
     console.log(`已加载技能（${skills.length} 个：${skills.map((s) => s.name).join("、")}）`);
   }
 
+  // system prompt 预拼：技能集启动后不变，REPL 每轮重复拼装是纯浪费——提前算一次
+  const systemPrompt = SYSTEM_PROMPT + renderSkillsPrompt(skills);
+
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
   // P3a 安全护栏装配：任一开关开启时给 MCP 工具套闸（闸门需要 rl 读确认答案，
@@ -469,7 +472,7 @@ export async function main(args: string[] = []): Promise<void> {
       const result = await runToolLoop({
         model: createModel(),
         messages: toModelMessages(history),
-        system: SYSTEM_PROMPT + renderSkillsPrompt(skills),
+        system: systemPrompt,
         // 工具执行幂等壳（scope=当前会话）：模型重试/重复提问不再重复建工单。
         // 请求级包装（/new 换会话后 scope 随之切换，旧会话的缓存天然隔离）。
         tools: composeToolShells(tools, [

@@ -129,5 +129,8 @@ describe("renderSkillsPrompt：全量注入拼装", () => {
     expect(prompt).toContain("退款流程");
     expect(prompt).toContain("先查订单");
     expect(prompt).toContain("不要强行套用");
+    // 数据性声明（H7 同款口径扩展）：恶意技能文件的指令不得越过系统职责边界——
+    // 锁死这句防将来被当成废话删掉（SECURITY.md「Skills 是新的提示注入面」配套）
+    expect(prompt).toContain("以职责边界为准");
   });
 });
