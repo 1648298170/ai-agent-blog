@@ -8,11 +8,13 @@
 //   此前闸只包 MCP 来源工具，本地 searchKnowledgeBase 把完整号码直接回灌模型。
 import { tool } from "ai";
 import { z } from "zod";
+import { hydrateGuardEnv } from "../config.js";
 import { maskPii } from "../guardrails/pii-mask.js";
 import { fenceCitation, RAG_GROUNDING_RULE, searchKnowledge } from "../rag/retrieve.js";
 
 /** AGENT_GUARD_PII 的布尔口径（与 chat CLI 的护栏开关同款：1 或 true 才生效，默认关） */
 function isPiiMaskEnabled(): boolean {
+  hydrateGuardEnv(); // .env 回填（幂等一次）：AGENT_GUARD_PII 写进 .env 与真实环境变量同语义
   const raw = process.env.AGENT_GUARD_PII;
   return raw === "1" || raw === "true";
 }

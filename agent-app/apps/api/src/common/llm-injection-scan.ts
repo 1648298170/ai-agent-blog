@@ -15,7 +15,7 @@
 import { generateText } from "ai";
 import { extractJson } from "@agent-app/engine/json-utils";
 import { getModel, llmCallPolicy } from "@agent-app/engine/llm";
-import { getConfig, loadEnv } from "@agent-app/engine";
+import { getConfig, hydrateGuardEnv, loadEnv } from "@agent-app/engine";
 
 /** LLM 自检结果：flagged=true = 判定为注入意图（上层拦截并审计） */
 export interface LlmScanVerdict {
@@ -35,6 +35,7 @@ const CLASSIFIER_PROMPT =
  *  变量（.env 优先级低），README 契约「写进 .env 或临时环境变量都行」对每组开关成立——
  *  process.env 直读会让 .env 写法静默失效（loadEnv 不回填 process.env，审查发现） */
 export function isLlmScanEnabled(): boolean {
+  hydrateGuardEnv(); // .env 回填（幂等一次）：本函数读 loadEnv 已覆盖 .env，回填让六个 AGENT_GUARD_* 家族口径统一
   const { AGENT_GUARD_LLM_SCAN } = loadEnv();
   return (AGENT_GUARD_LLM_SCAN ?? "").trim() === "1";
 }

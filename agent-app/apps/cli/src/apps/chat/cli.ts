@@ -6,6 +6,7 @@
 // MCP 工具与本地工具对循环不可区分（进方向见 engine/mcp/client.ts 与 adapter.ts）。
 // P3a 安全护栏：任一 AGENT_GUARD_* 环境开关开启时，仅给 MCP 来源的工具套闸（白名单 /
 // 注入扫描 / 人工确认 / PII 脱敏，见 engine/guardrails/），未配置任何开关则零变化。
+// AGENT_GUARD_* 写进 .env 同样生效（启动期回填，真实环境变量优先——见 engine config.ts hydrateGuardEnv）。
 // 红队加固轮（SECURITY.md 第五节）：H3 消息长度上限 / H4 步数保险丝专门话术 /
 // H6 用户消息输入闸（AGENT_GUARD_INPUT，灰度默认关）/ H7 系统提示词数据性声明 /
 // H9 MCP 重名合并 strict 模式（AGENT_GUARD_MCP_STRICT，默认关）。
@@ -13,7 +14,13 @@ import readline from "node:readline/promises";
 import type { Interface as ReadlineInterface } from "node:readline/promises";
 import { pathToFileURL } from "node:url";
 import type { ModelMessage, ToolSet } from "ai";
-import { auditLog, inspectTextInput, resolveToolAllowlist, wrapToolWithGate } from "@agent-app/engine";
+import {
+  auditLog,
+  hydrateGuardEnv,
+  inspectTextInput,
+  resolveToolAllowlist,
+  wrapToolWithGate,
+} from "@agent-app/engine";
 import type { ToolConfirmFn } from "@agent-app/engine";
 import { DEFAULT_MAX_STEPS, runToolLoop } from "@agent-app/engine/agent-loop";
 import { createModel } from "@agent-app/engine/llm";
@@ -187,6 +194,7 @@ interface GuardSwitches {
 
 /** 读护栏环境开关：空串/全空条目一律折算成 null（视同未配置），不产生幽灵限制 */
 function readGuardSwitches(): GuardSwitches | null {
+  hydrateGuardEnv(); // .env 回填（幂等一次）：六个 AGENT_GUARD_* 写进 .env 与真实环境变量同语义
   const piiRaw = process.env.AGENT_GUARD_PII;
   const maskOutput = piiRaw === "1" || piiRaw === "true"; // 与 AGENT_TRACE 同款布尔口径
   const allowlist = resolveToolAllowlist(process.env.AGENT_GUARD_ALLOWLIST);
@@ -280,6 +288,8 @@ function applyGuardsToMcpTools(
  * 红队加固轮新增（SECURITY.md 第五节，默认全关 = 零变化默认铁律）：
  * - AGENT_GUARD_INPUT=1：用户消息输入闸（H6 灰度）——命中注入黑名单的消息被拒收并审计
  * - AGENT_GUARD_MCP_STRICT=1：MCP 重名合并严格模式（H9）——重名工具跳过 MCP 版本，本地胜出
+ *
+ * 以上开关写进 .env 同样生效（启动期回填，真实环境变量优先——见 engine config.ts hydrateGuardEnv）
  */
 export async function main(args: string[] = []): Promise<void> {
   if (args.includes("--trace")) enableTrace(); // 每一步执行轨迹：--trace 或环境变量 AGENT_TRACE=1
@@ -288,6 +298,10 @@ export async function main(args: string[] = []): Promise<void> {
     await runSelfTest();
     return;
   }
+
+  // 护栏开关 .env 回填（幂等一次）：后文的 AGENT_GUARD_MCP_STRICT / AGENT_GUARD_INPUT
+  // 在本函数里直读 process.env，先回填再装配（readGuardSwitches 内也会调——幂等，双保险）
+  hydrateGuardEnv();
 
   // 会话存储升级为 env 工厂（SESSION_STORE=memory|redis，默认 memory——与改造前一致）
   const sessionStore = createSessionStoreFromEnv();

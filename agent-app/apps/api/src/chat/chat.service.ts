@@ -11,7 +11,7 @@ import { streamText } from "ai";
 import type { ModelMessage } from "ai";
 import type { ChatStreamEvent } from "@agent-app/shared";
 import { DEFAULT_MAX_STEPS, runToolLoop } from "@agent-app/engine/agent-loop";
-import { auditLog, inspectSuspiciousKeywords, inspectTextInput } from "@agent-app/engine";
+import { auditLog, hydrateGuardEnv, inspectSuspiciousKeywords, inspectTextInput } from "@agent-app/engine";
 import { createModel } from "@agent-app/engine/llm";
 import { createSessionStoreFromEnv } from "@agent-app/engine/memory";
 import { llmInjectionScan, isLlmScanEnabled } from "../common/llm-injection-scan.js";
@@ -25,6 +25,7 @@ import { ToolApprovalRegistry, readConfirmTimeoutMs, readConfirmToolNames } from
 
 /** AGENT_GUARD_INPUT 的布尔口径（红队加固轮 H6 灰度开关，默认关——零变化默认铁律） */
 function isInputGuardEnabled(): boolean {
+  hydrateGuardEnv(); // .env 回填（幂等一次）：AGENT_GUARD_INPUT 写进 .env 与真实环境变量同语义
   const raw = process.env.AGENT_GUARD_INPUT;
   return raw === "1" || raw === "true";
 }
